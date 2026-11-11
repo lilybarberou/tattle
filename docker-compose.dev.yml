@@ -1,5 +1,5 @@
-# Development only: Postgres, a mail catcher and S3-compatible storage for `pnpm dev`. Self-hosting uses docker-compose.yml.
-name: tattle
+# Development only: Postgres, a mail catcher and S3-compatible storage for `pnpm dev`. Self-hosting uses deploy/compose.yaml.
+name: tattle-dev
 services:
   postgres:
     image: postgres:17-alpine
@@ -39,4 +39,6 @@ services:
 
 volumes:
   postgres-data:
+    name: tattle_postgres-data
   s3-data:
+    name: tattle_s3-data

@@ -1,6 +1,0 @@
-# Caddy gets and renews the HTTPS certificate for $DOMAIN by itself.
-# Point the domain's DNS at this server first, and set TRUST_PROXY=true in .env.
-{$DOMAIN} {
-	encode zstd gzip
-	reverse_proxy app:3000
-}

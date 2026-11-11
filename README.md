@@ -8,20 +8,25 @@ Self-hosted bug reports and feature requests for your web app, built to be triag
 
 ## Self-host
 
-Requirements: a server with Docker (1 vCPU and 1 GB of RAM are enough) and, for HTTPS, a domain pointing at it.
+No source code needed: Tattle ships as a Docker image, `ghcr.io/lilybarberou/tattle`, for Intel/AMD and ARM servers. A server with 1 GB of RAM is enough.
 
 ```bash
-git clone <this repo> tattle && cd tattle
-cp .env.example .env
+mkdir tattle && cd tattle
+curl -fsSLO https://raw.githubusercontent.com/lilybarberou/tattle/main/deploy/compose.yaml
+curl -fsSL https://raw.githubusercontent.com/lilybarberou/tattle/main/deploy/.env.example -o .env
 # Fill in .env: BETTER_AUTH_URL, BETTER_AUTH_SECRET (openssl rand -base64 32),
 # POSTGRES_PASSWORD (openssl rand -hex 24).
 
-docker compose up -d                    # http://<server>:3000
+docker compose up -d                    # http://127.0.0.1:3000
 # or, with automatic HTTPS for $DOMAIN (ports 80 and 443, set TRUST_PROXY=true):
 docker compose --profile https up -d
 ```
 
-Open the address and create the first account: it owns the workspace. Sign-up then closes; invite the rest of your team from **Members** (they sign up with the invited email and join automatically). Set `ALLOW_SIGNUP=true` to let anyone create an account.
+On a hosting panel (EasyPanel, Coolify, Dokploy…), run the image `ghcr.io/lilybarberou/tattle:latest` on port 3000 with a volume at `/data`, next to the panel's Postgres.
+
+**[The self-hosting guide](docs/SELF-HOSTING.md)** walks through all of it step by step: HTTPS, hosting panels, backups, upgrades, troubleshooting and every setting.
+
+The first account is the admin: creating it takes the **setup code** printed in the logs (`docker compose logs app | grep setup`), so nobody else can claim a fresh server. Sign-up then closes; invite the rest of your team from **Members** (they sign up with the invited email and join automatically). Set `ALLOW_SIGNUP=true` to let anyone create an account.
 
 What runs:
 
@@ -39,13 +44,9 @@ What runs:
 
 **Personal data**: **Privacy** in the dashboard finds everything about one person by email or user id, exports it as JSON and erases it (GDPR access and erasure requests). `REPORT_RETENTION_DAYS` drops screenshots and logs of older reports automatically; the message and the reporter stay.
 
-On start, the app checks its configuration, waits for Postgres and applies pending migrations, so an upgrade is:
+On start, the app checks its configuration, waits for Postgres and applies pending migrations, so an upgrade is `docker compose pull && docker compose up -d`. Pin a version with `TATTLE_VERSION` in `.env`.
 
-```bash
-git pull && docker compose up -d --build
-```
-
-**Back up** the database (`docker compose exec postgres pg_dump -U tattle tattle > backup.sql`) and the screenshots (the `storage` volume, or your bucket).
+**Back up** the database and the screenshots: see [Backups](docs/SELF-HOSTING.md#9-backups).
 
 **Health**: `GET /health` answers `{"ok":true}` when the app and the database respond; Docker uses it as the container's healthcheck.
 
@@ -66,7 +67,15 @@ pnpm --filter @tattle/widget build
 pnpm dev                                         # http://localhost:3000
 ```
 
-Create an account, then a project: its settings page shows the widget snippet.
+Create an account (the setup code is printed in the `pnpm dev` output), then a project: its settings page shows the widget snippet.
+
+`pnpm test` runs the test suites (Postgres from the dev compose file must be up). `pnpm check` lints and formats.
+
+**Releases**: every push to `main` publishes `ghcr.io/lilybarberou/tattle:main`. A version tag publishes the release and moves `latest`:
+
+```bash
+git tag v0.2.0 && git push origin v0.2.0
+```
 
 ## Install the widget in your app
 

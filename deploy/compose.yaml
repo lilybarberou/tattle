@@ -1,19 +1,20 @@
-# Self-hosting: the app, Postgres, and (with --profile https) Caddy for HTTPS.
-# 1. cp .env.example .env and fill it in
-# 2. docker compose up -d                      → http://<server>:3000
-#    docker compose --profile https up -d      → https://$DOMAIN (ports 80/443)
-name: tattle-app
+# Tattle, ready to run: no source code needed, Docker pulls the image.
+# Guide: docs/SELF-HOSTING.md
+#
+#   docker compose up -d                     → http://127.0.0.1:3000 on this machine
+#   docker compose --profile https up -d     → https://$DOMAIN, certificate included
+name: tattle
 services:
   app:
-    build: .
-    image: tattle:latest
+    image: ghcr.io/lilybarberou/tattle:${TATTLE_VERSION:-latest}
     restart: unless-stopped
     env_file: .env
     environment:
       DATABASE_URL: postgres://tattle:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/tattle
-      STORAGE_DIR: /data/storage
     ports:
-      - "${APP_PORT:-3000}:3000"
+      # Only this machine by default: a reverse proxy (the https profile, or
+      # your own) faces the internet. APP_BIND=0.0.0.0 opens it to the network.
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-3000}:3000"
     volumes:
       - storage:/data
     depends_on:
@@ -35,17 +36,17 @@ services:
       timeout: 5s
       retries: 20
 
+  # HTTPS for $DOMAIN with a free certificate (Let's Encrypt), renewed by
+  # itself. Point the domain at this server first, and set TRUST_PROXY=true.
   caddy:
     image: caddy:2-alpine
     profiles: ["https"]
     restart: unless-stopped
-    environment:
-      DOMAIN: ${DOMAIN:-localhost}
+    command: caddy reverse-proxy --from ${DOMAIN:-localhost} --to app:3000
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
     depends_on:
       - app
