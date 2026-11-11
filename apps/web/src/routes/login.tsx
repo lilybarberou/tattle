@@ -52,7 +52,11 @@ function LoginPage() {
 						email,
 						password,
 						name: String(form.get("name")),
-					});
+						// Checked by the server for the first account only.
+						...(signup.firstUser
+							? { setupCode: String(form.get("setupCode")) }
+							: {}),
+					} as Parameters<typeof authClient.signUp.email>[0]);
 		setPending(false);
 		if (result.error) {
 			setError(result.error.message ?? "Something went wrong");
@@ -84,6 +88,25 @@ function LoginPage() {
 					<p className="text-muted-foreground">{intro}</p>
 				</div>
 				<form onSubmit={onSubmit} className="space-y-4">
+					{mode === "sign-up" && signup.firstUser && (
+						<div className="space-y-1.5">
+							<Label htmlFor="setupCode">Setup code</Label>
+							<Input
+								id="setupCode"
+								name="setupCode"
+								required
+								autoComplete="off"
+								spellCheck={false}
+								placeholder="XXXX-XXXX-XXXX"
+								className="font-mono uppercase"
+							/>
+							<p className="text-xs text-muted-foreground">
+								In the server logs, on the line that starts with{" "}
+								<code className="font-mono">[setup]</code>. It proves you run
+								this server.
+							</p>
+						</div>
+					)}
 					{mode === "sign-up" && (
 						<div className="space-y-1.5">
 							<Label htmlFor="name">Name</Label>

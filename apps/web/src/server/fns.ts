@@ -21,7 +21,11 @@ import {
 } from "#/db/schema";
 import { auth } from "#/lib/auth";
 import { passwordPolicy } from "#/lib/password-policy";
-import { acceptPendingInvitations, signupPolicy } from "#/lib/signup";
+import {
+	acceptPendingInvitations,
+	announceSetupCode,
+	signupPolicy,
+} from "#/lib/signup";
 import {
 	ISSUE_STATUSES,
 	WEBHOOK_EVENTS,
@@ -142,6 +146,7 @@ export const getSignupStateFn = createServerFn({ method: "GET" })
 	.validator(z.object({ email: z.string().optional() }))
 	.handler(async ({ data }) => {
 		const policy = await signupPolicy(data.email);
+		if (policy.firstUser) announceSetupCode();
 		return {
 			firstUser: policy.firstUser,
 			open: policy.open,

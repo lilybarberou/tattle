@@ -3,7 +3,7 @@ import { fetchClientMetadataResource } from "@better-auth/cimd/node";
 import { mcp } from "@better-auth/mcp";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { APIError } from "better-auth/api";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { haveIBeenPwned, jwt, organization } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { db } from "#/db";
@@ -11,6 +11,7 @@ import * as schema from "#/db/schema";
 import { sendMail } from "#/server/mailer";
 import { CLIENT_IP_HEADER } from "#/server/rate-limit";
 import { passwordPolicy } from "./password-policy";
+import { checkSetupCode } from "./setup-code";
 import { signupPolicy } from "./signup";
 
 const passwords = passwordPolicy();
@@ -46,6 +47,20 @@ export const auth = betterAuth({
 	rateLimit: { enabled: process.env.NODE_ENV === "production" },
 	advanced: {
 		ipAddress: { ipAddressHeaders: [CLIENT_IP_HEADER] },
+	},
+	// The first account owns the server, so creating it takes the setup code
+	// printed in the server logs (see setup-code.ts).
+	hooks: {
+		before: createAuthMiddleware(async (ctx) => {
+			if (ctx.path !== "/sign-up/email") return;
+			const { firstUser } = await signupPolicy();
+			if (firstUser && !checkSetupCode(ctx.body?.setupCode)) {
+				throw new APIError("FORBIDDEN", {
+					message:
+						"Wrong setup code. It is in the server logs, on the line that starts with [setup].",
+				});
+			}
+		}),
 	},
 	databaseHooks: {
 		user: {

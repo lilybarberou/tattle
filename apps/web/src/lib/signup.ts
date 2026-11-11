@@ -1,6 +1,7 @@
 import { and, count, eq, gt } from "drizzle-orm";
 import { db } from "#/db";
 import { invitation, member, user } from "#/db/schema";
+import { setupCodeLogLine } from "./setup-code";
 
 /**
  * Who may create an account on this server:
@@ -69,4 +70,12 @@ export async function acceptPendingInvitations(userId: string, email: string) {
 		});
 	}
 	return pending.length;
+}
+
+let announced = false;
+/** Prints the setup code once per process, when the login page first asks. */
+export function announceSetupCode() {
+	if (announced) return;
+	announced = true;
+	console.info(setupCodeLogLine(process.env.BETTER_AUTH_URL ?? ""));
 }

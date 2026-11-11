@@ -2,6 +2,7 @@
 // waits for Postgres, then applies the SQL migrations in ./drizzle.
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { setupCodeLogLine } from "../src/lib/setup-code";
 
 const problems: string[] = [];
 const databaseUrl = process.env.DATABASE_URL;
@@ -106,4 +107,7 @@ for (let attempt = 1; ; attempt++) {
 		await new Promise((resolve) => setTimeout(resolve, 2000));
 	}
 }
+// A fresh server: say how to create the admin account.
+const users = await db.$client.query('select count(*)::int as n from "user"');
+if (users.rows[0]?.n === 0) console.log(setupCodeLogLine(baseUrl as string));
 await db.$client.end();
