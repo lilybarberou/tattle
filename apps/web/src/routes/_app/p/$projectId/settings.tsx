@@ -62,7 +62,6 @@ function SettingsPage() {
 	);
 	const [confirmName, setConfirmName] = useState("");
 	const navigate = useNavigate();
-	const [installTab, setInstallTab] = useState<"script" | "npm">("script");
 
 	const save = async (data: {
 		name?: string;
@@ -84,10 +83,6 @@ function SettingsPage() {
   data-project-key="${project.publicKey}"
   defer
 ></script>`;
-	const npmSnippet = `npm install @tattle/widget
-
-import { Tattle } from "@tattle/widget"
-Tattle.init({ projectKey: "${project.publicKey}", apiUrl: "${baseUrl}" })`;
 	const identifySnippet = `// After sign-in, so every report says who sent it:
 Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.plan })
 Tattle.setContext({ appVersion: "1.4.2" })`;
@@ -147,29 +142,7 @@ Tattle.setContext({ appVersion: "1.4.2" })`;
 						</>
 					}
 				>
-					<div className="flex gap-5 border-b">
-						{(
-							[
-								["script", "Script tag"],
-								["npm", "npm"],
-							] as const
-						).map(([id, label]) => (
-							<button
-								key={id}
-								type="button"
-								onClick={() => setInstallTab(id)}
-								className={cn(
-									"-mb-px h-9 border-b-2 border-transparent text-muted-foreground hover:text-ink",
-									installTab === id && "border-brand font-medium text-ink",
-								)}
-							>
-								{label}
-							</button>
-						))}
-					</div>
-					<CodeBlock
-						code={installTab === "script" ? scriptSnippet : npmSnippet}
-					/>
+					<CodeBlock code={scriptSnippet} />
 					<CodeBlock
 						label="Then identify the signed-in user"
 						code={identifySnippet}

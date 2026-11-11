@@ -11,8 +11,6 @@ Users click a floating button, choose **Report a bug** or **Suggest an idea**, a
 
 ## Install
 
-### Script tag
-
 ```html
 <script
   src="https://tattle.example.com/widget.js"
@@ -45,29 +43,12 @@ With `defer`/`async` your code may run before the script has loaded. To call the
 </script>
 ```
 
-### npm
-
-```sh
-pnpm add @tattle/widget
-```
-
-```ts
-import { init, identify, setContext, open } from "@tattle/widget";
-// or: import Tattle from "@tattle/widget";
-
-init({ projectKey: "pk_...", apiUrl: "https://tattle.example.com" });
-identify({ id: user.id, email: user.email, name: user.name, plan: user.plan });
-setContext({ appVersion: "2.3.1", tenant: "acme" });
-```
-
-The collectors start when the module is evaluated. Import it as early as you can to capture early logs. On the server (SSR) the import does nothing.
-
 ## API
 
 ```ts
 Tattle.init(options: {
   projectKey: string
-  apiUrl?: string                        // server base URL; default: current origin (npm) / script origin (script tag)
+  apiUrl?: string                        // server base URL; default: the script's origin
   position?: "bottom-right" | "bottom-left"   // default "bottom-right"
   showButton?: boolean                   // default true; when false, open the panel with Tattle.open()
   locale?: "fr" | "en"                   // default from navigator.language

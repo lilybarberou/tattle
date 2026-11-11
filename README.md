@@ -88,7 +88,7 @@ git tag v0.2.0 && git push origin v0.2.0
 </script>
 ```
 
-See [packages/widget/README.md](packages/widget/README.md) for the npm package, options and what is collected.
+See [packages/widget/README.md](packages/widget/README.md) for the options, the API and what is collected.
 
 ## Connect an agent
 
