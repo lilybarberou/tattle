@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tattle
+          POSTGRES_PASSWORD: tattle
+          POSTGRES_DB: tattle_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tattle -d tattle_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # pnpm version comes from "packageManager" in package.json.
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Biome
+        run: pnpm check
+
+      - name: Typecheck (web, widget)
+        run: pnpm typecheck
+
+      - name: Build widget
+        run: pnpm --filter @tattle/widget build
+
+      - name: Test
+        run: pnpm test
+        env:
+          # The tests empty every table: the database name must end in _test.
+          TEST_DATABASE_URL: postgres://tattle:tattle@localhost:5432/tattle_test
+
+      - name: Build web
+        run: pnpm --filter web build
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build (no push)
+        run: docker build .

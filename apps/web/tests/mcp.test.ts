@@ -1,0 +1,211 @@
+import { describe, expect, it } from "vitest";
+import { Ingest } from "#/server/Ingest";
+import { handleMcpRequest } from "#/server/mcp";
+import {
+	createApiToken,
+	createWorkspace,
+	PNG_DATA_URL,
+	reportPayload,
+} from "./helpers/factories";
+import { run, setupTestDatabase } from "./helpers/runtime";
+
+setupTestDatabase();
+
+type JsonRpcResponse = {
+	jsonrpc: "2.0";
+	id: number | null;
+	result?: {
+		tools?: Array<{ name: string; annotations?: { readOnlyHint?: boolean } }>;
+		content?: Array<{
+			type: string;
+			text?: string;
+			data?: string;
+			mimeType?: string;
+		}>;
+		isError?: boolean;
+	};
+	error?: { code: number; message: string };
+};
+
+let nextId = 1;
+const mcpRequest = (method: string, params: object, token?: string) =>
+	new Request("http://localhost:3000/api/mcp", {
+		method: "POST",
+		headers: {
+			"content-type": "application/json",
+			accept: "application/json, text/event-stream",
+			"mcp-protocol-version": "2025-06-18",
+			...(token ? { authorization: `Bearer ${token}` } : {}),
+		},
+		body: JSON.stringify({ jsonrpc: "2.0", id: nextId++, method, params }),
+	});
+
+/** Reads a JSON or SSE (`data: …` lines) response into its JSON-RPC message. */
+const readMessage = async (response: Response): Promise<JsonRpcResponse> => {
+	const body = await response.text();
+	if (!response.headers.get("content-type")?.includes("text/event-stream")) {
+		return JSON.parse(body);
+	}
+	const data = body
+		.split("\n")
+		.filter((line) => line.startsWith("data:"))
+		.map((line) => line.slice(5).trim())
+		.filter(Boolean);
+	const last = data.at(-1);
+	if (!last) throw new Error(`No data in SSE response: ${body}`);
+	return JSON.parse(last);
+};
+
+const call = async (token: string, name: string, args: object) => {
+	const response = await handleMcpRequest(
+		mcpRequest("tools/call", { name, arguments: args }, token),
+	);
+	expect(response.status).toBe(200);
+	return readMessage(response);
+};
+
+describe("handleMcpRequest", () => {
+	it("answers 401 with an OAuth challenge when there is no token", async () => {
+		const response = await handleMcpRequest(mcpRequest("tools/list", {}));
+		expect(response.status).toBe(401);
+		expect(response.headers.get("www-authenticate")).toContain(
+			"resource_metadata",
+		);
+	});
+
+	it("answers 401 for an unknown API token", async () => {
+		const response = await handleMcpRequest(
+			mcpRequest("tools/list", {}, "tat_nope"),
+		);
+		expect(response.status).toBe(401);
+		expect((await readMessage(response)).error?.message).toBe(
+			"Invalid API token",
+		);
+	});
+
+	it("lists the tools for an API token", async () => {
+		const { org } = await createWorkspace();
+		const { token } = await createApiToken(org.id);
+		const response = await handleMcpRequest(
+			mcpRequest("tools/list", {}, token),
+		);
+		expect(response.status).toBe(200);
+		const tools = (await readMessage(response)).result?.tools ?? [];
+		expect(tools.map((t) => t.name).sort()).toEqual([
+			"add_comment",
+			"create_issue",
+			"get_issue",
+			"get_report",
+			"list_issues",
+			"list_projects",
+			"mark_duplicate",
+			"move_report",
+			"search_issues",
+			"update_issue",
+		]);
+		expect(
+			tools.find((t) => t.name === "get_report")?.annotations?.readOnlyHint,
+		).toBe(true);
+	});
+
+	it("lists only the projects of the token's organization", async () => {
+		const { org, project: p } = await createWorkspace();
+		await createWorkspace();
+		const { token } = await createApiToken(org.id);
+		const message = await call(token, "list_projects", {});
+		const projects = JSON.parse(message.result?.content?.[0]?.text ?? "[]");
+		expect(projects).toEqual([{ id: p.id, slug: p.slug, name: p.name }]);
+	});
+
+	it("get_report returns the report as text and its screenshot as an image", async () => {
+		const { org, project: p } = await createWorkspace();
+		const { token } = await createApiToken(org.id, { canWrite: false });
+		const submitted = await run(
+			Ingest.use((ingest) =>
+				ingest.submit(
+					reportPayload(p.publicKey, {
+						screenshot: PNG_DATA_URL,
+						console: [
+							{
+								level: "error",
+								message: "TypeError: x is undefined",
+								timestamp: 1,
+							},
+						],
+					}),
+					null,
+				),
+			),
+		);
+
+		const message = await call(token, "get_report", {
+			project: p.slug,
+			report_id: submitted.id,
+		});
+		const [textPart, imagePart] = message.result?.content ?? [];
+		expect(textPart?.type).toBe("text");
+		const reportJson = JSON.parse(textPart?.text ?? "{}");
+		expect(reportJson).toMatchObject({
+			id: submitted.id,
+			message: "Checkout button does nothing\nI clicked it three times.",
+			console: [{ level: "error", message: "TypeError: x is undefined" }],
+		});
+		expect(reportJson).not.toHaveProperty("screenshotKey");
+		expect(imagePart).toEqual({
+			type: "image",
+			mimeType: "image/png",
+			data: PNG_DATA_URL.split(",")[1],
+		});
+
+		const withoutImage = await call(token, "get_report", {
+			project: p.id,
+			report_id: submitted.id,
+			include_screenshot: false,
+		});
+		expect(withoutImage.result?.content).toHaveLength(1);
+	});
+
+	it("update_issue works with a write token and is a tool error for a read-only one", async () => {
+		const { org, project: p } = await createWorkspace();
+		await run(
+			Ingest.use((ingest) => ingest.submit(reportPayload(p.publicKey), null)),
+		);
+		const readOnly = await createApiToken(org.id, { canWrite: false });
+		const writer = await createApiToken(org.id, { name: "Writer bot" });
+
+		const refused = await call(readOnly.token, "update_issue", {
+			project: p.slug,
+			number: 1,
+			status: "todo",
+		});
+		expect(refused.result?.isError).toBe(true);
+		expect(refused.result?.content?.[0]?.text).toBe(
+			"This API token is read-only",
+		);
+
+		const accepted = await call(writer.token, "update_issue", {
+			project: p.slug,
+			number: 1,
+			status: "todo",
+			assign_to_me: true,
+		});
+		expect(accepted.result?.isError).toBeFalsy();
+		expect(
+			JSON.parse(accepted.result?.content?.[0]?.text ?? "{}"),
+		).toMatchObject({
+			status: "todo",
+			assignee: { type: "agent", id: writer.row.id, name: "Writer bot" },
+		});
+	});
+
+	it("does not reach another organization's project", async () => {
+		const { org } = await createWorkspace();
+		const { project: theirs } = await createWorkspace();
+		const { token } = await createApiToken(org.id);
+		const message = await call(token, "list_issues", { project: theirs.id });
+		expect(message.result?.isError).toBe(true);
+		expect(message.result?.content?.[0]?.text).toBe(
+			`Project "${theirs.id}" not found`,
+		);
+	});
+});
