@@ -181,6 +181,11 @@ TRUST_PROXY=true
 ```
 
 The app prepares the database itself on every start, so there's no separate migration step.
+
+> [!IMPORTANT]
+> Some panels set a `PORT` variable on every app, often to `80`. Tattle listens on it: the logs
+> say `Listening on: http://localhost/` (port 80) instead of `http://localhost:3000/`. Either add
+> `PORT=3000` to the environment, or point the domain at the port the logs show.
 Deploy, then go to [step 6](#6-first-visit-create-the-admin-account); the setup code is in the
 app's logs in the panel.
 
@@ -191,7 +196,7 @@ app's logs in the panel.
 2. **+ Service → Postgres**, name it `db`. Open it and copy the **Internal Connection URL**.
 3. **+ Service → App**, name it `app`.
    - **Source**: *Docker Image*, `ghcr.io/lilybarberou/tattle:latest`.
-   - **Environment**: the four variables above.
+   - **Environment**: the four variables above, plus `PORT=3000`.
    - **Domains**: keep the generated `….easypanel.host` domain (or add yours), port `3000`.
      Put this exact address in `BETTER_AUTH_URL`.
    - **Mounts**: *Add Volume*, name `data`, mount path `/data`.
@@ -319,6 +324,7 @@ Start with the logs: `docker compose logs --tail=100 app`.
 | Signing in does nothing, or "Invalid origin" | `BETTER_AUTH_URL` must be exactly the address in your browser, `https://` included and no trailing slash. |
 | The widget says "This origin is not allowed" | Add your app's address (for example `https://shop.example.org`) to the project's *Allowed sites*. |
 | "Too many reports" (429) behind a proxy, from many people at once | Set `TRUST_PROXY=true`, otherwise Tattle sees every visitor as the proxy's IP. |
+| The address shows nothing, or the panel keeps restarting the app; the logs say `Listening on: http://localhost/` | The panel set `PORT` (to 80). Add `PORT=3000` to the environment, or point the domain at port 80. |
 | Screenshots disappear after a redeploy | Nothing is mounted at `/data`. Add the volume (or use S3). |
 | Invitations aren't emailed | Expected without SMTP: copy the invitation link from **Members**. With SMTP, the logs show the error. |
 

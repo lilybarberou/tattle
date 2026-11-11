@@ -28,6 +28,7 @@ RUN mkdir -p /data/storage && chown -R node:node /data
 USER node
 VOLUME /data
 EXPOSE 3000
+# Hosting panels may set PORT themselves: the check follows it.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:3000/health >/dev/null || exit 1
+  CMD wget -qO- "http://127.0.0.1:${PORT:-3000}/health" >/dev/null || exit 1
 CMD ["sh", "-c", "node migrate.mjs && exec node .output/server/index.mjs"]
