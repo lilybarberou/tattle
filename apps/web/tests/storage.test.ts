@@ -132,7 +132,12 @@ describe("signed URLs", () => {
 		const url = parse(s.signedUrl("p1/reports/r1.png", 60));
 		expect(s.verify("p2/reports/r1.png", url.exp, url.sig)).toBe(false);
 		expect(s.verify(url.key, url.exp + 3600, url.sig)).toBe(false);
-		expect(s.verify(url.key, url.exp, `${url.sig.slice(0, -1)}A`)).toBe(false);
+		// Swap the last character for a different one: a fixed "A" would leave
+		// the signature unchanged whenever it already ends in "A".
+		const last = url.sig.at(-1) === "A" ? "B" : "A";
+		expect(s.verify(url.key, url.exp, `${url.sig.slice(0, -1)}${last}`)).toBe(
+			false,
+		);
 		expect(s.verify(url.key, url.exp, "")).toBe(false);
 		expect(s.verify(url.key, Number.NaN, url.sig)).toBe(false);
 	});
