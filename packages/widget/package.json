@@ -1,0 +1,41 @@
+{
+  "name": "@tattle/widget",
+  "version": "0.1.0",
+  "description": "Drop-in bug report and feedback widget: screenshot + annotations, console logs, network requests and device info.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "unpkg": "./dist/widget.iife.js",
+  "jsdelivr": "./dist/widget.iife.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./widget.iife.js": "./dist/widget.iife.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "vite build && vite build --mode esm && tsc -p tsconfig.build.json",
+    "dev": "vite build --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "demo": "vite serve . --open /demo/index.html"
+  },
+  "dependencies": {
+    "html-to-image": "1.11.13"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.2",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
+  }
+}

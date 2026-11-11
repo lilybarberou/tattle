@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+		<title>@tattle/widget demo</title>
+		<style>
+			:root { color-scheme: light dark; --bg: #f7f7f8; --card: #fff; --fg: #18181b; --muted: #6b6b76; --border: #e4e4e7; }
+			@media (prefers-color-scheme: dark) { :root { --bg: #111114; --card: #1c1c21; --fg: #f4f4f5; --muted: #a1a1aa; --border: #33333b; } }
+			* { box-sizing: border-box; }
+			body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--fg); }
+			header { position: fixed; top: 0; left: 0; right: 0; height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 20px; background: #2f55c9; color: #fff; z-index: 10; }
+			header strong { font-size: 16px; }
+			main { max-width: 860px; margin: 0 auto; padding: 80px 16px 120px; display: grid; gap: 16px; }
+			section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; }
+			h2 { margin: 0 0 10px; font-size: 15px; }
+			p { margin: 0 0 10px; color: var(--muted); }
+			.row { display: flex; flex-wrap: wrap; gap: 8px; }
+			button { font: inherit; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--fg); cursor: pointer; }
+			button:hover { border-color: #2f55c9; }
+			label { display: grid; gap: 4px; margin-bottom: 10px; font-size: 13px; }
+			input { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); max-width: 320px; }
+			.secret { padding: 10px 12px; border-radius: 8px; background: #fde68a; color: #78350f; }
+			.tall { height: 900px; background: repeating-linear-gradient(45deg, transparent 0 20px, rgba(47, 85, 201, .06) 20px 40px); border-radius: 12px; display: grid; place-items: center; color: var(--muted); }
+			pre { margin: 0; font-size: 12px; white-space: pre-wrap; word-break: break-all; color: var(--muted); }
+		</style>
+	</head>
+	<body>
+		<header><strong>Acme Dashboard</strong><span>widget demo (fixed header)</span></header>
+		<main>
+			<section>
+				<h2>Console</h2>
+				<p>Entries are kept in a ring buffer of 200 and sent with the report.</p>
+				<div class="row">
+					<button type="button" id="log">console.log</button>
+					<button type="button" id="info">console.info</button>
+					<button type="button" id="warn">console.warn</button>
+					<button type="button" id="error">console.error(Error)</button>
+					<button type="button" id="debug">console.debug</button>
+					<button type="button" id="object">log circular object</button>
+				</div>
+			</section>
+			<section>
+				<h2>Errors</h2>
+				<div class="row">
+					<button type="button" id="throw">Throw uncaught error</button>
+					<button type="button" id="reject">Unhandled rejection</button>
+					<button type="button" id="broken-img">Broken image</button>
+				</div>
+			</section>
+			<section>
+				<h2>Network</h2>
+				<p>Request bodies and headers are never recorded; sensitive query values are redacted.</p>
+				<div class="row">
+					<button type="button" id="fetch-ok">fetch /get</button>
+					<button type="button" id="fetch-500">fetch /status/500</button>
+					<button type="button" id="fetch-token">fetch /get?token=…&amp;page=2</button>
+					<button type="button" id="fetch-fail">fetch unreachable host</button>
+					<button type="button" id="xhr">XHR /get</button>
+				</div>
+			</section>
+			<section>
+				<h2>Privacy masking</h2>
+				<label>Email <input type="email" value="jane@example.com" /></label>
+				<label>Password (masked in screenshots) <input type="password" value="hunter2-super-secret" /></label>
+				<label>Card number (masked) <input autocomplete="cc-number" value="4242 4242 4242 4242" /></label>
+				<div class="secret" data-tattle-mask>Element with data-tattle-mask: API key sk_live_123456789</div>
+				<p style="margin-top: 10px">
+					<span class="custom-private">Masked through the <code>maskSelectors</code> option (.custom-private).</span>
+				</p>
+			</section>
+			<section>
+				<h2>Widget API</h2>
+				<div class="row">
+					<button type="button" id="identify">identify(Jane)</button>
+					<button type="button" id="identify-anon">identify(null)</button>
+					<button type="button" id="context">setContext({ plan: "pro" })</button>
+					<button type="button" id="open-bug">open({ type: "bug" })</button>
+					<button type="button" id="open-feature">open({ type: "feature" })</button>
+					<button type="button" id="reinit">init(bottom-left, fr, maskSelectors)</button>
+					<button type="button" id="destroy">destroy()</button>
+				</div>
+			</section>
+			<section>
+				<h2>Last activity</h2>
+				<pre id="out">–</pre>
+			</section>
+			<div class="tall">Scroll down, then capture: the screenshot follows the scroll position.</div>
+		</main>
+
+		<script>
+			// Logs emitted before the SDK loads are not captured; everything after is.
+			const out = document.getElementById("out");
+			const show = (v) => (out.textContent = typeof v === "string" ? v : JSON.stringify(v, null, 2));
+			const on = (id, fn) => document.getElementById(id).addEventListener("click", fn);
+			const HTTPBIN = "https://httpbin.org";
+
+			on("log", () => console.log("Clicked log", { count: 1, nested: { a: [1, 2, 3] } }));
+			on("info", () => console.info("Some info message"));
+			on("warn", () => console.warn("Deprecated thing used"));
+			on("error", () => console.error("Something failed", new Error("Boom from console.error")));
+			on("debug", () => console.debug("debug details", 42, true, null, undefined));
+			on("object", () => {
+				const a = { name: "a", deep: { l1: { l2: { l3: { l4: { l5: "too deep" } } } } }, big: "x".repeat(3000) };
+				a.self = a;
+				console.log("circular:", a);
+			});
+			on("throw", () => setTimeout(() => { throw new TypeError("Cannot read properties of undefined (reading 'id')"); }));
+			on("reject", () => Promise.reject(new Error("Promise went wrong")));
+			on("broken-img", () => {
+				const img = new Image();
+				img.src = "/does-not-exist.png?session=abc";
+				document.body.append(img);
+			});
+			on("fetch-ok", () => fetch(`${HTTPBIN}/get`).then((r) => show(`GET /get -> ${r.status}`)));
+			on("fetch-500", () => fetch(`${HTTPBIN}/status/500`).then((r) => show(`GET /status/500 -> ${r.status}`)));
+			on("fetch-token", () =>
+				fetch(`${HTTPBIN}/get?token=abc123&page=2&api_key=xyz`).then((r) => show(`GET /get?token=… -> ${r.status}`)),
+			);
+			on("fetch-fail", () => fetch("https://unreachable.invalid/x").catch((e) => show(`failed: ${e.message}`)));
+			on("xhr", () => {
+				const xhr = new XMLHttpRequest();
+				xhr.open("GET", `${HTTPBIN}/get?password=letmein`);
+				xhr.onloadend = () => show(`XHR -> ${xhr.status}`);
+				xhr.send();
+			});
+			on("identify", () => {
+				Tattle.identify({ id: "u_42", email: "jane@acme.test", name: "Jane Doe", plan: "pro", company: "Acme" });
+				show("identified Jane (email field is now hidden)");
+			});
+			on("identify-anon", () => { Tattle.identify(null); show("anonymous"); });
+			on("context", () => { Tattle.setContext({ plan: "pro", appVersion: "2.3.1", tenant: "acme" }); show("context set"); });
+			on("open-bug", () => Tattle.open({ type: "bug" }));
+			on("open-feature", () => Tattle.open({ type: "feature" }));
+			on("reinit", () =>
+				Tattle.init({
+					projectKey: "pk_demo",
+					apiUrl: "http://localhost:3000",
+					position: "bottom-left",
+					locale: "fr",
+					accentColor: "#0f766e",
+					maskSelectors: [".custom-private"],
+				}),
+			);
+			on("destroy", () => { Tattle.destroy(); show("destroyed"); });
+		</script>
+		<script src="../dist/widget.iife.js" data-project-key="pk_demo" data-api-url="http://localhost:3000" defer></script>
+	</body>
+</html>

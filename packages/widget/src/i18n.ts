@@ -1,0 +1,100 @@
+import type { Locale } from "./types";
+
+const en = {
+	launcher: "Send feedback",
+	closeLauncher: "Close feedback",
+	title: "Send feedback",
+	close: "Close",
+	typeGroup: "Feedback type",
+	bug: "Report a bug",
+	feature: "Suggest an idea",
+	capture: "Capture the screen",
+	captureHint: "Optional: add an annotated screenshot of this page.",
+	capturing: "Capturing…",
+	captureFailed: "Could not capture the screen.",
+	screenshotAlt: "Annotated screenshot",
+	editShot: "Edit",
+	removeShot: "Remove",
+	messageLabelBug: "What went wrong?",
+	messageLabelFeature: "What's your idea?",
+	placeholderBug: "Describe what happened and what you expected…",
+	placeholderFeature: "Describe your idea and what it would help you do…",
+	emailLabel: "Your email (optional)",
+	emailPlaceholder: "you@example.com",
+	invalidEmail: "Please enter a valid email address.",
+	emptyMessage: "Please write a message.",
+	tooLong: "Message is too long (5000 characters max).",
+	send: "Send",
+	sending: "Sending…",
+	success: "Thanks! We got it.",
+	genericError: "Something went wrong. Please try again.",
+	networkError:
+		"Could not reach the server. Check your connection and try again.",
+	// Annotation editor
+	editorLabel: "Annotate screenshot",
+	toolRect: "Rectangle",
+	toolEllipse: "Circle",
+	toolArrow: "Arrow",
+	toolPen: "Pen",
+	toolBlur: "Blur",
+	undo: "Undo",
+	clear: "Clear all",
+	cancel: "Cancel",
+	done: "Done",
+};
+
+export type Strings = typeof en;
+
+const fr: Strings = {
+	launcher: "Envoyer un retour",
+	closeLauncher: "Fermer le formulaire de retour",
+	title: "Envoyer un retour",
+	close: "Fermer",
+	typeGroup: "Type de retour",
+	bug: "Signaler un bug",
+	feature: "Suggérer une idée",
+	capture: "Capturer l'écran",
+	captureHint: "Facultatif : joignez une capture annotée de la page.",
+	capturing: "Capture…",
+	captureFailed: "Impossible de capturer l'écran.",
+	screenshotAlt: "Capture d'écran annotée",
+	editShot: "Modifier",
+	removeShot: "Supprimer",
+	messageLabelBug: "Que s'est-il passé ?",
+	messageLabelFeature: "Quelle est votre idée ?",
+	placeholderBug: "Décrivez ce qui s'est passé et ce que vous attendiez…",
+	placeholderFeature:
+		"Décrivez votre idée et ce qu'elle vous permettrait de faire…",
+	emailLabel: "Votre e-mail (facultatif)",
+	emailPlaceholder: "vous@exemple.fr",
+	invalidEmail: "Veuillez saisir une adresse e-mail valide.",
+	emptyMessage: "Veuillez écrire un message.",
+	tooLong: "Message trop long (5000 caractères maximum).",
+	send: "Envoyer",
+	sending: "Envoi…",
+	success: "Merci ! C'est bien reçu.",
+	genericError: "Une erreur est survenue. Veuillez réessayer.",
+	networkError:
+		"Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.",
+	editorLabel: "Annoter la capture",
+	toolRect: "Rectangle",
+	toolEllipse: "Cercle",
+	toolArrow: "Flèche",
+	toolPen: "Crayon",
+	toolBlur: "Flouter",
+	undo: "Annuler la dernière action",
+	clear: "Tout effacer",
+	cancel: "Annuler",
+	done: "Terminer",
+};
+
+const STRINGS: Record<Locale, Strings> = { en, fr };
+
+export function detectLocale(): Locale {
+	const lang = typeof navigator !== "undefined" ? navigator.language || "" : "";
+	return lang.toLowerCase().startsWith("fr") ? "fr" : "en";
+}
+
+export function getStrings(locale: Locale): Strings {
+	return STRINGS[locale] ?? en;
+}
