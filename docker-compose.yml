@@ -1,0 +1,56 @@
+# Self-hosting: the app, Postgres, and (with --profile https) Caddy for HTTPS.
+# 1. cp .env.example .env and fill it in
+# 2. docker compose up -d                      → http://<server>:3000
+#    docker compose --profile https up -d      → https://$DOMAIN (ports 80/443)
+name: tattle-app
+services:
+  app:
+    build: .
+    image: tattle:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://tattle:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/tattle
+      STORAGE_DIR: /data/storage
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      - storage:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tattle
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: tattle
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tattle -d tattle"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["https"]
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      - app
+
+volumes:
+  db:
+  storage:
+  caddy-data:

@@ -1,0 +1,11 @@
+**/node_modules
+**/.output
+**/.nitro
+**/.tanstack
+**/dist
+**/storage
+**/.env
+**/.env.local
+.git
+.taste-skill
+apps/web/public/widget.js

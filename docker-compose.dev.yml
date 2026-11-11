@@ -1,0 +1,42 @@
+# Development only: Postgres, a mail catcher and S3-compatible storage for `pnpm dev`. Self-hosting uses docker-compose.yml.
+name: tattle
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tattle
+      POSTGRES_PASSWORD: tattle
+      POSTGRES_DB: tattle
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  # Catches every email the app sends: open http://localhost:8026
+  mailpit:
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    ports:
+      - "1026:1025"
+      - "8026:8025"
+
+  # S3-compatible storage (RustFS) to try STORAGE_DRIVER=s3.
+  # API on localhost:9030, console on http://localhost:9031.
+  s3:
+    image: ghcr.io/rustfs/rustfs:1.0.3
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: tattle
+      RUSTFS_SECRET_KEY: tattle-secret
+      RUSTFS_VOLUMES: /data
+      RUSTFS_CONSOLE_ENABLE: "true"
+    ports:
+      - "9030:9000"
+      - "9031:9001"
+    volumes:
+      - s3-data:/data
+
+volumes:
+  postgres-data:
+  s3-data:
