@@ -1,0 +1,633 @@
+import {
+	createFileRoute,
+	getRouteApi,
+	Link,
+	useNavigate,
+	useRouter,
+} from "@tanstack/react-router";
+import { SendIcon, Trash2Icon } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { CodeBlock } from "#/components/code-block";
+import { relativeTime } from "#/components/issue-meta";
+import { PageHeader } from "#/components/page-header";
+import { SettingsSection } from "#/components/settings-section";
+import { Button } from "#/components/ui/button";
+import { Checkbox } from "#/components/ui/checkbox";
+import { Input } from "#/components/ui/input";
+import { Label } from "#/components/ui/label";
+import { Textarea } from "#/components/ui/textarea";
+import { cn } from "#/lib/utils";
+import {
+	createWebhookFn,
+	deleteProjectFn,
+	deleteWebhookFn,
+	listWebhooksFn,
+	pingWebhookFn,
+	updateProjectFn,
+} from "#/server/fns";
+import type { WebhookEvent } from "#/shared/issues";
+
+const projectRoute = getRouteApi("/_app/p/$projectId");
+const appRoute = getRouteApi("/_app");
+
+export const Route = createFileRoute("/_app/p/$projectId/settings")({
+	loader: ({ params }) =>
+		listWebhooksFn({ data: { projectId: params.projectId } }),
+	component: SettingsPage,
+});
+
+const EVENT_HELP: Record<WebhookEvent, string> = {
+	"report.created": "A user sent a report from the widget",
+	"issue.created": "An issue was opened, from a report or by hand",
+	"issue.updated": "Status, priority, labels, assignee or PR changed",
+	"comment.created": "Someone, or an agent, commented",
+};
+
+function SettingsPage() {
+	const project = projectRoute.useLoaderData();
+	const { baseUrl } = appRoute.useLoaderData();
+	const webhooks = Route.useLoaderData();
+	const router = useRouter();
+	const [name, setName] = useState(project.name);
+	const [origins, setOrigins] = useState(project.allowedOrigins.join("\n"));
+	const [events, setEvents] = useState<WebhookEvent[]>([]);
+	const [chatService, setChatService] = useState<"discord" | "slack">(
+		"discord",
+	);
+	const chatEndpoints = webhooks.endpoints.filter((e) => e.format !== "json");
+	const [portalEnabled, setPortalEnabled] = useState(project.portalEnabled);
+	const [portalSlug, setPortalSlug] = useState(
+		project.portalSlug ?? project.slug,
+	);
+	const [confirmName, setConfirmName] = useState("");
+	const navigate = useNavigate();
+	const [installTab, setInstallTab] = useState<"script" | "npm">("script");
+
+	const save = async (data: {
+		name?: string;
+		allowedOrigins?: string[];
+		portalEnabled?: boolean;
+		portalSlug?: string;
+	}) => {
+		try {
+			await updateProjectFn({ data: { projectId: project.id, ...data } });
+			toast.success("Saved");
+			await router.invalidate();
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Could not save");
+		}
+	};
+
+	const scriptSnippet = `<script
+  src="${baseUrl}/widget.js"
+  data-project-key="${project.publicKey}"
+  defer
+></script>`;
+	const npmSnippet = `npm install @tattle/widget
+
+import { Tattle } from "@tattle/widget"
+Tattle.init({ projectKey: "${project.publicKey}", apiUrl: "${baseUrl}" })`;
+	const identifySnippet = `// After sign-in, so every report says who sent it:
+Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.plan })
+Tattle.setContext({ appVersion: "1.4.2" })`;
+
+	return (
+		<>
+			<PageHeader
+				title="Project settings"
+				description={`${project.name} · public key ${project.publicKey}`}
+			/>
+			<div className="px-6 pb-10">
+				<SettingsSection
+					id="general"
+					title="General"
+					description="The project's name, shown in the sidebar and in webhook payloads."
+				>
+					<form
+						className="flex max-w-md items-end gap-2"
+						onSubmit={(e) => {
+							e.preventDefault();
+							void save({ name });
+						}}
+					>
+						<div className="flex-1 space-y-2">
+							<Label htmlFor="project-name">Name</Label>
+							<Input
+								id="project-name"
+								value={name}
+								onChange={(e) => setName(e.target.value)}
+								required
+								maxLength={80}
+							/>
+						</div>
+						<Button
+							type="submit"
+							variant="outline"
+							disabled={!name.trim() || name === project.name}
+						>
+							Save
+						</Button>
+					</form>
+				</SettingsSection>
+
+				<SettingsSection
+					id="install"
+					title="Install the widget"
+					description={
+						<>
+							<p>
+								Adds a button to your app. Users report a bug with an annotated
+								screenshot, or suggest an idea.
+							</p>
+							<p className="mt-2">
+								Console errors, failed requests and the device are attached
+								automatically.
+							</p>
+						</>
+					}
+				>
+					<div className="flex gap-5 border-b">
+						{(
+							[
+								["script", "Script tag"],
+								["npm", "npm"],
+							] as const
+						).map(([id, label]) => (
+							<button
+								key={id}
+								type="button"
+								onClick={() => setInstallTab(id)}
+								className={cn(
+									"-mb-px h-9 border-b-2 border-transparent text-muted-foreground hover:text-ink",
+									installTab === id && "border-brand font-medium text-ink",
+								)}
+							>
+								{label}
+							</button>
+						))}
+					</div>
+					<CodeBlock
+						code={installTab === "script" ? scriptSnippet : npmSnippet}
+					/>
+					<CodeBlock
+						label="Then identify the signed-in user"
+						code={identifySnippet}
+					/>
+				</SettingsSection>
+
+				<SettingsSection
+					id="origins"
+					title="Allowed sites"
+					description={
+						project.allowedOrigins.length === 0 ? (
+							<p className="rounded-md bg-pill-warning px-3 py-2 text-pill-warning-ink">
+								Any site can send reports with this key. Fine while testing;
+								list your app's address before you go live.
+							</p>
+						) : (
+							"Only these sites can send reports with this key."
+						)
+					}
+				>
+					<form
+						className="space-y-3"
+						onSubmit={(e) => {
+							e.preventDefault();
+							void save({ allowedOrigins: origins.split("\n") });
+						}}
+					>
+						<div className="space-y-2">
+							<Label htmlFor="origins">One address per line</Label>
+							<Textarea
+								id="origins"
+								value={origins}
+								onChange={(e) => setOrigins(e.target.value)}
+								rows={3}
+								placeholder="https://shop.atelier-nord.fr"
+								className="font-mono text-xs"
+							/>
+						</div>
+						<Button type="submit" variant="outline">
+							Save sites
+						</Button>
+					</form>
+				</SettingsSection>
+
+				<SettingsSection
+					id="notifications"
+					title="Discord and Slack"
+					description={
+						<>
+							<p>
+								Posts new reports, status and assignee changes, and comments to
+								a channel.
+							</p>
+							<p className="mt-2">
+								Discord: channel settings → Integrations → Webhooks → New
+								webhook → Copy URL. Slack: an Incoming Webhook URL.
+							</p>
+						</>
+					}
+				>
+					{chatEndpoints.map((endpoint) => (
+						<div
+							key={endpoint.id}
+							className="flex flex-wrap items-center gap-3 rounded-lg border px-4 py-3"
+						>
+							<span className="rounded-md bg-raised px-2 py-0.5 text-xs font-medium">
+								{endpoint.format === "discord" ? "Discord" : "Slack"}
+							</span>
+							<p className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
+								{endpoint.url.replace(/(\/[^/]{6})[^/]*$/, "$1…")}
+							</p>
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={async () => {
+									const result = await pingWebhookFn({
+										data: { projectId: project.id, endpointId: endpoint.id },
+									});
+									if (result.ok) toast.success("Test message sent");
+									else toast.error(`Test failed: ${result.error}`);
+								}}
+							>
+								<SendIcon className="size-3.5" />
+								Send a test
+							</Button>
+							<Button
+								size="icon-sm"
+								variant="ghost"
+								aria-label="Remove this channel"
+								onClick={async () => {
+									await deleteWebhookFn({
+										data: { projectId: project.id, endpointId: endpoint.id },
+									});
+									toast.success("Channel removed");
+									await router.invalidate();
+								}}
+							>
+								<Trash2Icon className="size-4" />
+							</Button>
+						</div>
+					))}
+					<form
+						className="space-y-3 rounded-lg bg-raised p-4"
+						onSubmit={async (event) => {
+							event.preventDefault();
+							const form = event.currentTarget;
+							const url = String(new FormData(form).get("chat-url"));
+							try {
+								await createWebhookFn({
+									data: {
+										projectId: project.id,
+										url,
+										format: chatService,
+										events: [
+											"report.created",
+											"issue.created",
+											"issue.updated",
+											"comment.created",
+										],
+									},
+								});
+								form.reset();
+								toast.success(
+									`${chatService === "discord" ? "Discord" : "Slack"} channel added`,
+								);
+								await router.invalidate();
+							} catch (error) {
+								toast.error(
+									error instanceof Error
+										? error.message
+										: "Could not add the channel",
+								);
+							}
+						}}
+					>
+						<div className="flex rounded-md border border-control bg-surface p-0.5 w-fit">
+							{(["discord", "slack"] as const).map((service) => (
+								<button
+									key={service}
+									type="button"
+									aria-pressed={chatService === service}
+									onClick={() => setChatService(service)}
+									className={cn(
+										"rounded px-3 py-1 text-muted-foreground hover:text-ink",
+										chatService === service && "bg-active font-medium text-ink",
+									)}
+								>
+									{service === "discord" ? "Discord" : "Slack"}
+								</button>
+							))}
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="chat-url">Webhook URL</Label>
+							<Input
+								id="chat-url"
+								name="chat-url"
+								type="url"
+								required
+								placeholder={
+									chatService === "discord"
+										? "https://discord.com/api/webhooks/…"
+										: "https://hooks.slack.com/services/…"
+								}
+							/>
+						</div>
+						<Button type="submit">Add channel</Button>
+					</form>
+				</SettingsSection>
+
+				<SettingsSection
+					id="webhooks"
+					title="Webhooks"
+					description={
+						<>
+							<p>
+								We POST each event as JSON to your agent or server, and retry 5
+								times if it fails.
+							</p>
+							<p className="mt-2">
+								Check the{" "}
+								<code className="font-mono text-xs">x-tattle-signature</code>{" "}
+								header: an HMAC-SHA256 of{" "}
+								<code className="font-mono text-xs">{"<t>.<body>"}</code> with
+								the secret.
+							</p>
+						</>
+					}
+				>
+					{webhooks.endpoints
+						.filter((endpoint) => endpoint.format === "json")
+						.map((endpoint) => (
+							<div
+								key={endpoint.id}
+								className="space-y-3 rounded-lg border p-4"
+							>
+								<div className="flex flex-wrap items-center gap-2">
+									<p className="min-w-0 flex-1 truncate font-mono text-xs">
+										{endpoint.url}
+									</p>
+									<Button
+										size="sm"
+										variant="outline"
+										onClick={async () => {
+											const result = await pingWebhookFn({
+												data: {
+													projectId: project.id,
+													endpointId: endpoint.id,
+												},
+											});
+											if (result.ok)
+												toast.success(`Ping delivered (HTTP ${result.status})`);
+											else toast.error(`Ping failed: ${result.error}`);
+										}}
+									>
+										<SendIcon className="size-3.5" />
+										Send a test
+									</Button>
+									<Button
+										size="icon-sm"
+										variant="ghost"
+										aria-label="Delete this webhook"
+										onClick={async () => {
+											await deleteWebhookFn({
+												data: {
+													projectId: project.id,
+													endpointId: endpoint.id,
+												},
+											});
+											toast.success("Webhook deleted");
+											await router.invalidate();
+										}}
+									>
+										<Trash2Icon className="size-4" />
+									</Button>
+								</div>
+								<p className="text-muted-foreground">
+									{endpoint.events.length
+										? endpoint.events.join(", ")
+										: "Every event"}
+								</p>
+								<CodeBlock label="Signing secret" code={endpoint.secret} />
+							</div>
+						))}
+
+					<form
+						className="space-y-4 rounded-lg bg-raised p-4"
+						onSubmit={async (event) => {
+							event.preventDefault();
+							const form = event.currentTarget;
+							const url = String(new FormData(form).get("url"));
+							try {
+								await createWebhookFn({
+									data: { projectId: project.id, url, events, format: "json" },
+								});
+								form.reset();
+								setEvents([]);
+								toast.success("Webhook added");
+								await router.invalidate();
+							} catch (error) {
+								toast.error(
+									error instanceof Error
+										? error.message
+										: "Could not add the webhook",
+								);
+							}
+						}}
+					>
+						<div className="space-y-2">
+							<Label htmlFor="webhook-url">Add an endpoint</Label>
+							<Input
+								id="webhook-url"
+								name="url"
+								type="url"
+								required
+								placeholder="https://bot.atelier-nord.fr/hooks/tattle"
+							/>
+						</div>
+						<fieldset className="space-y-2">
+							<legend className="mb-2 text-muted-foreground">
+								Events, or none for every event
+							</legend>
+							{webhooks.events.map((event) => (
+								<label
+									key={event}
+									htmlFor={`event-${event}`}
+									className="relative flex items-start gap-2.5"
+								>
+									<Checkbox
+										id={`event-${event}`}
+										className="mt-0.5"
+										checked={events.includes(event)}
+										onCheckedChange={(checked) =>
+											setEvents(
+												checked
+													? [...events, event]
+													: events.filter((e) => e !== event),
+											)
+										}
+									/>
+									<span>
+										<span className="font-mono text-xs">{event}</span>
+										<span className="block text-muted-foreground">
+											{EVENT_HELP[event]}
+										</span>
+									</span>
+								</label>
+							))}
+						</fieldset>
+						<Button type="submit">Add webhook</Button>
+					</form>
+
+					{webhooks.deliveries.length > 0 && (
+						<div>
+							<h3 className="mb-2 font-medium">Recent deliveries</h3>
+							<table className="w-full">
+								<thead className="text-left text-xs text-muted-foreground">
+									<tr>
+										<th className="pb-2 font-normal">Event</th>
+										<th className="pb-2 font-normal">Result</th>
+										<th className="pb-2 text-right font-normal">Tries</th>
+										<th className="pb-2 text-right font-normal">When</th>
+									</tr>
+								</thead>
+								<tbody>
+									{webhooks.deliveries.map((d) => (
+										<tr key={d.id} className="border-t border-rule">
+											<td className="py-2 font-mono text-xs">{d.event}</td>
+											<td className="py-2">
+												<span
+													className={cn(
+														"inline-flex h-5 items-center rounded-full px-2 text-xs font-medium",
+														d.status === "success" &&
+															"bg-pill-positive text-pill-positive-ink",
+														d.status === "failed" &&
+															"bg-pill-negative text-pill-negative-ink",
+														d.status === "pending" &&
+															"bg-pill-neutral text-pill-neutral-ink",
+													)}
+												>
+													{d.status === "success"
+														? `Delivered${d.responseStatus ? ` · ${d.responseStatus}` : ""}`
+														: d.status === "failed"
+															? `Failed${d.lastError ? ` · ${d.lastError}` : ""}`
+															: "Retrying"}
+												</span>
+											</td>
+											<td className="num py-2 text-right">{d.attempts}</td>
+											<td className="py-2 text-right text-muted-foreground">
+												{relativeTime(d.createdAt)}
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
+						</div>
+					)}
+				</SettingsSection>
+
+				<SettingsSection
+					id="portal"
+					title="Public feature requests"
+					description="A public page where anyone can see what you plan, vote for ideas and suggest new ones. Only requests you accepted from Triage appear there."
+				>
+					<form
+						className="space-y-4"
+						onSubmit={(e) => {
+							e.preventDefault();
+							void save({ portalEnabled, portalSlug });
+						}}
+					>
+						<label
+							htmlFor="portal-enabled"
+							className="relative flex items-center gap-2.5"
+						>
+							<Checkbox
+								id="portal-enabled"
+								checked={portalEnabled}
+								onCheckedChange={(v) => setPortalEnabled(v === true)}
+							/>
+							Publish the page
+						</label>
+						<div className="space-y-2">
+							<Label htmlFor="portal-slug">Address</Label>
+							<div className="flex max-w-lg items-center rounded-md border border-input bg-surface">
+								<span className="truncate pl-3 text-muted-foreground">
+									{baseUrl.replace(/^https?:\/\//, "")}/portal/
+								</span>
+								<input
+									id="portal-slug"
+									value={portalSlug}
+									onChange={(e) => setPortalSlug(e.target.value.toLowerCase())}
+									className="h-8 min-w-0 flex-1 bg-transparent pr-3 outline-none"
+									pattern="[a-z0-9][a-z0-9-]{2,39}"
+									required
+								/>
+							</div>
+						</div>
+						<div className="flex flex-wrap items-center gap-3">
+							<Button type="submit" variant="outline">
+								Save
+							</Button>
+							{project.portalEnabled && project.portalSlug && (
+								<Link
+									to="/portal/$slug"
+									params={{ slug: project.portalSlug }}
+									target="_blank"
+									className="font-medium text-brand hover:underline"
+								>
+									Open the public page
+								</Link>
+							)}
+						</div>
+					</form>
+				</SettingsSection>
+
+				<SettingsSection
+					id="danger"
+					title="Delete this project"
+					description="Deletes every issue, report, screenshot, webhook and vote of this project. The widget stops accepting reports. This cannot be undone."
+				>
+					<form
+						className="max-w-md space-y-3 rounded-lg border border-negative/30 p-4"
+						onSubmit={async (e) => {
+							e.preventDefault();
+							try {
+								await deleteProjectFn({
+									data: { projectId: project.id, confirmName },
+								});
+								toast.success(`${project.name} was deleted`);
+								await router.invalidate();
+								await navigate({ to: "/" });
+							} catch (error) {
+								toast.error(
+									error instanceof Error ? error.message : "Could not delete",
+								);
+							}
+						}}
+					>
+						<Label htmlFor="confirm-name">
+							Type <span className="font-semibold">{project.name}</span> to
+							confirm
+						</Label>
+						<Input
+							id="confirm-name"
+							value={confirmName}
+							onChange={(e) => setConfirmName(e.target.value)}
+							autoComplete="off"
+						/>
+						<Button
+							type="submit"
+							variant="destructive"
+							disabled={confirmName.trim() !== project.name}
+						>
+							Delete {project.name}
+						</Button>
+					</form>
+				</SettingsSection>
+			</div>
+		</>
+	);
+}

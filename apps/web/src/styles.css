@@ -1,0 +1,185 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap");
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Dark mode follows the OS setting. */
+@custom-variant dark (@media (prefers-color-scheme: dark));
+
+/*
+ * Style: framed sheet. The sidebar and the 48px top bar share one tinted frame
+ * (--ground) with no rule between them; the work sits on a white sheet inset
+ * 8px from the window's right and bottom edges, 16px corners, 1px edge, no
+ * shadow. Colour lives on data: the accent marks the selected row, the active
+ * tab and the most-requested feature, under 3% of the screen.
+ */
+:root {
+	--ground: #f4f6f8;
+	--surface: #ffffff;
+	--raised: #f4f6f8;
+	--active: #e9ecef;
+	--border: #e8eaec;
+	--rule: #f0f1f2;
+	--control: #cdced1;
+	--text: #131416;
+	--muted: #5d5f60;
+	--accent: #1b6c80;
+	--accent-soft: #e3f0f3;
+	--primary: #1d1f20;
+	--primary-ink: #ffffff;
+	--positive: #1e7b4f;
+	--negative: #c4242a;
+	--pill-positive-bg: #dcfae5;
+	--pill-positive-ink: #04250e;
+	--pill-negative-bg: #ffedea;
+	--pill-negative-ink: #831c1e;
+	--pill-warning-bg: #fffbeb;
+	--pill-warning-ink: #92400e;
+	--pill-neutral-bg: #ebedee;
+	--pill-neutral-ink: #353736;
+
+	/* Workflow states: one hue per state family, used on the state glyph only. */
+	--state-triage: #a86f0c;
+	--state-open: #5d5f60;
+	--state-progress: #2f70bb;
+	--state-review: #1b6c80;
+	--state-done: #1e7b4f;
+	--state-closed: #8a8c8e;
+
+	--radius: 6px;
+	--radius-card: 8px;
+	--radius-sheet: 16px;
+	--sheet-inset: 8px;
+	--sidebar-width: 228px;
+
+	/* shadcn roles, mapped onto the tokens above */
+	--background: var(--surface);
+	--foreground: var(--text);
+	--card: var(--surface);
+	--card-foreground: var(--text);
+	--popover: var(--surface);
+	--popover-foreground: var(--text);
+	--secondary: var(--raised);
+	--secondary-foreground: var(--text);
+	--muted-foreground: var(--muted);
+	--accent-foreground: var(--text);
+	--destructive: var(--negative);
+	--input: var(--control);
+	--ring: var(--accent);
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--ground: #0c0c0d;
+		--surface: #141415;
+		--raised: #1c1c1e;
+		--active: #232325;
+		--border: #262628;
+		--rule: #1d1d1f;
+		--control: #3a3a3d;
+		--text: #f2f2f3;
+		--muted: #a3a3a8;
+		--accent: #4fb3c8;
+		--accent-soft: #11292f;
+		--primary: #f2f2f3;
+		--primary-ink: #111112;
+		--positive: #3fc07a;
+		--negative: #ef6b6b;
+		--pill-positive-bg: #172a1d;
+		--pill-positive-ink: #3fc07a;
+		--pill-negative-bg: #2c1a1c;
+		--pill-negative-ink: #ef6b6b;
+		--pill-warning-bg: #2a2214;
+		--pill-warning-ink: #e5b45a;
+		--pill-neutral-bg: #232325;
+		--pill-neutral-ink: #d0d0d4;
+		--state-triage: #e5b45a;
+		--state-open: #a3a3a8;
+		--state-progress: #6ea4e6;
+		--state-review: #4fb3c8;
+		--state-done: #3fc07a;
+		--state-closed: #75757a;
+		color-scheme: dark;
+	}
+}
+
+@theme inline {
+	--font-sans: "IBM Plex Sans", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+	--font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+	--radius-sm: 4px;
+	--radius-md: var(--radius);
+	--radius-lg: var(--radius-card);
+	--radius-xl: 12px;
+	--color-ground: var(--ground);
+	--color-surface: var(--surface);
+	--color-raised: var(--raised);
+	--color-active: var(--active);
+	--color-rule: var(--rule);
+	--color-control: var(--control);
+	--color-ink: var(--text);
+	--color-brand: var(--accent);
+	--color-brand-soft: var(--accent-soft);
+	--color-positive: var(--positive);
+	--color-negative: var(--negative);
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-ink);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-muted: var(--raised);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-accent: var(--active);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-destructive: var(--destructive);
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+	--color-pill-positive: var(--pill-positive-bg);
+	--color-pill-positive-ink: var(--pill-positive-ink);
+	--color-pill-negative: var(--pill-negative-bg);
+	--color-pill-negative-ink: var(--pill-negative-ink);
+	--color-pill-warning: var(--pill-warning-bg);
+	--color-pill-warning-ink: var(--pill-warning-ink);
+	--color-pill-neutral: var(--pill-neutral-bg);
+	--color-pill-neutral-ink: var(--pill-neutral-ink);
+	--color-state-triage: var(--state-triage);
+	--color-state-open: var(--state-open);
+	--color-state-progress: var(--state-progress);
+	--color-state-review: var(--state-review);
+	--color-state-done: var(--state-done);
+	--color-state-closed: var(--state-closed);
+}
+
+@layer base {
+	* {
+		@apply border-border outline-ring/60;
+	}
+	html,
+	body {
+		background: var(--ground);
+		color: var(--text);
+		-webkit-font-smoothing: antialiased;
+	}
+	body {
+		@apply font-sans text-sm;
+		line-height: 20px;
+	}
+	.num {
+		font-variant-numeric: tabular-nums;
+	}
+	kbd {
+		@apply inline-flex h-5 min-w-5 items-center justify-center rounded border bg-surface px-1 font-sans text-[11px] font-medium text-muted-foreground;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		*,
+		*::before,
+		*::after {
+			transition-duration: 0ms !important;
+			animation-duration: 0ms !important;
+		}
+	}
+}
