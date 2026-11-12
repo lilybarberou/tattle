@@ -28,6 +28,7 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiV1FilesRouteImport } from './routes/api/v1/files'
 import { Route as ApiV1IngestRouteImport } from './routes/api/v1/ingest'
 import { Route as AppPProjectIdIndexRouteImport } from './routes/_app/p/$projectId/index'
+import { Route as AppPProjectIdOverviewRouteImport } from './routes/_app/p/$projectId/overview'
 import { Route as AppPProjectIdRequestsRouteImport } from './routes/_app/p/$projectId/requests'
 import { Route as AppPProjectIdSettingsRouteImport } from './routes/_app/p/$projectId/settings'
 import { Route as AppPProjectIdTriageRouteImport } from './routes/_app/p/$projectId/triage'
@@ -128,6 +129,11 @@ const AppPProjectIdIndexRoute = AppPProjectIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppPProjectIdRoute,
 } as any)
+const AppPProjectIdOverviewRoute = AppPProjectIdOverviewRouteImport.update({
+  id: '/overview',
+  path: '/overview',
+  getParentRoute: () => AppPProjectIdRoute,
+} as any)
 const AppPProjectIdRequestsRoute = AppPProjectIdRequestsRouteImport.update({
   id: '/requests',
   path: '/requests',
@@ -174,6 +180,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/files': typeof ApiV1FilesRoute
   '/api/v1/ingest': typeof ApiV1IngestRoute
+  '/p/$projectId/overview': typeof AppPProjectIdOverviewRoute
   '/p/$projectId/requests': typeof AppPProjectIdRequestsRoute
   '/p/$projectId/settings': typeof AppPProjectIdSettingsRoute
   '/p/$projectId/triage': typeof AppPProjectIdTriageRoute
@@ -198,6 +205,7 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/files': typeof ApiV1FilesRoute
   '/api/v1/ingest': typeof ApiV1IngestRoute
+  '/p/$projectId/overview': typeof AppPProjectIdOverviewRoute
   '/p/$projectId/requests': typeof AppPProjectIdRequestsRoute
   '/p/$projectId/settings': typeof AppPProjectIdSettingsRoute
   '/p/$projectId/triage': typeof AppPProjectIdTriageRoute
@@ -225,6 +233,7 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/files': typeof ApiV1FilesRoute
   '/api/v1/ingest': typeof ApiV1IngestRoute
+  '/_app/p/$projectId/overview': typeof AppPProjectIdOverviewRoute
   '/_app/p/$projectId/requests': typeof AppPProjectIdRequestsRoute
   '/_app/p/$projectId/settings': typeof AppPProjectIdSettingsRoute
   '/_app/p/$projectId/triage': typeof AppPProjectIdTriageRoute
@@ -252,6 +261,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/v1/files'
     | '/api/v1/ingest'
+    | '/p/$projectId/overview'
     | '/p/$projectId/requests'
     | '/p/$projectId/settings'
     | '/p/$projectId/triage'
@@ -276,6 +286,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/v1/files'
     | '/api/v1/ingest'
+    | '/p/$projectId/overview'
     | '/p/$projectId/requests'
     | '/p/$projectId/settings'
     | '/p/$projectId/triage'
@@ -302,6 +313,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/v1/files'
     | '/api/v1/ingest'
+    | '/_app/p/$projectId/overview'
     | '/_app/p/$projectId/requests'
     | '/_app/p/$projectId/settings'
     | '/_app/p/$projectId/triage'
@@ -461,6 +473,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPProjectIdIndexRouteImport
       parentRoute: typeof AppPProjectIdRoute
     }
+    '/_app/p/$projectId/overview': {
+      id: '/_app/p/$projectId/overview'
+      path: '/overview'
+      fullPath: '/p/$projectId/overview'
+      preLoaderRoute: typeof AppPProjectIdOverviewRouteImport
+      parentRoute: typeof AppPProjectIdRoute
+    }
     '/_app/p/$projectId/requests': {
       id: '/_app/p/$projectId/requests'
       path: '/requests'
@@ -500,6 +519,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppPProjectIdRouteChildren {
+  AppPProjectIdOverviewRoute: typeof AppPProjectIdOverviewRoute
   AppPProjectIdRequestsRoute: typeof AppPProjectIdRequestsRoute
   AppPProjectIdSettingsRoute: typeof AppPProjectIdSettingsRoute
   AppPProjectIdTriageRoute: typeof AppPProjectIdTriageRoute
@@ -509,6 +529,7 @@ interface AppPProjectIdRouteChildren {
 }
 
 const AppPProjectIdRouteChildren: AppPProjectIdRouteChildren = {
+  AppPProjectIdOverviewRoute: AppPProjectIdOverviewRoute,
   AppPProjectIdRequestsRoute: AppPProjectIdRequestsRoute,
   AppPProjectIdSettingsRoute: AppPProjectIdSettingsRoute,
   AppPProjectIdTriageRoute: AppPProjectIdTriageRoute,

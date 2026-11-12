@@ -45,6 +45,10 @@
 	--state-done: #1e7b4f;
 	--state-closed: #8a8c8e;
 
+	/* Chart series: bugs vs feature requests, checked for colour-blind separation. */
+	--series-bug: #0083a0;
+	--series-feature: #eb6834;
+
 	--radius: 6px;
 	--radius-card: 8px;
 	--radius-sheet: 16px;
@@ -98,6 +102,8 @@
 		--state-review: #4fb3c8;
 		--state-done: #3fc07a;
 		--state-closed: #75757a;
+		--series-bug: #1f9bb8;
+		--series-feature: #d95926;
 		color-scheme: dark;
 	}
 }
@@ -152,6 +158,8 @@
 	--color-state-review: var(--state-review);
 	--color-state-done: var(--state-done);
 	--color-state-closed: var(--state-closed);
+	--color-series-bug: var(--series-bug);
+	--color-series-feature: var(--series-feature);
 }
 
 @layer base {

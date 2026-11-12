@@ -5,6 +5,7 @@ import { DataLifecycle } from "./DataLifecycle";
 import { type AppError, httpStatus, publicMessage } from "./errors";
 import { Ingest } from "./Ingest";
 import { Issues } from "./Issues";
+import { Overview } from "./Overview";
 import { Portal } from "./Portal";
 import { Storage } from "./Storage";
 import { Webhooks } from "./Webhooks";
@@ -14,13 +15,15 @@ const WebhooksLive = Webhooks.layer.pipe(Layer.provide(Infra));
 const IssuesLive = Issues.layer.pipe(
 	Layer.provide(Layer.mergeAll(Infra, WebhooksLive)),
 );
+const AccessLive = Access.layer.pipe(Layer.provide(Infra));
 
 export const AppLayer = Layer.mergeAll(
 	Infra,
 	WebhooksLive,
 	IssuesLive,
-	Access.layer.pipe(Layer.provide(Infra)),
+	AccessLive,
 	DataLifecycle.layer.pipe(Layer.provide(Infra)),
+	Overview.layer.pipe(Layer.provide(Layer.mergeAll(Infra, AccessLive))),
 	Portal.layer.pipe(Layer.provide(Layer.mergeAll(Infra, IssuesLive))),
 	Ingest.layer.pipe(
 		Layer.provide(Layer.mergeAll(Infra, WebhooksLive, IssuesLive)),

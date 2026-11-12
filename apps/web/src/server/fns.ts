@@ -44,6 +44,7 @@ import { env } from "./env";
 import { type DbError, InvalidInput, NotFound } from "./errors";
 import { Issues } from "./Issues";
 import { mailEnabled, sendMail } from "./mailer";
+import { Overview } from "./Overview";
 import { Portal } from "./Portal";
 import { clientIp, limitPortal } from "./rate-limit";
 import { run } from "./runtime";
@@ -255,6 +256,18 @@ export const getProjectFn = createServerFn({ method: "GET" })
 					portalSlug: row.portalSlug,
 					counts,
 				};
+			}),
+		),
+	);
+
+export const getOverviewFn = createServerFn({ method: "GET" })
+	.validator(z.object({ projectId: z.string() }))
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				const p = yield* principal();
+				const overview = yield* Overview;
+				return yield* overview.get(p, data.projectId);
 			}),
 		),
 	);

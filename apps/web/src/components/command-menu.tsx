@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
 	BotIcon,
+	ChartColumnIcon,
 	InboxIcon,
 	LightbulbIcon,
 	ListIcon,
@@ -95,6 +96,13 @@ export function CommandMenu({
 			icon: LightbulbIcon,
 			run: () =>
 				navigate({ to: "/p/$projectId/requests", params: { projectId } }),
+		},
+		{
+			id: "overview",
+			label: "Go to Overview",
+			icon: ChartColumnIcon,
+			run: () =>
+				navigate({ to: "/p/$projectId/overview", params: { projectId } }),
 		},
 		{
 			id: "settings",

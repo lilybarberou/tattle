@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router";
 import {
 	BotIcon,
+	ChartColumnIcon,
 	CheckIcon,
 	ChevronsUpDownIcon,
 	InboxIcon,
@@ -205,6 +206,14 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 					onNavigate={onNavigate}
 				>
 					Feature requests
+				</NavLink>
+				<NavLink
+					to="/p/$projectId/overview"
+					params={params}
+					icon={ChartColumnIcon}
+					onNavigate={onNavigate}
+				>
+					Overview
 				</NavLink>
 				<NavLink
 					to="/p/$projectId/settings"
