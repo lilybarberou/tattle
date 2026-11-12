@@ -105,7 +105,7 @@ Who sees what:
   Tattle.identify({ id: user.id, email: user.email, name: user.name, hash: tattleHash });
   ```
 
-  Any other language: the HMAC-SHA256 of the user id with the secret, in hex (PHP: `hash_hmac('sha256', $userId, $secret)`). A user id without a valid hash never opens anyone's reports. Reports sent under a verified identity are then shown to that user only, not to whoever uses the device next. The hash is never stored.
+  Any other language: the HMAC-SHA256 of the user id with the secret, in hex (PHP: `hash_hmac('sha256', $userId, $secret)`). A user id without a valid hash never opens anyone's reports. Reports sent under a verified identity are then shown to that user only, not to whoever uses the device next. If the project turns Verified identity off, each device sees every report sent from it again, verified or not; after the secret is replaced, a hash signed with the old one opens only what the device sent without signing in. The hash is never stored.
 
 The team's replies are also emailed when the reporter's email is known and the server has SMTP, with a link to read and answer without the widget.
 

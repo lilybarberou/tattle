@@ -118,7 +118,7 @@ A project's **Allowed sites** only apply to requests that carry an `Origin` head
 A reporter can list their reports, read the team's replies and answer, the way the widgets do under **My reports**. Two things identify them; neither is ever trusted from the request alone.
 
 - **The reporter key**: a random string your app generates once per device (32 to 128 letters, digits, `-` or `_`; the widgets use 32 random bytes in base64url) and keeps there, in the Keychain or Keystore if you can. Send it as `reporterKey` with each report. The server stores only its SHA-256 hash; whoever holds the key follows the reports sent with it.
-- **Verified identity** (optional, per project, in project settings): your server computes `hash = HMAC-SHA256(identity secret, reporter.id)` in hex, and the app sends it as `userHash`. Then that user sees their reports on every device. Reports sent under a verified identity are shown to that user only, not to the device. A `reporter.id` without a valid hash never opens anything.
+- **Verified identity** (optional, per project, in project settings): your server computes `hash = HMAC-SHA256(identity secret, reporter.id)` in hex, and the app sends it as `userHash`. Then that user sees their reports on every device. While verification is on, reports sent under a verified identity are shown to that user only, not to the device; a missing or invalid hash (for example while a replaced secret rolls out to your servers) shows the device only its reports sent without a verified identity. When verification is turned off, the reporter key opens every report sent from that device again, verified or not. A `reporter.id` without a valid hash never opens anything.
 
   ```js
   // Node

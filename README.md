@@ -115,7 +115,7 @@ const hash = createHmac("sha256", process.env.TATTLE_IDENTITY_SECRET).update(Str
 Tattle.identify({ id: user.id, email: user.email, name: user.name, hash }); // in the page
 ```
 
-A user id without a valid hash never opens anyone's reports. The endpoints are documented in the [ingest API reference](docs/INGEST-API.md#my-reports-follow-up-and-replies).
+A user id without a valid hash never opens anyone's reports. While verification is on, a report sent under a verified identity is shown to that user only, not to the device it came from; the device sees the rest. **Replace the secret** makes every hash signed with the old one invalid: until your server signs with the new one, signed-in users see only the reports their current device sent without signing in. **Turn off** gives each device back every report it sent, verified or not. The endpoints are documented in the [ingest API reference](docs/INGEST-API.md#my-reports-follow-up-and-replies).
 
 ## Install in a mobile app
 

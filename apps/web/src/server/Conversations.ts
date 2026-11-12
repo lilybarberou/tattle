@@ -204,9 +204,12 @@ export class Conversations extends Context.Service<
 			const webhooks = yield* Webhooks;
 
 			/**
-			 * The reports this caller may see. A report sent under a verified
-			 * identity belongs to that user only, on any device; any other report
-			 * belongs to the device that sent it. An unverified user id gives
+			 * The reports this caller may see. While the project verifies
+			 * identities, a report sent under a verified identity belongs to that
+			 * user only, on any device (a missing or wrong hash, e.g. while a new
+			 * secret rolls out, opens none of them), and any other report belongs
+			 * to the device that sent it. With verification off, the device sees
+			 * every report it sent, verified or not. An unverified user id gives
 			 * nothing.
 			 */
 			const resolve = Effect.fn("Conversations.resolve")(function* (
@@ -243,10 +246,12 @@ export class Conversations extends Context.Service<
 				if (userId) access.push(eq(report.verifiedUserId, userId));
 				if (keyHash)
 					access.push(
-						and(
-							eq(report.reporterKeyHash, keyHash),
-							isNull(report.verifiedUserId),
-						) as SQL,
+						row.identitySecret
+							? (and(
+									eq(report.reporterKeyHash, keyHash),
+									isNull(report.verifiedUserId),
+								) as SQL)
+							: eq(report.reporterKeyHash, keyHash),
 					);
 				return {
 					projectId: row.id,

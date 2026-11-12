@@ -228,6 +228,59 @@ describe("Who sees which report", () => {
 		);
 	});
 
+	it("gives each device back every report it sent once verification is turned off", async () => {
+		const { project: p } = await createWorkspace();
+		await withSecret(p.id);
+		const verified = await submit(
+			reportPayload(p.publicKey, {
+				reporterKey: KEY_A,
+				reporter: { id: "u-1" },
+				userHash: identityHash(SECRET, "u-1"),
+			}),
+		);
+		const anonymous = await submit(
+			reportPayload(p.publicKey, { reporterKey: KEY_A }),
+		);
+		await submit(
+			reportPayload(p.publicKey, {
+				reporterKey: KEY_B,
+				reporter: { id: "u-1" },
+				userHash: identityHash(SECRET, "u-1"),
+			}),
+		);
+		const deviceA = {
+			projectKey: p.publicKey,
+			origin: null,
+			reporterKey: KEY_A,
+		};
+
+		// On, with a missing or stale hash (a rotated secret rolling out): the
+		// device still sees only its anonymous reports.
+		await withSecret(p.id, "isk_rotated_secret");
+		for (const userHash of [undefined, identityHash(SECRET, "u-1")]) {
+			const auth = { ...deviceA, userId: "u-1", userHash };
+			expect((await listMine(auth)).reports.map((r) => r.id)).toEqual([
+				anonymous.id,
+			]);
+			expect((await failure((c) => c.getMine(auth, verified.id)))._tag).toBe(
+				"NotFound",
+			);
+		}
+
+		// Off: the device sees everything it sent, verified or not, and nothing
+		// sent from another device.
+		await db
+			.update(project)
+			.set({ identitySecret: null })
+			.where(eq(project.id, p.id));
+		expect((await listMine(deviceA)).reports.map((r) => r.id).sort()).toEqual(
+			[verified.id, anonymous.id].sort(),
+		);
+		expect((await getMine(deviceA, verified.id)).id).toBe(verified.id);
+		await run(Conversations.use((c) => c.postMine(deviceA, verified.id, "Hi")));
+		await run(Conversations.use((c) => c.markMineRead(deviceA, verified.id)));
+	});
+
 	it("keeps each project's reports apart, and checks allowed origins", async () => {
 		const { project: p } = await createWorkspace({
 			allowedOrigins: ["https://shop.example.com"],

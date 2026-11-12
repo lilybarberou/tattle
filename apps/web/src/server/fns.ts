@@ -348,8 +348,8 @@ export const updateProjectFn = createServerFn({ method: "POST" })
 
 /**
  * Turns identity verification on (with a new secret), rotates the secret, or
- * turns it off. While off, the widget shows reporters only their device's
- * reports.
+ * turns it off. While off, the widget shows reporters every report sent from
+ * their device, including those once sent under a verified identity.
  */
 export const setIdentityVerificationFn = createServerFn({ method: "POST" })
 	.validator(z.object({ projectId: z.string(), enabled: z.boolean() }))

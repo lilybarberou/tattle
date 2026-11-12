@@ -305,6 +305,15 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 								the widget passes the signature along. A user id without a valid
 								signature never opens anyone's reports.
 							</p>
+							<p className="mt-2">
+								While it is on, a report sent by a verified user is theirs only:
+								the device it came from no longer lists it on its own. Replacing
+								the secret breaks every signature made with the old one, so
+								until your server signs with the new secret, signed-in users see
+								only what their device sent without signing in. Turning it off
+								gives each device back every report sent from it, verified or
+								not.
+							</p>
 						</>
 					}
 				>
@@ -336,7 +345,7 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 									onClick={() =>
 										setIdentityVerification(
 											true,
-											"New secret. Update your server: signatures made with the old one no longer work.",
+											"New secret. Update your server: signatures made with the old one no longer work, and until then signed-in users only see what their device sent without signing in.",
 										)
 									}
 								>
@@ -347,7 +356,7 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 									onClick={() =>
 										setIdentityVerification(
 											false,
-											"Verified identity is off. Each device sees its own reports.",
+											"Verified identity is off. Each device sees every report sent from it, verified or not.",
 										)
 									}
 								>
