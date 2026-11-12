@@ -34,6 +34,7 @@ import {
 	ReportFacts,
 	ReportLogs,
 	Screenshot,
+	SeenIn,
 } from "#/components/report-evidence";
 import { Button } from "#/components/ui/button";
 import { cn } from "#/lib/utils";
@@ -76,6 +77,10 @@ const describeActivity = (
 			return `merged #${data?.from} into this issue`;
 		case "report_attached":
 			return "attached a report";
+		case "regressed":
+			return data?.release
+				? `reopened it: regressed in ${data.release}`
+				: "reopened it: reported again after it was done";
 		case "updated": {
 			const changes = (data?.changes ?? {}) as Record<string, { to: unknown }>;
 			return Object.entries(changes)
@@ -428,7 +433,14 @@ function IssuePage() {
 									<span className="font-medium text-ink">
 										{entry.item.actor.name}
 									</span>{" "}
-									{describeActivity(entry.item.action, entry.item.data)}
+									<span
+										className={cn(
+											entry.item.action === "regressed" &&
+												"font-medium text-negative",
+										)}
+									>
+										{describeActivity(entry.item.action, entry.item.data)}
+									</span>
 									<span> · {relativeTime(entry.at)}</span>
 								</li>
 							),
@@ -548,21 +560,31 @@ function IssuePage() {
 					</PropertyRow>
 
 					<dl className="mt-4 space-y-2 border-t pt-4">
-						{[
-							["Type", issue.type === "bug" ? "Bug" : "Feature request"],
+						{(
 							[
-								"Reported by",
-								`${issue.reportCount} ${issue.reportCount === 1 ? "person" : "people"}`,
-							],
-							["Opened", relativeTime(issue.createdAt)],
-							["Updated", relativeTime(issue.updatedAt)],
-						].map(([label, value]) => (
+								["Type", issue.type === "bug" ? "Bug" : "Feature request"],
+								[
+									"Reported by",
+									`${issue.reportCount} ${issue.reportCount === 1 ? "person" : "people"}`,
+								],
+								...(detail.releases.length > 0
+									? [
+											[
+												"Seen in",
+												<SeenIn key="seen" releases={detail.releases} />,
+											],
+										]
+									: []),
+								["Opened", relativeTime(issue.createdAt)],
+								["Updated", relativeTime(issue.updatedAt)],
+							] as Array<[string, React.ReactNode]>
+						).map(([label, value]) => (
 							<div
 								key={label}
 								className="grid grid-cols-[84px_minmax(0,1fr)] gap-2"
 							>
 								<dt className="text-muted-foreground">{label}</dt>
-								<dd className="num">{value}</dd>
+								<dd className="num min-w-0">{value}</dd>
 							</div>
 						))}
 					</dl>

@@ -181,12 +181,15 @@ export const report = pgTable(
 			.notNull()
 			.default(sql`'[]'::jsonb`),
 		sdk: jsonb("sdk").$type<{ name: string; version: string }>(),
+		// The version of the app that sent it, e.g. "1.4.2" or "1.4.2 (87)".
+		release: text("release"),
 		origin: text("origin"),
 		createdAt: createdAt(),
 	},
 	(t) => [
 		index("report_project_idx").on(t.projectId, t.createdAt),
 		index("report_issue_idx").on(t.issueId),
+		index("report_project_release_idx").on(t.projectId, t.release),
 	],
 );
 

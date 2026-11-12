@@ -21,6 +21,7 @@ Typical triage loop for a new issue in "triage":
    get_report adds the timeline: what the user did before reporting, next to errors and failed requests.
 2. search_issues with the key words to look for an existing issue about the same problem.
 3. If it is the same problem: mark_duplicate (its reports move to the original).
+   A done bug that gets a report sent after it was done is reopened and flagged as regressed.
    Otherwise: update_issue to set status "backlog" or "todo", priority (1 urgent … 4 low) and labels.
 4. add_comment to explain your decision.
 
@@ -148,12 +149,16 @@ const buildServer = (principal: Principal) => {
 
 	tool(
 		"list_issues",
-		'List issues, most recently updated first. Filter by status (e.g. ["triage"] for the inbox), type or a title keyword.',
+		'List issues, most recently updated first. Filter by status (e.g. ["triage"] for the inbox), type, a title keyword or the release (app version) reports came from.',
 		z.object({
 			project: projectArg,
 			status: z.array(statusArg).optional(),
 			type: z.enum(["bug", "feature"]).optional(),
 			query: z.string().optional().describe("Keyword matched against titles"),
+			release: z
+				.string()
+				.optional()
+				.describe('Only issues with a report from this release, e.g. "1.4.2"'),
 			limit: z.number().int().min(1).max(200).optional(),
 			offset: z.number().int().min(0).optional(),
 		}),
@@ -168,6 +173,7 @@ const buildServer = (principal: Principal) => {
 							statuses: input.status,
 							type: input.type,
 							query: input.query,
+							release: input.release,
 							limit: input.limit,
 							offset: input.offset,
 						});
@@ -184,6 +190,10 @@ const buildServer = (principal: Principal) => {
 			project: projectArg,
 			query: z.string().min(3),
 			limit: z.number().int().min(1).max(50).optional(),
+			release: z
+				.string()
+				.optional()
+				.describe("Only issues with a report from this release"),
 		}),
 		async (input) =>
 			text(
@@ -191,7 +201,12 @@ const buildServer = (principal: Principal) => {
 					Effect.gen(function* () {
 						const p = yield* resolveProject(principal, input.project);
 						const issues = yield* Issues;
-						return yield* issues.search(p.id, input.query, input.limit);
+						return yield* issues.search(
+							p.id,
+							input.query,
+							input.limit,
+							input.release,
+						);
 					}),
 				),
 			),
@@ -200,7 +215,7 @@ const buildServer = (principal: Principal) => {
 
 	tool(
 		"get_issue",
-		"Get an issue with its comments, activity and reports (logs are summarized; use get_report for full logs and the screenshot).",
+		'Get an issue with its comments, activity, the releases it was seen in (first and last seen) and its reports (logs are summarized; use get_report for full logs, the timeline and the screenshot). A "regressed" activity means a report came in after the issue was done, and the issue was reopened.',
 		z.object({ project: projectArg, number: numberArg }),
 		async (input) =>
 			text(
@@ -216,6 +231,7 @@ const buildServer = (principal: Principal) => {
 								type: r.type,
 								message: r.message,
 								pageUrl: r.pageUrl,
+								release: r.release,
 								reporter: r.reporter,
 								hasScreenshot: r.screenshotKey !== null,
 								browser: r.device.browser,

@@ -10,6 +10,7 @@ import {
 	buildReporter,
 	IngestError,
 	ingestUrl,
+	releaseOf,
 	sendPayload,
 } from "../src/payload";
 import { redactUrl } from "../src/redact";
@@ -114,6 +115,39 @@ describe("buildPayload", () => {
 		expect(
 			buildPayload({ ...input, type: "feature" }).screenshot,
 		).toBeUndefined();
+	});
+});
+
+describe("release", () => {
+	const input = {
+		projectKey: "pk_test",
+		type: "bug" as const,
+		message: "Hi",
+		user: null,
+		context: null,
+		screen: "",
+	};
+
+	it("defaults to the app's version and build", () => {
+		expect(
+			buildPayload({ ...input, app: { version: "1.4.2", build: "87" } })
+				.release,
+		).toBe("1.4.2 (87)");
+		expect(buildPayload({ ...input, app: { version: "1.4.2" } }).release).toBe(
+			"1.4.2",
+		);
+		expect(buildPayload(input).release).toBeUndefined();
+	});
+
+	it("takes the release given to the provider first", () => {
+		expect(
+			buildPayload({
+				...input,
+				app: { version: "1.4.2", build: "87" },
+				release: " 1.4.2-ota.3 ",
+			}).release,
+		).toBe("1.4.2-ota.3");
+		expect(releaseOf("x".repeat(150), undefined)).toHaveLength(100);
 	});
 });
 

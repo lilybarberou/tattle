@@ -236,6 +236,7 @@ export class DataLifecycle extends Context.Service<
 							type: r.type,
 							message: r.message,
 							page: r.pageUrl,
+							release: r.release,
 							reporter: r.reporter,
 							context: r.context,
 							device: r.device,

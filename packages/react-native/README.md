@@ -101,6 +101,7 @@ Tattle.addBreadcrumb({ message: "Applied coupon", category: "cart", data: { code
   strings={{ title: "Report a problem" }}  // replaces any text
   backgroundColor="#ffffff"            // behind transparent screens; default white, black in dark mode
   app={{ name: "Shop", version: "1.4.2", build: "87" }}
+  release="1.4.2 (87)"                 // default: the app's version and build
 >
 ```
 
@@ -113,6 +114,8 @@ Tattle.close();
 ```
 
 The app's name, version and build number are read from `expo-application` when it is installed. Otherwise pass `app`, for example from `react-native-device-info`.
+
+Every report is filed under a release: the app's version and build, such as `"1.4.2 (87)"`, unless you pass `release` (for example to tell over-the-air updates apart, with `Updates.updateId` from `expo-updates`). Issues show the releases they were seen in, the dashboard filters by it, and a bug marked done that gets a newer report is reopened as a regression in that release.
 
 ## Match your app's design
 
@@ -209,6 +212,7 @@ Submitting a report sends `POST {apiUrl}/api/v1/ingest`, the same endpoint as th
 - **Network**: the last 100 `fetch` and `XMLHttpRequest` calls: method, URL, status (0 on failure), duration. Never bodies or headers. Query values whose name looks secret (`token`, `key`, `password`, `session`, `code`…) are replaced with `[redacted]`.
 - **Device**: platform, OS version, model and manufacturer, phone or tablet, screen size and pixel ratio, font scale, language, time zone, color scheme, React Native version and engine. With `expo-device` installed, the exact model name (for example "iPhone 16 Pro").
 - **Screen**: the name from `Tattle.setScreen`, sent as `pageUrl`.
+- **Release**: `release`, or the app's version and build.
 - **Steps** (`breadcrumbs`): the last 50 screens, foreground and background changes, and steps added with `addBreadcrumb`.
 - **Screenshot**: a JPEG of the provider's content, bug reports only, unless the user removed it.
 

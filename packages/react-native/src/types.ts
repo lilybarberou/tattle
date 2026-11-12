@@ -122,6 +122,11 @@ export interface TattleOptions {
 	 * installed; set it here otherwise.
 	 */
 	app?: AppInfo;
+	/**
+	 * The release reports are filed under, e.g. "1.4.2" or an OTA update id.
+	 * Default: the app's version and build, e.g. "1.4.2 (87)".
+	 */
+	release?: string;
 }
 
 export interface AppInfo {
@@ -220,6 +225,8 @@ export interface IngestPayload {
 	network: NetworkEntry[];
 	/** The last 50 steps: screens, foreground and background, your own. */
 	breadcrumbs: Breadcrumb[];
+	/** `release`, or the app's version and build. */
+	release?: string;
 	sdk: { name: string; version: string };
 }
 

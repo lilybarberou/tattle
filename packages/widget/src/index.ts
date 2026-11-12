@@ -13,7 +13,7 @@ import {
 } from "./collectors/network";
 import { detectLocale } from "./i18n";
 import { internalState } from "./internal";
-import { ingestUrl } from "./payload";
+import { cleanRelease, ingestUrl } from "./payload";
 import {
 	isColor,
 	isColorScheme,
@@ -123,6 +123,7 @@ export function init(options: InitOptions): void {
 			maskSelectors: Array.isArray(options.maskSelectors)
 				? options.maskSelectors.filter((s) => typeof s === "string")
 				: [],
+			release: cleanRelease(options.release),
 		},
 		{ getUser: () => user, getContext: () => context },
 	);

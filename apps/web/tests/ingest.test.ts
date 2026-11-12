@@ -192,6 +192,41 @@ describe("Ingest.submit", () => {
 		expect(await db.select().from(report)).toHaveLength(0);
 	});
 
+	it("stores the release sent, or else the mobile app's version", async () => {
+		const { project: p } = await createWorkspace();
+		const release = async (overrides: object) => {
+			const { id } = await submit({
+				...reportPayload(p.publicKey),
+				...overrides,
+			});
+			const [saved] = await db.select().from(report).where(eq(report.id, id));
+			return saved?.release;
+		};
+		expect(await release({ release: " 1.4.2 " })).toBe("1.4.2");
+		expect(
+			await release({
+				device: { platform: "ios", app: { version: "2.0.1", build: "88" } },
+			}),
+		).toBe("2.0.1 (88)");
+		expect(
+			await release({
+				release: "2.0.1-ota.4",
+				device: { app: { version: "2.0.1", build: "88" } },
+			}),
+		).toBe("2.0.1-ota.4");
+		expect(await release({ device: { app: { name: "Shop" } } })).toBeNull();
+		expect(await release({})).toBeNull();
+	});
+
+	it("rejects a release over 100 characters", async () => {
+		const { project: p } = await createWorkspace();
+		const error = await submitFailure({
+			...reportPayload(p.publicKey),
+			release: "1".repeat(101),
+		});
+		expect(error._tag).toBe("InvalidInput");
+	});
+
 	it("rejects a payload that is not an object", async () => {
 		expect((await submitFailure("hello"))._tag).toBe("InvalidInput");
 	});

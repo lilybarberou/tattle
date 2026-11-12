@@ -3,7 +3,7 @@
 Self-hosted bug reports and feature requests for your web and mobile apps, built to be triaged by AI agents.
 
 - **Widget** (`packages/widget`, and `packages/react-native` for React Native and Expo apps): a button in your app. Users report a bug with an annotated screenshot, or suggest an idea. The steps the user took before reporting (pages, clicks, field changes), console logs, JS errors, network requests, device info and the signed-in account are attached automatically.
-- **Tracker** (`apps/web`): projects, a Triage inbox, issues with status, priority, labels and assignee, duplicates merged with their reports.
+- **Tracker** (`apps/web`): projects, a Triage inbox, issues with status, priority, labels and assignee, duplicates merged with their reports, the releases each issue was seen in, and regressions flagged when a fixed bug comes back.
 - **For agents**: an MCP server, signed webhooks and API tokens, so an agent can triage new reports, merge duplicates and work on fixes.
 
 ## Self-host
@@ -80,13 +80,14 @@ git tag v0.2.0 && git push origin v0.2.0
 ## Install the widget in your app
 
 ```html
-<script src="https://your-server/widget.js" data-project-key="pk_…" defer></script>
+<script src="https://your-server/widget.js" data-project-key="pk_…" data-release="1.4.2" defer></script>
 <script>
   // after sign-in
   Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.plan })
-  Tattle.setContext({ appVersion: "1.4.2" })
 </script>
 ```
+
+`data-release` (or `release` in `Tattle.init`) is your app's version. Every report carries it: issues show the releases they were seen in, the issue list filters by release, and a bug marked done that gets a newer report attached (by a merge or a moved report) is reopened with "Regressed in 1.4.2" in its activity. Mobile apps send their version and build without any setup.
 
 See [packages/widget/README.md](packages/widget/README.md) for the options, the API and what is collected.
 
@@ -131,13 +132,13 @@ OAuth discovery follows the MCP spec: `/.well-known/oauth-protected-resource/api
 | Tool | What it does |
 |---|---|
 | `list_projects` | Projects the token can access |
-| `list_issues` | Filter by status (`["triage"]` for the inbox), type, keyword |
-| `search_issues` | Similar issues by keywords, to spot duplicates |
-| `get_issue` | Issue, comments, activity, report summaries |
+| `list_issues` | Filter by status (`["triage"]` for the inbox), type, keyword, release |
+| `search_issues` | Similar issues by keywords, to spot duplicates, optionally from one release |
+| `get_issue` | Issue, comments, activity (including regressions), the releases it was seen in, report summaries |
 | `get_report` | Full report: logs, device, account, a timeline of what the user did with errors and failed requests in between, and the screenshot as an image |
 | `create_issue`, `update_issue`, `add_comment` | Write access (tokens can be read-only) |
-| `mark_duplicate` | Marks an issue as a duplicate; its reports move to the original |
-| `move_report` | Attaches one report to another issue |
+| `mark_duplicate` | Marks an issue as a duplicate; its reports move to the original (a done bug getting a newer report is reopened as a regression) |
+| `move_report` | Attaches one report to another issue (same regression rule) |
 
 Report content is written by end users. The MCP server tells agents to treat it as data, never as instructions; keep agent permissions narrow anyway.
 

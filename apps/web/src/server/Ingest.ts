@@ -78,6 +78,8 @@ export const IngestPayload = Schema.Struct({
 		Schema.Array(BreadcrumbEntry).check(Schema.isMaxLength(100)),
 	),
 	sdk: Schema.optional(Schema.Struct({ name: Text(100), version: Text(50) })),
+	// The app's version, e.g. "1.4.2". Issues show the releases they were seen in.
+	release: Schema.optional(Text(100)),
 });
 export type IngestPayload = typeof IngestPayload.Type;
 
@@ -95,6 +97,28 @@ const parseDataUrl = (dataUrl: string) => {
 	];
 	const bytes = Buffer.from(base64, "base64");
 	return { extension: format === "jpeg" ? "jpg" : format, bytes };
+};
+
+const shortText = (value: unknown) =>
+	typeof value === "string" && value.trim() ? value.trim() : undefined;
+
+/**
+ * The release a report came from: the one the SDK sent, or else the app
+ * version a mobile client put in `device.app` ("1.4.2", or "1.4.2 (87)" with
+ * a build number), so custom clients get it without sending `release`.
+ */
+export const releaseOf = (payload: {
+	release?: string | undefined;
+	device: Record<string, unknown>;
+}): string | null => {
+	const explicit = shortText(payload.release);
+	if (explicit) return explicit;
+	const app = payload.device.app;
+	if (!app || typeof app !== "object" || Array.isArray(app)) return null;
+	const version = shortText((app as Record<string, unknown>).version);
+	if (!version) return null;
+	const build = shortText((app as Record<string, unknown>).build);
+	return (build ? `${version} (${build})` : version).slice(0, 100);
 };
 
 /**
@@ -196,6 +220,7 @@ export class Ingest extends Context.Service<
 							network: [...payload.network],
 							breadcrumbs: (payload.breadcrumbs ?? []) as Breadcrumb[],
 							sdk: payload.sdk ?? null,
+							release: releaseOf(payload),
 							origin,
 						})
 						.returning(),
@@ -215,6 +240,7 @@ export class Ingest extends Context.Service<
 						type: row.type,
 						message: row.message,
 						pageUrl: row.pageUrl,
+						release: row.release,
 						reporter: row.reporter,
 						hasScreenshot: screenshotKey !== null,
 						consoleErrors: row.console.filter((c) => c.level === "error")

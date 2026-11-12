@@ -33,6 +33,7 @@ export interface WidgetConfig {
 	strings: Partial<Strings>;
 	css: string;
 	maskSelectors: string[];
+	release: string | undefined;
 }
 
 export interface WidgetDeps {
@@ -665,6 +666,7 @@ export class Widget {
 				email: typedEmail || undefined,
 				user: this.deps.getUser(),
 				context: this.deps.getContext(),
+				release: this.config.release,
 			});
 			await sendPayload(this.config.apiUrl, payload);
 		} catch (error) {

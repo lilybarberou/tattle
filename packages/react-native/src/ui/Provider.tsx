@@ -38,6 +38,7 @@ export function TattleProvider({
 	strings,
 	backgroundColor,
 	app,
+	release,
 }: TattleProviderProps) {
 	const systemScheme = useColorScheme();
 	const scheme = resolveScheme(colorScheme, themeInput, systemScheme);
@@ -140,7 +141,7 @@ export function TattleProvider({
 				<Panel
 					visible={open}
 					initialType={type}
-					config={{ projectKey, apiUrl, app }}
+					config={{ projectKey, apiUrl, app, release }}
 					t={t}
 					theme={theme}
 					captureScreen={captureScreen}

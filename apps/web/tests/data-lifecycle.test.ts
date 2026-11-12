@@ -140,6 +140,7 @@ describe("reporters (GDPR)", () => {
 			withScreenshot(p.publicKey, {
 				reporter: jo,
 				message: "Jo's private problem",
+				release: "1.4.2",
 				breadcrumbs: [
 					{ category: "navigation", message: "/account", timestamp: 1 },
 				],
@@ -192,6 +193,7 @@ describe("reporters (GDPR)", () => {
 				message: string;
 				screenshot: string | null;
 				breadcrumbs: unknown[];
+				release: string | null;
 			}>;
 			votes: Array<{ issue: string }>;
 		};
@@ -201,6 +203,7 @@ describe("reporters (GDPR)", () => {
 			(r) => r.message === "Jo's private problem",
 		);
 		expect(withShot?.project).toBe(p.name);
+		expect(withShot?.release).toBe("1.4.2");
 		expect(withShot?.breadcrumbs).toEqual([
 			{ category: "navigation", message: "/account", timestamp: 1 },
 		]);

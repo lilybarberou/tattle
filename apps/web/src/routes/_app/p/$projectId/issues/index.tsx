@@ -13,9 +13,10 @@ import {
 	TypeIcon,
 } from "#/components/issue-meta";
 import { PageHeader } from "#/components/page-header";
+import { ReleasePicker } from "#/components/pickers";
 import { Button } from "#/components/ui/button";
 import { cn } from "#/lib/utils";
-import { listIssuesFn } from "#/server/fns";
+import { listIssuesFn, listReleasesFn } from "#/server/fns";
 import type { IssueListItem } from "#/server/Issues";
 import type { IssueStatus } from "#/shared/issues";
 
@@ -34,20 +35,27 @@ const searchSchema = z.object({
 	view: z.enum(["open", "progress", "done", "closed"]).optional(),
 	type: z.enum(["bug", "feature"]).optional(),
 	q: z.string().optional(),
+	release: z.string().optional(),
 });
 
 export const Route = createFileRoute("/_app/p/$projectId/issues/")({
 	validateSearch: searchSchema,
 	loaderDeps: ({ search }) => search,
-	loader: ({ params, deps }) =>
-		listIssuesFn({
-			data: {
-				projectId: params.projectId,
-				statuses: VIEWS[deps.view ?? "open"].statuses,
-				type: deps.type,
-				query: deps.q || undefined,
-			},
-		}),
+	loader: async ({ params, deps }) => {
+		const [issues, releases] = await Promise.all([
+			listIssuesFn({
+				data: {
+					projectId: params.projectId,
+					statuses: VIEWS[deps.view ?? "open"].statuses,
+					type: deps.type,
+					query: deps.q || undefined,
+					release: deps.release || undefined,
+				},
+			}),
+			listReleasesFn({ data: { projectId: params.projectId } }),
+		]);
+		return { issues, releases };
+	},
 	component: IssuesPage,
 });
 
@@ -117,7 +125,7 @@ function IssueRow({
 }
 
 function IssuesPage() {
-	const issues = Route.useLoaderData();
+	const { issues, releases } = Route.useLoaderData();
 	const { projectId } = Route.useParams();
 	const search = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
@@ -212,6 +220,16 @@ function IssuesPage() {
 						</Link>
 					))}
 				</div>
+				{(releases.length > 0 || search.release) && (
+					<ReleasePicker
+						releases={releases}
+						value={search.release}
+						onChange={(release) =>
+							navigate({ search: (prev) => ({ ...prev, release }) })
+						}
+						className="max-w-[220px]"
+					/>
+				)}
 				<p className="num ml-auto text-muted-foreground">
 					{issues.length} {issues.length === 1 ? "issue" : "issues"}
 				</p>
@@ -222,11 +240,13 @@ function IssuesPage() {
 					<p className="text-muted-foreground">
 						{search.q
 							? `No issue in “${VIEWS[view].label}” matches “${search.q}”.`
-							: view === "open"
-								? "No open issue. Accepted reports and issues you write show up here."
-								: `Nothing in “${VIEWS[view].label}” yet.`}
+							: search.release
+								? `No issue in “${VIEWS[view].label}” was reported from ${search.release}.`
+								: view === "open"
+									? "No open issue. Accepted reports and issues you write show up here."
+									: `Nothing in “${VIEWS[view].label}” yet.`}
 					</p>
-					{view === "open" && !search.q && (
+					{view === "open" && !search.q && !search.release && (
 						<Button variant="outline" onClick={() => newIssue()}>
 							<PlusIcon className="size-4" />
 							New issue

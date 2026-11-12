@@ -26,6 +26,7 @@ export interface PayloadInput {
 	context: Record<string, unknown> | null;
 	screen: string;
 	app?: AppInfo | undefined;
+	release?: string | undefined;
 }
 
 function asString(value: unknown): string | undefined {
@@ -49,6 +50,26 @@ function toPlainObject(
 			return val;
 		}),
 	) as Record<string, unknown>;
+}
+
+export const MAX_RELEASE_LENGTH = 100;
+
+/**
+ * The release a report is filed under: the one given to the provider, or the
+ * app's version with its build number, as the dashboard shows it.
+ */
+export function releaseOf(
+	release: unknown,
+	app: AppInfo | undefined,
+): string | undefined {
+	const value =
+		asString(release) ??
+		(app?.version
+			? app.build
+				? `${app.version} (${app.build})`
+				: app.version
+			: undefined);
+	return value ? value.slice(0, MAX_RELEASE_LENGTH) : undefined;
 }
 
 export function buildReporter(
@@ -90,6 +111,8 @@ export function buildPayload(input: PayloadInput): IngestPayload {
 	if (reporter) payload.reporter = reporter;
 	if (input.context && Object.keys(input.context).length)
 		payload.context = toPlainObject(input.context);
+	const release = releaseOf(input.release, payload.device.app);
+	if (release) payload.release = release;
 	return payload;
 }
 

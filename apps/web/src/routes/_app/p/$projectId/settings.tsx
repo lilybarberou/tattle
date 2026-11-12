@@ -88,11 +88,11 @@ function SettingsPage() {
 	const scriptSnippet = `<script
   src="${baseUrl}/widget.js"
   data-project-key="${project.publicKey}"
+  data-release="1.4.2"
   defer
 ></script>`;
 	const identifySnippet = `// After sign-in, so every report says who sent it:
-Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.plan })
-Tattle.setContext({ appVersion: "1.4.2" })`;
+Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.plan })`;
 	const curlSnippet = `curl ${baseUrl}/api/v1/ingest \\
   -H "content-type: application/json" \\
   -d '{
@@ -154,8 +154,8 @@ Tattle.setContext({ appVersion: "1.4.2" })`;
 								screenshot, or suggest an idea.
 							</p>
 							<p className="mt-2">
-								Console errors, failed requests and the device are attached
-								automatically.
+								The steps before the report, console errors, failed requests and
+								the device are attached automatically.
 							</p>
 						</>
 					}
@@ -184,6 +184,12 @@ Tattle.setContext({ appVersion: "1.4.2" })`;
 					{installTab === "web" && (
 						<>
 							<CodeBlock code={scriptSnippet} />
+							<p className="text-muted-foreground">
+								Set <code className="font-mono text-xs">data-release</code> to
+								your app's version on each deploy: issues show the releases they
+								were seen in, and a done bug reported again is reopened as a
+								regression.
+							</p>
 							<CodeBlock
 								label="Then identify the signed-in user"
 								code={identifySnippet}

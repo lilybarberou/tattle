@@ -183,6 +183,35 @@ describe("handleMcpRequest", () => {
 		expect(withoutImage.result?.content).toHaveLength(1);
 	});
 
+	it("filters issues by release and shows the releases of an issue", async () => {
+		const { org, project: p } = await createWorkspace();
+		const { token } = await createApiToken(org.id, { canWrite: false });
+		for (const release of ["1.4.0", "1.5.0"])
+			await run(
+				Ingest.use((ingest) =>
+					ingest.submit(reportPayload(p.publicKey, { release }), null),
+				),
+			);
+
+		const listed = await call(token, "list_issues", {
+			project: p.slug,
+			release: "1.5.0",
+		});
+		const issues = JSON.parse(listed.result?.content?.[0]?.text ?? "[]");
+		expect(issues.map((i: { number: number }) => i.number)).toEqual([2]);
+
+		const detail = await call(token, "get_issue", {
+			project: p.slug,
+			number: 2,
+		});
+		expect(JSON.parse(detail.result?.content?.[0]?.text ?? "{}")).toMatchObject(
+			{
+				releases: [{ release: "1.5.0", reports: 1 }],
+				reports: [{ release: "1.5.0", steps: 0 }],
+			},
+		);
+	});
+
 	it("update_issue works with a write token and is a tool error for a read-only one", async () => {
 		const { org, project: p } = await createWorkspace();
 		await run(

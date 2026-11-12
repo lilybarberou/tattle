@@ -1,7 +1,7 @@
 import { ExternalLinkIcon, ImageOffIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "#/lib/utils";
-import type { ReportDto } from "#/server/Issues";
+import type { ReportDto, SeenInRelease } from "#/server/Issues";
 import { buildTrail, isFailedRequest } from "#/shared/trail";
 import { Face, relativeTime } from "./issue-meta";
 
@@ -384,8 +384,45 @@ export function ReportLogs({ report }: { report: ReportDto }) {
 	);
 }
 
+/**
+ * The release an issue was first reported from, and the last one when it
+ * differs: "1.4.0 → 1.5.2". Hovering lists every release with its reports.
+ */
+export function SeenIn({ releases }: { releases: SeenInRelease[] }) {
+	const first = releases[0];
+	if (!first) return <span className="text-muted-foreground">—</span>;
+	const last = releases.reduce((a, b) => (b.lastSeen > a.lastSeen ? b : a));
+	const details = releases
+		.map(
+			(r) =>
+				`${r.release}: ${plural(r.reports, "report", "reports")}, last ${relativeTime(r.lastSeen)}`,
+		)
+		.join("\n");
+	return (
+		<span title={details} className="flex min-w-0 items-center gap-1.5">
+			<span className="truncate">{first.release}</span>
+			{last.release !== first.release && (
+				<>
+					<span aria-hidden className="text-muted-foreground">
+						→
+					</span>
+					<span className="sr-only">, last seen in</span>
+					<span className="truncate">{last.release}</span>
+				</>
+			)}
+		</span>
+	);
+}
+
 /** Key-value rows describing who sent a report and from where. */
-export function ReportFacts({ report }: { report: ReportDto }) {
+export function ReportFacts({
+	report,
+	seenIn,
+}: {
+	report: ReportDto;
+	/** The issue's releases: shown when the issue spans more than this one. */
+	seenIn?: SeenInRelease[];
+}) {
 	const device = deviceSummary(report.device);
 	const { errors, failed } = countErrors(report);
 	const reporter = report.reporter;
@@ -469,6 +506,22 @@ export function ReportFacts({ report }: { report: ReportDto }) {
 					["Browser", device.browser ?? "—"],
 					["System", device.os ?? "—"],
 				]) as Array<[string, React.ReactNode]>),
+		// Mobile apps already show their version in the App row.
+		...(report.release && !device.app?.includes(report.release)
+			? ([
+					[
+						"Release",
+						<span key="rel" className="truncate">
+							{report.release}
+						</span>,
+					],
+				] as Array<[string, React.ReactNode]>)
+			: []),
+		...(seenIn && seenIn.length > 1
+			? ([["Seen in", <SeenIn key="seen" releases={seenIn} />]] as Array<
+					[string, React.ReactNode]
+				>)
+			: []),
 		[
 			device.mobile ? "Screen size" : "Window",
 			device.viewport ? (

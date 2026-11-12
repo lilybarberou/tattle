@@ -65,6 +65,8 @@ function readScriptOptions(script: HTMLScriptElement): InitOptions | null {
 	if (isColorScheme(scheme)) options.colorScheme = scheme;
 	if (script.getAttribute("data-show-button") === "false")
 		options.showButton = false;
+	const release = script.getAttribute("data-release");
+	if (release) options.release = release;
 	return options;
 }
 

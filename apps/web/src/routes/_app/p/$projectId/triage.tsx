@@ -498,7 +498,7 @@ function TriagePage() {
 									/>
 								</div>
 								{latest ? (
-									<ReportFacts report={latest} />
+									<ReportFacts report={latest} seenIn={detail.releases} />
 								) : (
 									<p className="text-muted-foreground">
 										This issue was written in the dashboard.

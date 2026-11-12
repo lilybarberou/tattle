@@ -103,6 +103,12 @@ export interface InitOptions {
 	css?: string;
 	/** Extra selectors to mask in screenshots. */
 	maskSelectors?: string[];
+	/**
+	 * Your app's version, e.g. "1.4.2" or a commit SHA. Issues show the
+	 * releases they were reported from, and flag a bug reported again after
+	 * it was done as a regression in this release.
+	 */
+	release?: string;
 }
 
 export interface TattleUser {
@@ -189,6 +195,8 @@ export interface IngestPayload {
 	network: NetworkEntry[];
 	/** The last 50 steps: navigations, clicks, field changes, tab switches. */
 	breadcrumbs: Breadcrumb[];
+	/** From `init({ release })`. */
+	release?: string;
 	sdk: { name: "@tattle/widget"; version: "0.1.0" };
 }
 

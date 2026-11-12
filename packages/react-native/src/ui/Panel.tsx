@@ -44,6 +44,7 @@ export interface PanelConfig {
 	projectKey: string;
 	apiUrl: string;
 	app?: AppInfo | undefined;
+	release?: string | undefined;
 }
 
 /**
@@ -147,6 +148,7 @@ export function Panel({
 					context: state.context,
 					screen: state.screen,
 					app: config.app,
+					release: config.release,
 				}),
 			);
 			setMessage("");

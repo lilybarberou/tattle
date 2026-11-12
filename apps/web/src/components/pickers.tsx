@@ -1,5 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { CheckIcon, PlusIcon, TagIcon, UserRoundXIcon } from "lucide-react";
+import {
+	CheckIcon,
+	PackageIcon,
+	PlusIcon,
+	TagIcon,
+	UserRoundXIcon,
+} from "lucide-react";
 import { useState } from "react";
 import {
 	Command,
@@ -125,6 +131,63 @@ export function StatusPicker({
 						<StatusIcon status={status} />
 						<span className="flex-1">{STATUS_META[status].label}</span>
 						{value === status && <CheckIcon className="size-4" />}
+					</CommandItem>
+				))}
+			</CommandGroup>
+		</Picker>
+	);
+}
+
+/** Filters a list by the release (app version) its reports came from. */
+export function ReleasePicker({
+	releases,
+	value,
+	onChange,
+	className,
+}: {
+	releases: string[];
+	value: string | undefined;
+	onChange: (release: string | undefined) => void;
+	className?: string;
+}) {
+	const [open, setOpen] = useState(false);
+	const pick = (release: string | undefined) => {
+		onChange(release);
+		setOpen(false);
+	};
+	return (
+		<Picker
+			label="Filter by release"
+			placeholder="Find a release…"
+			searchable={releases.length > 8}
+			open={open}
+			onOpenChange={setOpen}
+			trigger={
+				<Trigger
+					className={cn("border border-control", className)}
+					aria-label="Filter by release"
+				>
+					<PackageIcon className="size-4 flex-none text-muted-foreground" />
+					<span className={cn("truncate", !value && "text-muted-foreground")}>
+						{value ?? "All releases"}
+					</span>
+				</Trigger>
+			}
+		>
+			<CommandEmpty>No release matches.</CommandEmpty>
+			<CommandGroup>
+				<CommandItem value="All releases" onSelect={() => pick(undefined)}>
+					<span className="flex-1">All releases</span>
+					{!value && <CheckIcon className="size-4" />}
+				</CommandItem>
+				{releases.map((release) => (
+					<CommandItem
+						key={release}
+						value={release}
+						onSelect={() => pick(release)}
+					>
+						<span className="flex-1 truncate">{release}</span>
+						{value === release && <CheckIcon className="size-4" />}
 					</CommandItem>
 				))}
 			</CommandGroup>

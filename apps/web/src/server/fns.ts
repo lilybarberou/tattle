@@ -335,6 +335,7 @@ export const listIssuesFn = createServerFn({ method: "GET" })
 			statuses: z.array(statusSchema).optional(),
 			type: z.enum(["bug", "feature"]).optional(),
 			query: z.string().optional(),
+			release: z.string().max(100).optional(),
 			limit: z.number().int().min(1).max(200).optional(),
 		}),
 	)
@@ -344,6 +345,18 @@ export const listIssuesFn = createServerFn({ method: "GET" })
 				yield* withProject(data.projectId);
 				const issues = yield* Issues;
 				return yield* issues.list({ ...data, limit: data.limit ?? 200 });
+			}),
+		),
+	);
+
+export const listReleasesFn = createServerFn({ method: "GET" })
+	.validator(z.object({ projectId: z.string() }))
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				yield* withProject(data.projectId);
+				const issues = yield* Issues;
+				return yield* issues.releases(data.projectId);
 			}),
 		),
 	);

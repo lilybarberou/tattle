@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
-import { issueVote, report } from "#/db/schema";
+import { activity, issueVote, report } from "#/db/schema";
 import { Ingest } from "#/server/Ingest";
 import { Issues } from "#/server/Issues";
 import {
@@ -463,5 +463,148 @@ describe("shipping a feature request", () => {
 		);
 		await new Promise((resolve) => setTimeout(resolve, 200));
 		expect(info.mock.calls.flat().join("\n")).not.toContain("Shipped:");
+	});
+});
+
+describe("releases", () => {
+	const reportFrom = (projectKey: string, release: string, message?: string) =>
+		submit(
+			reportPayload(projectKey, { release, ...(message ? { message } : {}) }),
+		);
+
+	it("shows the releases an issue was seen in, first seen first", async () => {
+		const { project: p } = await createWorkspace();
+		const a = await reportFrom(p.publicKey, "1.4.0");
+		const b = await reportFrom(p.publicKey, "1.5.0");
+		const c = await reportFrom(p.publicKey, "1.4.0");
+		await submit(reportPayload(p.publicKey));
+		for (const r of [b, c])
+			await run(
+				Issues.use((issues) => issues.moveReport(p.id, r.id, 1, userActor)),
+			);
+
+		const detail = await getIssue(p.id, a.issueNumber);
+		expect(detail.releases).toEqual([
+			{
+				release: "1.4.0",
+				firstSeen: expect.any(String),
+				lastSeen: expect.any(String),
+				reports: 2,
+			},
+			{
+				release: "1.5.0",
+				firstSeen: expect.any(String),
+				lastSeen: expect.any(String),
+				reports: 1,
+			},
+		]);
+		const [first, second] = detail.releases;
+		expect(first && second && first.lastSeen > second.lastSeen).toBe(true);
+		expect(detail.reports.map((r) => r.release)).toContain("1.5.0");
+		expect((await getIssue(p.id, 4)).releases).toEqual([]);
+	});
+
+	it("filters lists and searches by release", async () => {
+		const { project: p } = await createWorkspace();
+		await reportFrom(p.publicKey, "1.4.0", "Export fails");
+		await reportFrom(p.publicKey, "1.5.0", "Export is slow");
+		await reportFrom(p.publicKey, "1.5.0", "Login fails");
+
+		const list = (release?: string) =>
+			run(Issues.use((issues) => issues.list({ projectId: p.id, release })));
+		expect((await list("1.5.0")).map((i) => i.number).sort()).toEqual([2, 3]);
+		expect((await list("1.5.0"))[0]?.lastReport?.release).toBe("1.5.0");
+		expect(await list("9.9.9")).toEqual([]);
+		expect(await list()).toHaveLength(3);
+
+		const found = await run(
+			Issues.use((issues) => issues.search(p.id, "export", 10, "1.5.0")),
+		);
+		expect(found.map((i) => i.number)).toEqual([2]);
+
+		expect(await run(Issues.use((issues) => issues.releases(p.id)))).toEqual([
+			"1.5.0",
+			"1.4.0",
+		]);
+	});
+});
+
+describe("regressions", () => {
+	const markDone = (projectId: string, number: number) =>
+		run(
+			Issues.use((issues) =>
+				issues.update(projectId, number, { status: "done" }, userActor),
+			),
+		);
+
+	it("reopens a done bug when a report sent after it was done is attached", async () => {
+		const { project: p } = await createWorkspace();
+		await submit(reportPayload(p.publicKey, { release: "1.4.0" }));
+		await markDone(p.id, 1);
+		const later = await submit(
+			reportPayload(p.publicKey, { release: "1.5.0" }),
+		);
+
+		const reopened = await run(
+			Issues.use((issues) => issues.moveReport(p.id, later.id, 1, agentActor)),
+		);
+		expect(reopened.status).toBe("todo");
+		const detail = await getIssue(p.id, 1);
+		expect(detail.activity.slice(-2)).toMatchObject([
+			{ action: "report_attached", actor: { name: "Bot" } },
+			{
+				action: "regressed",
+				actor: { type: "system", name: "Tattle" },
+				data: {
+					release: "1.5.0",
+					reportId: later.id,
+					changes: { status: { from: "done", to: "todo" } },
+				},
+			},
+		]);
+	});
+
+	it("flags the regression when the new report comes in through a merge", async () => {
+		const { project: p } = await createWorkspace();
+		await submit(reportPayload(p.publicKey));
+		await markDone(p.id, 1);
+		await submit(reportPayload(p.publicKey, { release: "2.0.0" }));
+
+		await run(
+			Issues.use((issues) => issues.markDuplicate(p.id, 2, 1, agentActor)),
+		);
+		const detail = await getIssue(p.id, 1);
+		expect(detail.issue.status).toBe("todo");
+		expect(detail.activity.at(-1)).toMatchObject({
+			action: "regressed",
+			data: { release: "2.0.0" },
+		});
+	});
+
+	it("leaves the issue done for an older report, a feature or an open issue", async () => {
+		const { project: p } = await createWorkspace();
+		// #1 done after #2 was sent: #2 is an old report, not a regression.
+		await submit(reportPayload(p.publicKey));
+		const old = await submit(reportPayload(p.publicKey));
+		await markDone(p.id, 1);
+		await run(
+			Issues.use((issues) => issues.moveReport(p.id, old.id, 1, userActor)),
+		);
+		expect((await getIssue(p.id, 1)).issue.status).toBe("done");
+
+		// A shipped feature asked for again stays shipped.
+		await submit(reportPayload(p.publicKey, { type: "feature" }));
+		await markDone(p.id, 3);
+		const again = await submit(reportPayload(p.publicKey, { type: "feature" }));
+		await run(
+			Issues.use((issues) => issues.moveReport(p.id, again.id, 3, userActor)),
+		);
+		expect((await getIssue(p.id, 3)).issue.status).toBe("done");
+
+		const regressed = await db
+			.select()
+			.from(activity)
+			.where(eq(activity.action, "regressed"));
+		expect(regressed).toEqual([]);
 	});
 });

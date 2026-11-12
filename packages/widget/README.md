@@ -17,6 +17,7 @@ Users click a floating button, choose **Report a bug** or **Suggest an idea**, a
   src="https://tattle.example.com/widget.js"
   data-project-key="pk_..."
   data-api-url="https://tattle.example.com"
+  data-release="1.4.2"
   defer
 ></script>
 ```
@@ -32,6 +33,7 @@ The script initializes itself from its `data-*` attributes and exposes `window.T
 | `data-accent-color`  | `accentColor`                              |
 | `data-color-scheme`  | `colorScheme`                              |
 | `data-show-button`   | `"false"` sets `showButton: false`         |
+| `data-release`       | `release`                                  |
 
 With `defer`/`async` your code may run before the script has loaded. To call the API that early, add this stub first. Queued calls are replayed in order when the SDK loads:
 
@@ -60,6 +62,7 @@ Tattle.init(options: {
   strings?: Partial<TattleStrings>       // replaces any text
   css?: string                           // extra CSS inside the Shadow DOM
   maskSelectors?: string[]               // extra selectors to mask in screenshots
+  release?: string                       // your app's version, e.g. "1.4.2" or a commit SHA (max 100)
 }): void
 
 Tattle.setTheme(theme: TattleTheme): void                       // replaces the theme, keeps the open form
@@ -78,6 +81,7 @@ Tattle.destroy(): void
 - `destroy` removes the UI and restores the original `console`, `fetch`, `XMLHttpRequest` and `history` methods. It also clears buffers, user and context.
 - `addBreadcrumb` adds a step of your own to the trail, for what the page alone does not show: `Tattle.addBreadcrumb({ message: "Applied coupon", category: "cart", data: { code: "SPRING" } })`. `category` defaults to `"custom"`; `data` keeps up to 10 strings, numbers, booleans or nulls. Never put secrets in it.
 - When `identify` gives a user email, the form hides its optional email field.
+- `release` files every report under your app's version. Issues show the releases they were seen in, the dashboard filters by it, and a bug marked done that gets a newer report is reopened as a regression in that release. Set it from your build, e.g. `release: import.meta.env.VITE_APP_VERSION`.
 
 ## Match your app's design
 
@@ -189,6 +193,7 @@ Submitting a report sends `POST {apiUrl}/api/v1/ingest` with `Content-Type: appl
   pageUrl, pageTitle?,     // URL with sensitive query values redacted
   reporter?: { id?, email?, name?, traits? },   // from identify(); extra keys → traits; typed email fills email
   context?,                // from setContext()
+  release?,                // from init({ release }) or data-release
   device: { userAgent, browser, os, platform, language, languages, timezone,
             screen, viewport, colorScheme, online, deviceMemory?, connection? },
   console: [{ level, message, timestamp, stack? }],                  // last 200

@@ -53,6 +53,7 @@ The project's **public key** (`pk_…`, in project settings) authenticates the r
       "data": { "attempt": 2 }           // optional: at most 10 keys, values are strings (max 500), numbers, booleans or null
     }
   ],
+  "release": "1.4.2 (87)",               // optional, max 100: the app's version, see below
   "sdk": { "name": "my-ios-app", "version": "1.0.0" } // optional
 }
 ```
@@ -73,6 +74,12 @@ The server stores any JSON object. The dashboard reads these fields when they ar
 | `viewport: { width, height }` | ✓ | ✓ | Window, or screen size on mobile |
 
 Add anything else useful (locale, time zone, connection…): it appears in the report's **Device** tab and in what agents read through MCP.
+
+### `release`
+
+The version of the app that sent the report: a version number, a build, a commit SHA, whatever you ship under. Issues show the releases they were seen in (first and last), the issue list and agents filter by it, and a bug marked done that gets a report sent after that is reopened as a regression in that release.
+
+Without `release`, the server uses `device.app.version`, followed by the build in parentheses when there is one (`"1.4.2 (87)"`), so mobile clients that fill `device.app` get it for free.
 
 ### `breadcrumbs`
 

@@ -1,4 +1,15 @@
-import { and, asc, desc, eq, ilike, inArray, type SQL, sql } from "drizzle-orm";
+import {
+	and,
+	asc,
+	desc,
+	eq,
+	gt,
+	ilike,
+	inArray,
+	isNotNull,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 import {
 	activity,
@@ -63,6 +74,7 @@ export type ReportSummary = {
 	consoleErrors: number;
 	failedRequests: number;
 	pageUrl: string;
+	release: string | null;
 	createdAt: string;
 };
 export type IssueListItem = IssueDto & { lastReport: ReportSummary | null };
@@ -82,6 +94,8 @@ export type IssueFilter = {
 	statuses?: ReadonlyArray<IssueStatus>;
 	type?: IssueType;
 	query?: string;
+	/** Issues with at least one report from this release. */
+	release?: string;
 	limit?: number;
 	offset?: number;
 };
@@ -106,7 +120,10 @@ export class Issues extends Context.Service<
 			projectId: string,
 			query: string,
 			limit?: number,
+			release?: string,
 		) => Effect.Effect<IssueDto[], DbError>;
+		/** Releases the project's reports came from, most recently seen first. */
+		readonly releases: (projectId: string) => Effect.Effect<string[], DbError>;
 		readonly get: (
 			projectId: string,
 			number: number,
@@ -181,6 +198,7 @@ export class Issues extends Context.Service<
 				console: row.console,
 				network: row.network,
 				breadcrumbs: row.breadcrumbs,
+				release: row.release,
 				createdAt: row.createdAt.toISOString(),
 			});
 
@@ -230,6 +248,71 @@ export class Issues extends Context.Service<
 								.where(inArray(issue.id, issueIds)),
 						);
 
+			const seenInRelease = (release: string) =>
+				sql`exists (select 1 from ${report} where ${report.issueId} = ${issue.id} and ${report.release} = ${release})`;
+
+			// A bug that was done gets a report sent after it was marked done: it
+			// is back. Reopen it, and say in which release it came back.
+			const reopenIfRegressed = Effect.fn("Issues.reopenIfRegressed")(
+				function* (projectId: string, target: IssueRow, reportIds: string[]) {
+					if (
+						target.status !== "done" ||
+						target.type !== "bug" ||
+						reportIds.length === 0
+					)
+						return;
+					const [marked] = yield* database.query((db) =>
+						db
+							.select({ at: activity.createdAt })
+							.from(activity)
+							.where(
+								and(
+									eq(activity.issueId, target.id),
+									eq(activity.action, "updated"),
+									sql`${activity.data}->'changes'->'status'->>'to' = 'done'`,
+								),
+							)
+							.orderBy(desc(activity.createdAt))
+							.limit(1),
+					);
+					// Created as done, from the dashboard or by an agent.
+					const doneAt = marked?.at ?? target.createdAt;
+					const [newest] = yield* database.query((db) =>
+						db
+							.select({ id: report.id, release: report.release })
+							.from(report)
+							.where(
+								and(
+									inArray(report.id, reportIds),
+									gt(report.createdAt, doneAt),
+								),
+							)
+							.orderBy(desc(report.createdAt))
+							.limit(1),
+					);
+					if (!newest) return;
+					const [reopened] = yield* database.query((db) =>
+						db
+							.update(issue)
+							.set({ status: "todo" })
+							.where(eq(issue.id, target.id))
+							.returning(),
+					);
+					const system: Actor = { type: "system", id: null, name: "Tattle" };
+					const regression = { reportId: newest.id, release: newest.release };
+					yield* logActivity(target.id, system, "regressed", {
+						...regression,
+						changes: { status: { from: "done", to: "todo" } },
+					});
+					yield* webhooks.emit(projectId, "issue.updated", {
+						issue: issueDto(reopened as IssueRow),
+						changes: { status: { from: "done", to: "todo" } },
+						regression,
+						actor: system,
+					});
+				},
+			);
+
 			const list = Effect.fn("Issues.list")(function* (filter: IssueFilter) {
 				const conditions: SQL[] = [eq(issue.projectId, filter.projectId)];
 				if (filter.statuses?.length)
@@ -237,6 +320,7 @@ export class Issues extends Context.Service<
 				if (filter.type) conditions.push(eq(issue.type, filter.type));
 				if (filter.query)
 					conditions.push(ilike(issue.title, `%${filter.query}%`));
+				if (filter.release) conditions.push(seenInRelease(filter.release));
 				const rows = yield* database.query((db) =>
 					db
 						.select()
@@ -256,6 +340,7 @@ export class Issues extends Context.Service<
 							reporter: report.reporter,
 							screenshotKey: report.screenshotKey,
 							pageUrl: report.pageUrl,
+							release: report.release,
 							createdAt: report.createdAt,
 							consoleErrors: sql<number>`(select count(*) from jsonb_array_elements(${report.console}) as e where e->>'level' = 'error')::int`,
 							failedRequests: sql<number>`(select count(*) from jsonb_array_elements(${report.network}) as n where (n->>'status')::int = 0 or (n->>'status')::int >= 400)::int`,
@@ -289,6 +374,7 @@ export class Issues extends Context.Service<
 									consoleErrors: last.consoleErrors,
 									failedRequests: last.failedRequests,
 									pageUrl: last.pageUrl,
+									release: last.release,
 									createdAt: last.createdAt.toISOString(),
 								}
 							: null,
@@ -317,6 +403,7 @@ export class Issues extends Context.Service<
 				projectId: string,
 				query: string,
 				limit = 10,
+				release?: string,
 			) {
 				const words = query
 					.toLowerCase()
@@ -337,11 +424,33 @@ export class Issues extends Context.Service<
 					db
 						.select({ issue, score: sql<number>`(${score})::int`.as("score") })
 						.from(issue)
-						.where(eq(issue.projectId, projectId))
+						.where(
+							and(
+								eq(issue.projectId, projectId),
+								release ? seenInRelease(release) : undefined,
+							),
+						)
 						.orderBy(desc(sql`score`), desc(issue.updatedAt))
 						.limit(Math.min(limit, 50)),
 				);
 				return rows.filter((r) => r.score > 0).map((r) => issueDto(r.issue));
+			});
+
+			const releases = Effect.fn("Issues.releases")(function* (
+				projectId: string,
+			) {
+				const rows = yield* database.query((db) =>
+					db
+						.select({ release: report.release })
+						.from(report)
+						.where(
+							and(eq(report.projectId, projectId), isNotNull(report.release)),
+						)
+						.groupBy(report.release)
+						.orderBy(desc(sql`max(${report.createdAt})`))
+						.limit(100),
+				);
+				return rows.flatMap((r) => (r.release ? [r.release] : []));
 			});
 
 			const get = Effect.fn("Issues.get")(function* (
@@ -349,7 +458,7 @@ export class Issues extends Context.Service<
 				number: number,
 			) {
 				const row = yield* findIssue(projectId, number);
-				const [reports, comments, events] = yield* Effect.all(
+				const [reports, comments, events, seenIn] = yield* Effect.all(
 					[
 						database.query((db) =>
 							db
@@ -373,6 +482,25 @@ export class Issues extends Context.Service<
 								.where(eq(activity.issueId, row.id))
 								.orderBy(asc(activity.createdAt)),
 						),
+						database.query((db) =>
+							db
+								.select({
+									release: report.release,
+									firstSeen: sql`min(${report.createdAt})`.mapWith(
+										report.createdAt,
+									),
+									lastSeen: sql`max(${report.createdAt})`.mapWith(
+										report.createdAt,
+									),
+									reports: sql<number>`count(*)::int`,
+								})
+								.from(report)
+								.where(
+									and(eq(report.issueId, row.id), isNotNull(report.release)),
+								)
+								.groupBy(report.release)
+								.orderBy(sql`min(${report.createdAt})`),
+						),
 					],
 					{ concurrency: "unbounded" },
 				);
@@ -391,6 +519,12 @@ export class Issues extends Context.Service<
 					duplicateOf,
 					reports: reports.map(reportDto),
 					comments: comments.map(commentDto),
+					releases: seenIn.map((r) => ({
+						release: r.release as string,
+						firstSeen: (r.firstSeen as Date).toISOString(),
+						lastSeen: (r.lastSeen as Date).toISOString(),
+						reports: r.reports,
+					})),
 					activity: events.map((e) => ({
 						id: e.id,
 						actor: { type: e.actorType, id: e.actorId, name: e.actorName },
@@ -688,11 +822,12 @@ export class Issues extends Context.Service<
 						message: `#${duplicateOfNumber} is itself a duplicate; use its original instead`,
 					});
 				}
-				yield* database.query((db) =>
+				const moved = yield* database.query((db) =>
 					db
 						.update(report)
 						.set({ issueId: original.id })
-						.where(eq(report.issueId, duplicate.id)),
+						.where(eq(report.issueId, duplicate.id))
+						.returning({ id: report.id }),
 				);
 				// Recount first so the returned issue shows its new (empty) count.
 				yield* recountReports([duplicate.id, original.id]);
@@ -709,6 +844,11 @@ export class Issues extends Context.Service<
 				yield* logActivity(original.id, actor, "merged_duplicate", {
 					from: duplicate.number,
 				});
+				yield* reopenIfRegressed(
+					projectId,
+					original,
+					moved.map((r) => r.id),
+				);
 				const [originalAfter] = yield* database.query((db) =>
 					db.select().from(issue).where(eq(issue.id, original.id)),
 				);
@@ -749,6 +889,7 @@ export class Issues extends Context.Service<
 					...(row.issueId ? [row.issueId] : []),
 				]);
 				yield* logActivity(target.id, actor, "report_attached", { reportId });
+				yield* reopenIfRegressed(projectId, target, [reportId]);
 				const [after] = yield* database.query((db) =>
 					db.select().from(issue).where(eq(issue.id, target.id)),
 				);
@@ -759,6 +900,7 @@ export class Issues extends Context.Service<
 				list,
 				counts,
 				search,
+				releases,
 				get,
 				getReport,
 				create,
@@ -795,7 +937,16 @@ export type ReportDto = {
 	console: ReportRow["console"];
 	network: ReportRow["network"];
 	breadcrumbs: ReportRow["breadcrumbs"];
+	release: string | null;
 	createdAt: string;
+};
+
+/** A release an issue was reported from, with when it was first and last seen. */
+export type SeenInRelease = {
+	release: string;
+	firstSeen: string;
+	lastSeen: string;
+	reports: number;
 };
 
 export type IssueDetail = {
@@ -803,6 +954,8 @@ export type IssueDetail = {
 	duplicateOf: IssueDto | null;
 	reports: ReportDto[];
 	comments: CommentDto[];
+	/** Oldest first. */
+	releases: SeenInRelease[];
 	activity: Array<{
 		id: string;
 		actor: {
