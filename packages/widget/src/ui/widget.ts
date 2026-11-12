@@ -1,6 +1,7 @@
 import { openAnnotator, type Shape } from "../annotate";
 import { type Capture, captureViewport } from "../capture";
 import { getStrings, type Strings } from "../i18n";
+import { resolveMotion } from "../motion";
 import {
 	buildPayload,
 	IngestError,
@@ -51,6 +52,9 @@ const HOST_STYLE =
 const SUCCESS_CLOSE_MS = 2500;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const media = (query: string): MediaQueryList | null =>
+	typeof matchMedia === "function" ? matchMedia(query) : null;
+
 const nextFrame = () =>
 	new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
@@ -89,10 +93,14 @@ export class Widget {
 	private destroyed = false;
 	private theme: TattleTheme;
 	private colorScheme: ColorScheme | undefined;
-	private readonly darkQuery: MediaQueryList | null =
-		typeof matchMedia === "function"
-			? matchMedia("(prefers-color-scheme: dark)")
-			: null;
+	private readonly darkQuery = media("(prefers-color-scheme: dark)");
+	/** Same breakpoint as the bottom sheet in styles.ts. */
+	private readonly sheetQuery = media("(max-width: 639.98px)");
+	private readonly reducedMotionQuery = media(
+		"(prefers-reduced-motion: reduce)",
+	);
+	private motion: Animation[] = [];
+	private motionId = 0;
 
 	constructor(
 		private readonly config: WidgetConfig,
@@ -396,8 +404,9 @@ export class Widget {
 		const active = document.activeElement;
 		this.lastFocus = active === this.host ? null : active;
 		this.refreshIdentity();
-		this.panel.hidden = false;
-		this.backdrop.hidden = false;
+		// Reopened while closing after a sent report: start from a fresh form.
+		if (!this.success.hidden) this.reset();
+		this.showPanel();
 		this.launcher?.setAttribute("aria-expanded", "true");
 		this.launcher?.setAttribute("aria-label", this.t.closeLauncher);
 		if (this.launcher) this.launcher.innerHTML = icons.close;
@@ -413,25 +422,95 @@ export class Widget {
 		if (this.editor) this.editor.cancel();
 		if (!this.isOpen) return;
 		this.isOpen = false;
-		this.panel.hidden = true;
-		this.backdrop.hidden = true;
 		if (this.launcher) {
 			this.launcher.setAttribute("aria-expanded", "false");
 			this.launcher.setAttribute("aria-label", this.t.launcher);
 			this.launcher.innerHTML = icons.bug;
 		}
-		if (!this.success.hidden) this.reset();
 		const target = this.lastFocus;
 		this.lastFocus = null;
 		if (target instanceof HTMLElement && target.isConnected)
 			target.focus({ preventScroll: true });
 		else if (this.launcher && this.shadow.activeElement)
 			this.launcher.focus({ preventScroll: true });
+		if (this.panel.hidden) {
+			this.hidePanel();
+			return;
+		}
+		// While it animates out, the panel takes no clicks or focus.
+		this.panel.inert = true;
+		this.backdrop.inert = true;
+		void this.animate("exit").then((done) => {
+			if (done) this.hidePanel();
+		});
+	}
+
+	private showPanel(): void {
+		this.panel.inert = false;
+		this.backdrop.inert = false;
+		this.panel.hidden = false;
+		this.backdrop.hidden = false;
+		void this.animate("enter");
+	}
+
+	private hidePanel(): void {
+		this.stopMotion();
+		this.panel.hidden = true;
+		this.backdrop.hidden = true;
+		this.panel.inert = false;
+		this.backdrop.inert = false;
+		if (!this.success.hidden) this.reset();
+	}
+
+	/**
+	 * Plays the panel's entrance or exit (`theme.animation`). Resolves to true
+	 * once it has ended, false if something else interrupted it.
+	 */
+	private animate(phase: "enter" | "exit"): Promise<boolean> {
+		this.stopMotion();
+		const id = this.motionId;
+		const motion = this.reducedMotionQuery?.matches
+			? null
+			: resolveMotion(this.theme.animation, phase, !!this.sheetQuery?.matches);
+		if (!motion || typeof this.panel.animate !== "function")
+			return Promise.resolve(true);
+		const fill: FillMode = phase === "exit" ? "forwards" : "none";
+		const fade = [{ opacity: 0 }, { opacity: 1 }];
+		try {
+			const panel = this.panel.animate(motion.keyframes, {
+				duration: motion.duration,
+				easing: motion.easing,
+				fill,
+			});
+			this.motion = [
+				panel,
+				this.backdrop.animate(phase === "exit" ? fade.reverse() : fade, {
+					duration: motion.duration,
+					easing: "ease",
+					fill,
+				}),
+			];
+			return panel.finished.then(
+				() => id === this.motionId,
+				() => false,
+			);
+		} catch (error) {
+			console.warn("[tattle] invalid theme.animation:", error);
+			this.stopMotion();
+			return Promise.resolve(true);
+		}
+	}
+
+	private stopMotion(): void {
+		this.motionId++;
+		for (const animation of this.motion) animation.cancel();
+		this.motion = [];
 	}
 
 	destroy(): void {
 		if (this.destroyed) return;
 		this.editor?.cancel();
+		this.stopMotion();
 		clearTimeout(this.successTimer);
 		document.removeEventListener("keydown", this.onDocumentKey, true);
 		this.darkQuery?.removeEventListener?.("change", this.applyTheme);
@@ -464,9 +543,13 @@ export class Widget {
 		else this.shotImg.removeAttribute("src");
 	}
 
+	/** Hides everything at once for a screenshot, and shows it back. */
 	private setHidden(hidden: boolean): void {
-		this.panel.hidden = hidden;
-		this.backdrop.hidden = hidden;
+		if (hidden) {
+			this.stopMotion();
+			this.panel.hidden = true;
+			this.backdrop.hidden = true;
+		} else this.showPanel();
 		if (this.launcher) this.launcher.hidden = hidden;
 	}
 

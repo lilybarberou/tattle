@@ -111,6 +111,39 @@ document.querySelector("#feedback").addEventListener("click", () => Tattle.open(
 - **Fonts.** Fonts loaded by your page (`@font-face`, Google Fonts) work inside the widget. `"inherit"` reads the computed font of `<body>`.
 - **Texts.** `strings` replaces any text by its key, in any language. The keys are in [`src/i18n.ts`](src/i18n.ts) and typed as `TattleStrings`.
 
+### Animations
+
+`theme.animation` sets how the panel appears and disappears. A preset sets both: `"pop"` (the default: it fades in while growing a little), `"slide"`, `"fade"` or `"none"`. On phones, the default is `"slide"`: the bottom sheet comes up from the screen's edge.
+
+```ts
+Tattle.init({
+  projectKey: "pk_...",
+  theme: {
+    animation: {
+      enter: "slide",
+      exit: "fade",                    // default: the entrance, played backwards
+      duration: 260,                   // ms, default 180 (240 for the bottom sheet)
+      exitDuration: 150,               // default: duration
+      easing: "cubic-bezier(.34, 1.56, .64, 1)",   // any CSS easing
+      exitEasing: "ease-in",           // default: easing
+    },
+  },
+});
+```
+
+For your own motion, `enter` and `exit` also take [Web Animations keyframes](https://developer.mozilla.org/docs/Web/API/Web_Animations_API/Keyframe_Formats): the entrance goes from hidden to shown, the exit from shown to hidden. Without `exit`, the entrance's keyframes play backwards.
+
+```ts
+theme: {
+  animation: {
+    enter: [{ opacity: 0, transform: "translateX(40px)" }, { opacity: 1, transform: "none" }],
+    exit: [{ opacity: 1 }, { opacity: 0, transform: "scale(.9)" }],
+  },
+}
+```
+
+The backdrop behind the bottom sheet fades along. With `prefers-reduced-motion`, the panel never animates. `Tattle.setTheme` changes the animation at runtime too.
+
 ### From your stylesheet
 
 Each token is also a CSS variable the widget reads from the page, so you can map your design tokens without JavaScript, and let your own dark mode selector switch them:

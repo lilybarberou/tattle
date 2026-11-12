@@ -1,5 +1,10 @@
 import type { TextStyle } from "react-native";
-import type { ColorScheme, TattleTheme, ThemeColors } from "../types";
+import type {
+	AnimationPreset,
+	ColorScheme,
+	TattleTheme,
+	ThemeColors,
+} from "../types";
 
 export const DEFAULT_ACCENT = "#2f55c9";
 const DEFAULT_RADIUS = 11;
@@ -79,6 +84,8 @@ export interface Theme {
 	title: TextStyle;
 	radius: number;
 	buttonRadius: number;
+	/** How the sheet appears and disappears. */
+	animation: SheetAnimation;
 	/** Font family and weight for a text, honoring `fontFamilyBold`. */
 	font(weight: Weight): TextStyle;
 }
@@ -169,7 +176,58 @@ export function buildTheme(
 		},
 		radius,
 		buttonRadius: nonNegative(input?.buttonRadius) ?? radius,
+		animation: resolveAnimation(input?.animation),
 		font,
+	};
+}
+
+type Easing = (value: number) => number;
+
+export interface SheetMotion {
+	preset: AnimationPreset;
+	duration: number;
+	/** Undefined: the Panel's default easing. */
+	easing: Easing | undefined;
+}
+
+export interface SheetAnimation {
+	enter: SheetMotion;
+	exit: SheetMotion;
+}
+
+const PRESETS: AnimationPreset[] = ["fade", "slide", "pop", "none"];
+const MAX_DURATION = 5000;
+
+const isPreset = (value: unknown): value is AnimationPreset =>
+	PRESETS.includes(value as AnimationPreset);
+
+const duration = (value: unknown): number | undefined => {
+	const ms = nonNegative(value);
+	return ms === undefined ? undefined : Math.min(ms, MAX_DURATION);
+};
+
+const easing = (value: unknown): Easing | undefined =>
+	typeof value === "function" ? (value as Easing) : undefined;
+
+/** The sheet's entrance and exit, from `theme.animation`. */
+export function resolveAnimation(input: unknown): SheetAnimation {
+	const raw: Record<string, unknown> = isPreset(input)
+		? { enter: input }
+		: input && typeof input === "object"
+			? (input as Record<string, unknown>)
+			: {};
+	const enter = isPreset(raw.enter) ? raw.enter : "fade";
+	const exit = isPreset(raw.exit) ? raw.exit : enter;
+	const enterDuration =
+		duration(raw.duration) ?? (enter === "slide" ? 300 : 220);
+	const enterEasing = easing(raw.easing);
+	return {
+		enter: { preset: enter, duration: enterDuration, easing: enterEasing },
+		exit: {
+			preset: exit,
+			duration: duration(raw.exitDuration) ?? enterDuration,
+			easing: easing(raw.exitEasing) ?? enterEasing,
+		},
 	};
 }
 

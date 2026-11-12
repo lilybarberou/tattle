@@ -30,6 +30,35 @@ export interface ThemeColors {
 	backdrop?: string;
 }
 
+/**
+ * How the panel appears and disappears: "pop" (fades in while growing a
+ * little), "slide" (rises; the bottom sheet comes up from the screen's edge),
+ * "fade", or "none".
+ */
+export type AnimationPreset = "pop" | "slide" | "fade" | "none";
+
+export interface TattleAnimation {
+	/**
+	 * The entrance: a preset, or Web Animations keyframes from hidden to shown,
+	 * e.g. `[{ opacity: 0, transform: "translateX(24px)" }, {}]`.
+	 * Default "pop", and "slide" for the bottom sheet on small screens.
+	 */
+	enter?: AnimationPreset | Keyframe[];
+	/**
+	 * The exit: a preset, played back to its hidden state, or keyframes from
+	 * shown to hidden. Default: the entrance, played backwards.
+	 */
+	exit?: AnimationPreset | Keyframe[];
+	/** Duration of the entrance, in ms. Default 180, 240 for the bottom sheet. */
+	duration?: number;
+	/** Duration of the exit, in ms. Default: `duration`. */
+	exitDuration?: number;
+	/** CSS easing of the entrance. Default "cubic-bezier(.2, .8, .3, 1)". */
+	easing?: string;
+	/** CSS easing of the exit. Default: `easing`. */
+	exitEasing?: string;
+}
+
 export interface TattleTheme extends ThemeColors {
 	/** Colors used in dark mode instead of the ones above. */
 	dark?: ThemeColors;
@@ -39,6 +68,11 @@ export interface TattleTheme extends ThemeColors {
 	radius?: number | string;
 	/** Corner radius of buttons. Default: `radius` minus 1px. 999 gives pills. */
 	buttonRadius?: number | string;
+	/**
+	 * How the panel appears and disappears. A preset sets both, e.g. "fade".
+	 * With `prefers-reduced-motion`, the panel never animates.
+	 */
+	animation?: AnimationPreset | TattleAnimation;
 }
 
 export interface InitOptions {

@@ -142,9 +142,33 @@ Give the widget your design tokens, and it reads like a screen of your app:
 - **Send button.** With `accentEdge`, it sits on a solid edge of that color and sinks onto it while pressed; without, it fades when pressed.
 - **Title.** `titleFontFamily` is drawn with no extra weight: give the file of the weight you want. Default: the bold font, at 17.
 - **Texts.** `strings` replaces any text by its key, in any language. The keys are in [`src/i18n.ts`](src/i18n.ts) and typed as `TattleStrings`.
+- **Animations.** `animation` sets how the sheet appears and disappears, see below.
 - **Entry point.** For the least "third-party" feel, set `showButton={false}` and open the form from your own UI with `Tattle.open()`.
 
 The annotation editor keeps its dark, full-screen look; it uses your accent, fonts and button radius.
+
+### Animations
+
+`theme.animation` sets how the sheet appears and disappears. A preset sets both: `"fade"` (the default), `"slide"` (the sheet rises from the bottom edge while the backdrop fades), `"pop"` (it fades in while growing a little) or `"none"`.
+
+```tsx
+import { Easing } from "react-native";
+
+<TattleProvider
+  theme={{
+    animation: {
+      enter: "slide",
+      exit: "fade",                          // default: enter
+      duration: 320,                         // ms, default 220 (300 for "slide")
+      exitDuration: 180,                     // default: duration
+      easing: Easing.out(Easing.back(1.2)),  // default Easing.out(Easing.cubic)
+      exitEasing: Easing.in(Easing.cubic),   // default: easing
+    },
+  }}
+>
+```
+
+The animations run on the native driver. With Reduce Motion on, slides and pops become fades.
 
 ## Hide sensitive content from screenshots
 

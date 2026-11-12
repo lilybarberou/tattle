@@ -82,6 +82,18 @@
 				</div>
 			</section>
 			<section>
+				<h2>Animation</h2>
+				<p>How the panel appears and disappears (<code>theme.animation</code>). Open and close the widget after each one.</p>
+				<div class="row">
+					<button type="button" id="anim-default">default (pop, slide on mobile)</button>
+					<button type="button" id="anim-fade">"fade"</button>
+					<button type="button" id="anim-slide">"slide"</button>
+					<button type="button" id="anim-none">"none"</button>
+					<button type="button" id="anim-slow">pop in 600ms, fade out 150ms</button>
+					<button type="button" id="anim-custom">custom keyframes</button>
+				</div>
+			</section>
+			<section>
 				<h2>Last activity</h2>
 				<pre id="out">–</pre>
 			</section>
@@ -152,6 +164,25 @@
 				}),
 			);
 			on("destroy", () => { Tattle.destroy(); show("destroyed"); });
+			const animate = (animation) => { Tattle.setTheme({ animation }); show({ animation }); };
+			on("anim-default", () => animate(undefined));
+			on("anim-fade", () => animate("fade"));
+			on("anim-slide", () => animate("slide"));
+			on("anim-none", () => animate("none"));
+			on("anim-slow", () => animate({ enter: "pop", duration: 600, exit: "fade", exitDuration: 150 }));
+			on("anim-custom", () =>
+				animate({
+					enter: [
+						{ opacity: 0, transform: "translateX(40px) rotate(2deg)" },
+						{ opacity: 1, transform: "none" },
+					],
+					duration: 320,
+					easing: "cubic-bezier(.34, 1.56, .64, 1)",
+					exit: [{ opacity: 1 }, { opacity: 0, transform: "translateY(24px) scale(.9)" }],
+					exitDuration: 160,
+					exitEasing: "ease-in",
+				}),
+			);
 		</script>
 		<script src="../dist/widget.iife.js" data-project-key="pk_demo" data-api-url="http://localhost:3000" defer></script>
 	</body>

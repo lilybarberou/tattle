@@ -1,4 +1,5 @@
 import type { Strings } from "./i18n";
+import { sanitizeAnimation } from "./motion";
 import type { ColorScheme, TattleTheme, ThemeColors } from "./types";
 
 export const DEFAULT_ACCENT = "#2f55c9";
@@ -110,6 +111,8 @@ export function sanitizeTheme(input: unknown): TattleTheme {
 		if (value) theme[key] = value;
 		else console.warn(`[tattle] ignoring invalid theme.${key}:`, raw[key]);
 	}
+	const animation = sanitizeAnimation(raw.animation);
+	if (animation) theme.animation = animation;
 	return theme;
 }
 

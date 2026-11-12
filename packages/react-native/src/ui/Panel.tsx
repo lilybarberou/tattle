@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
 	ActivityIndicator,
+	Animated,
 	Image,
 	KeyboardAvoidingView,
 	Modal,
@@ -25,6 +26,7 @@ import type { AppInfo, TattleType } from "../types";
 import { type Annotation, Annotator } from "./Annotator";
 import { Icon } from "./icons";
 import { useInsets } from "./insets";
+import { useSheetMotion } from "./motion";
 import { offset, type Theme } from "./theme";
 
 const SUCCESS_CLOSE_MS = 2500;
@@ -81,6 +83,8 @@ export function Panel({
 	const [sending, setSending] = useState(false);
 	const lastCapture = useRef<string | null>(null);
 	const openId = useRef(0);
+	const [sheetHeight, setSheetHeight] = useState(window.height);
+	const motion = useSheetMotion(visible, theme.animation, sheetHeight);
 
 	const capture = async (id: number) => {
 		setCapturing(true);
@@ -172,27 +176,29 @@ export function Panel({
 
 	return (
 		<Modal
-			visible={visible}
+			visible={motion.mounted}
 			transparent
-			animationType="fade"
+			animationType="none"
 			statusBarTranslucent
 			navigationBarTranslucent
 			onRequestClose={close}
 			supportedOrientations={["portrait", "landscape"]}
 		>
 			{view === "editor" && shot ? (
-				<Annotator
-					uri={shot.uri}
-					imageSize={shotSize}
-					initial={shot.annotation}
-					t={t}
-					theme={theme}
-					onCancel={() => setView("form")}
-					onDone={({ dataUrl, annotation }) => {
-						setShot({ ...shot, dataUrl, annotation });
-						setView("form");
-					}}
-				/>
+				<Animated.View style={[styles.editor, motion.contentStyle]}>
+					<Annotator
+						uri={shot.uri}
+						imageSize={shotSize}
+						initial={shot.annotation}
+						t={t}
+						theme={theme}
+						onCancel={() => setView("form")}
+						onDone={({ dataUrl, annotation }) => {
+							setShot({ ...shot, dataUrl, annotation });
+							setView("form");
+						}}
+					/>
+				</Animated.View>
 			) : (
 				<KeyboardAvoidingView
 					// The sheet shrinks (its content scrolls) to stay below the
@@ -200,17 +206,23 @@ export function Panel({
 					style={[styles.fill, { paddingTop: insets.top + 12 }]}
 					behavior={Platform.OS === "ios" ? "padding" : undefined}
 				>
-					<Pressable
+					<Animated.View
+						style={[StyleSheet.absoluteFill, motion.backdropStyle]}
+					>
+						<Pressable
+							style={[
+								StyleSheet.absoluteFill,
+								{ backgroundColor: theme.backdrop },
+							]}
+							onPress={onClose}
+							accessibilityLabel={t.close}
+							accessibilityRole="button"
+						/>
+					</Animated.View>
+					<Animated.View
+						onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}
 						style={[
-							StyleSheet.absoluteFill,
-							{ backgroundColor: theme.backdrop },
-						]}
-						onPress={onClose}
-						accessibilityLabel={t.close}
-						accessibilityRole="button"
-					/>
-					<View
-						style={[
+							motion.sheetStyle,
 							styles.sheet,
 							{
 								backgroundColor: theme.bg,
@@ -557,7 +569,7 @@ export function Panel({
 								</Pressable>
 							</ScrollView>
 						)}
-					</View>
+					</Animated.View>
 				</KeyboardAvoidingView>
 			)}
 		</Modal>
@@ -604,6 +616,7 @@ const EDGE = 3;
 
 const styles = StyleSheet.create({
 	fill: { flex: 1, justifyContent: "flex-end" },
+	editor: { flex: 1 },
 	sheet: {
 		flexShrink: 1,
 		width: "100%",

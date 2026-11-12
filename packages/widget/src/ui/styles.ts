@@ -60,12 +60,10 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 	border-radius: calc(var(--fb-radius) + 6px);
 	box-shadow: var(--fb-shadow);
 	overflow: hidden;
-	transform-origin: bottom right;
-	animation: fb-pop .18s cubic-bezier(.2, .8, .3, 1);
+	transform-origin: bottom right; /* entrance and exit: motion.ts */
 }
 .fb-left .fb-panel { right: auto; left: calc(20px + var(--fb-safe-l)); transform-origin: bottom left; }
 .fb-no-button .fb-panel { bottom: calc(20px + var(--fb-safe-b)); }
-@keyframes fb-pop { from { opacity: 0; transform: translateY(8px) scale(.98); } }
 .fb-backdrop { display: none; }
 
 .fb-header {
@@ -194,7 +192,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 
 /* Narrow screens: bottom sheet */
 @media (max-width: 639.98px) {
-	.fb-backdrop { display: block; position: fixed; inset: 0; background: var(--fb-backdrop); animation: fb-fade .2s ease; }
+	.fb-backdrop { display: block; position: fixed; inset: 0; background: var(--fb-backdrop); }
 	.fb-panel, .fb-left .fb-panel, .fb-no-button .fb-panel {
 		left: 0;
 		right: 0;
@@ -207,7 +205,6 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 		border-bottom: 0;
 		padding-bottom: var(--fb-safe-b);
 		transform-origin: bottom center;
-		animation: fb-sheet .24s cubic-bezier(.2, .8, .3, 1);
 	}
 	.fb-header::before {
 		content: "";
@@ -223,7 +220,6 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 	.fb-header { position: relative; padding-top: 18px; }
 	.fb-input, .fb-textarea { font-size: 16px; } /* avoid iOS zoom on focus */
 }
-@keyframes fb-sheet { from { transform: translateY(100%); } }
 @keyframes fb-fade { from { opacity: 0; } }
 
 /* Annotation editor */

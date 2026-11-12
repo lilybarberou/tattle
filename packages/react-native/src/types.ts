@@ -36,6 +36,28 @@ export interface ThemeColors {
 	accentEdge?: string;
 }
 
+/**
+ * How the sheet appears and disappears: "fade" (with its backdrop), "slide"
+ * (it rises from the bottom edge while the backdrop fades), "pop" (it fades
+ * in while growing a little), or "none".
+ */
+export type AnimationPreset = "fade" | "slide" | "pop" | "none";
+
+export interface TattleAnimation {
+	/** The entrance. Default "fade". */
+	enter?: AnimationPreset;
+	/** The exit, played back to the preset's hidden state. Default: `enter`. */
+	exit?: AnimationPreset;
+	/** Duration of the entrance, in ms. Default 220, 300 for "slide". */
+	duration?: number;
+	/** Duration of the exit, in ms. Default: `duration`. */
+	exitDuration?: number;
+	/** Easing of the entrance, e.g. `Easing.out(Easing.back(1.5))`. Default `Easing.out(Easing.cubic)`. */
+	easing?: (value: number) => number;
+	/** Easing of the exit. Default: `easing`. */
+	exitEasing?: (value: number) => number;
+}
+
 export interface TattleTheme extends ThemeColors {
 	/** Colors used in dark mode instead of the ones above. */
 	dark?: ThemeColors;
@@ -59,6 +81,11 @@ export interface TattleTheme extends ThemeColors {
 	radius?: number;
 	/** Corner radius of buttons. Default: `radius`. 999 gives pills. */
 	buttonRadius?: number;
+	/**
+	 * How the sheet appears and disappears. A preset sets both, e.g. "slide".
+	 * With Reduce Motion on, slides and pops become fades.
+	 */
+	animation?: AnimationPreset | TattleAnimation;
 }
 export type Locale = "fr" | "en";
 

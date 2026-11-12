@@ -25,6 +25,7 @@ import type {
 import { Widget } from "./ui/widget";
 
 export type {
+	AnimationPreset,
 	ColorScheme,
 	ConsoleEntry,
 	ConsoleLevel,
@@ -37,6 +38,7 @@ export type {
 	OpenOptions,
 	Position,
 	Reporter,
+	TattleAnimation,
 	TattleStrings,
 	TattleTheme,
 	TattleType,

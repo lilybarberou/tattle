@@ -4,6 +4,7 @@ import { requestClose, requestOpen, state } from "./state";
 import type { OpenOptions, TattleUser } from "./types";
 
 export type {
+	AnimationPreset,
 	AppInfo,
 	ColorScheme,
 	ConsoleEntry,
@@ -15,6 +16,7 @@ export type {
 	NetworkEntry,
 	OpenOptions,
 	Reporter,
+	TattleAnimation,
 	TattleOptions,
 	TattleStrings,
 	TattleTheme,

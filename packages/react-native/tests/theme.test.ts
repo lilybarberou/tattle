@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTheme, resolveScheme } from "../src/ui/theme";
+import { buildTheme, resolveAnimation, resolveScheme } from "../src/ui/theme";
 
 describe("resolveScheme", () => {
 	it("follows the system by default", () => {
@@ -111,5 +111,63 @@ describe("buildTheme's derived colors and title", () => {
 			fontWeight: "normal",
 			fontSize: 17,
 		});
+	});
+});
+
+describe("resolveAnimation", () => {
+	it("fades by default, as the modal did", () => {
+		const animation = buildTheme(undefined, "light").animation;
+		expect(animation.enter).toEqual({
+			preset: "fade",
+			duration: 220,
+			easing: undefined,
+		});
+		expect(animation.exit).toEqual(animation.enter);
+	});
+
+	it("uses a preset for both the entrance and the exit", () => {
+		const animation = resolveAnimation("slide");
+		expect(animation.enter).toMatchObject({ preset: "slide", duration: 300 });
+		expect(animation.exit).toMatchObject({ preset: "slide", duration: 300 });
+	});
+
+	it("takes the exit's own preset, duration and easing", () => {
+		const easing = (t: number) => t * t;
+		const exitEasing = (t: number) => t;
+		const animation = resolveAnimation({
+			enter: "pop",
+			exit: "none",
+			duration: 400,
+			exitDuration: 100,
+			easing,
+			exitEasing,
+		});
+		expect(animation.enter).toEqual({ preset: "pop", duration: 400, easing });
+		expect(animation.exit).toEqual({
+			preset: "none",
+			duration: 100,
+			easing: exitEasing,
+		});
+		expect(resolveAnimation({ duration: 150, easing }).exit).toEqual({
+			preset: "fade",
+			duration: 150,
+			easing,
+		});
+	});
+
+	it("ignores invalid values", () => {
+		const animation = resolveAnimation({
+			enter: "bounce",
+			duration: -5,
+			exitDuration: 99999,
+			easing: "ease-in",
+		});
+		expect(animation.enter).toEqual({
+			preset: "fade",
+			duration: 220,
+			easing: undefined,
+		});
+		expect(animation.exit.duration).toBe(5000);
+		expect(resolveAnimation(42).enter.preset).toBe("fade");
 	});
 });
