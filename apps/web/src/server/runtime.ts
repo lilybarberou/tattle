@@ -3,6 +3,7 @@ import { Access } from "./Access";
 import { Database } from "./Database";
 import { DataLifecycle } from "./DataLifecycle";
 import { type AppError, httpStatus, publicMessage } from "./errors";
+import { GitHub } from "./GitHub";
 import { Ingest } from "./Ingest";
 import { Issues } from "./Issues";
 import { Overview } from "./Overview";
@@ -25,6 +26,7 @@ export const AppLayer = Layer.mergeAll(
 	DataLifecycle.layer.pipe(Layer.provide(Infra)),
 	Overview.layer.pipe(Layer.provide(Layer.mergeAll(Infra, AccessLive))),
 	Portal.layer.pipe(Layer.provide(Layer.mergeAll(Infra, IssuesLive))),
+	GitHub.layer.pipe(Layer.provide(Layer.mergeAll(Infra, IssuesLive))),
 	Ingest.layer.pipe(
 		Layer.provide(Layer.mergeAll(Infra, WebhooksLive, IssuesLive)),
 	),

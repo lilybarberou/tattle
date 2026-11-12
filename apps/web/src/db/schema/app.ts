@@ -51,6 +51,12 @@ export const project = pgTable(
 		// Public feature-request portal at /portal/<portalSlug>, off by default.
 		portalEnabled: boolean("portal_enabled").notNull().default(false),
 		portalSlug: text("portal_slug").unique(),
+		// GitHub webhook at /api/v1/github/<id>: merged pull requests move their
+		// linked issues to Done. Off by default; the secret signs deliveries.
+		githubEnabled: boolean("github_enabled").notNull().default(false),
+		githubSecret: text("github_secret"),
+		githubLastDeliveryAt: timestamp("github_last_delivery_at"),
+		githubLastDelivery: text("github_last_delivery"),
 		createdAt: createdAt(),
 	},
 	(t) => [uniqueIndex("project_org_slug_idx").on(t.organizationId, t.slug)],

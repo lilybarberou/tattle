@@ -91,3 +91,16 @@ export const limitPortal = (ip: string) => {
 		10 * 60_000,
 	);
 };
+
+/**
+ * GitHub deliveries per IP and project: 300 per 10 minutes. Keyed by IP too,
+ * so someone flooding a project's URL does not block GitHub's own deliveries.
+ */
+export const limitGithub = (ip: string, projectId: string) => {
+	sweep();
+	return hit(
+		`github:${ip}:${projectId}`,
+		numberFromEnv("GITHUB_LIMIT_PER_IP", 300),
+		10 * 60_000,
+	);
+};

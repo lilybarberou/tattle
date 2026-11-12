@@ -237,6 +237,7 @@ Then create your first project. Its page shows the widget snippet.
 | **An AI agent (MCP)** | Agents & API | `claude mcp add --transport http tattle https://your-domain/api/mcp`: the agent opens a browser to sign in and asks you to approve. Agents without a browser use an API token instead. |
 | **Discord or Slack** | Project settings → *Discord and Slack* | Paste a channel's webhook URL. New reports, status changes and comments appear there. |
 | **Your own server** | Project settings → *Webhooks* | Signed JSON events, retried if your server is down. See the [README](../README.md#webhooks). |
+| **GitHub** | Project settings → *GitHub* | Turn it on, then add a webhook to your repository with the address and secret shown there (Pull requests events only). Merged pull requests move their issues to Done. GitHub must be able to reach your server. |
 | **A public feature request page** | Project settings → *Public feature requests* | Turn it on and pick an address: `https://your-domain/portal/<name>`. |
 
 ## 8. Optional: email and S3
@@ -354,6 +355,7 @@ After changing `.env`, apply it with `docker compose up -d`.
 | `INGEST_LIMIT_PER_IP` | `20` | Reports per IP per 10 minutes. |
 | `INGEST_LIMIT_PER_PROJECT` | `300` | Reports per project per hour. |
 | `PORTAL_LIMIT_PER_IP` | `30` | Votes and ideas per IP per 10 minutes on public pages. |
+| `GITHUB_LIMIT_PER_IP` | `300` | GitHub webhook deliveries per IP and project per 10 minutes. |
 | `REPORT_RETENTION_DAYS` | (keep all) | Deletes screenshots and logs of reports older than this. The message and the reporter stay. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_SECURE`, `SMTP_FROM` | (no email) | Sending email. `SMTP_SECURE=true` for port 465. |
 | `STORAGE_DRIVER` | `local` | `s3` to store screenshots in a bucket. |

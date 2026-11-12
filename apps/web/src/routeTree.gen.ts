@@ -32,6 +32,7 @@ import { Route as AppPProjectIdOverviewRouteImport } from './routes/_app/p/$proj
 import { Route as AppPProjectIdRequestsRouteImport } from './routes/_app/p/$projectId/requests'
 import { Route as AppPProjectIdSettingsRouteImport } from './routes/_app/p/$projectId/settings'
 import { Route as AppPProjectIdTriageRouteImport } from './routes/_app/p/$projectId/triage'
+import { Route as ApiV1GithubProjectIdRouteImport } from './routes/api/v1/github.$projectId'
 import { Route as AppPProjectIdIssuesIndexRouteImport } from './routes/_app/p/$projectId/issues/index'
 import { Route as AppPProjectIdIssuesNumberRouteImport } from './routes/_app/p/$projectId/issues/$number'
 
@@ -149,6 +150,11 @@ const AppPProjectIdTriageRoute = AppPProjectIdTriageRouteImport.update({
   path: '/triage',
   getParentRoute: () => AppPProjectIdRoute,
 } as any)
+const ApiV1GithubProjectIdRoute = ApiV1GithubProjectIdRouteImport.update({
+  id: '/api/v1/github/$projectId',
+  path: '/api/v1/github/$projectId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppPProjectIdIssuesIndexRoute =
   AppPProjectIdIssuesIndexRouteImport.update({
     id: '/issues/',
@@ -184,6 +190,7 @@ export interface FileRoutesByFullPath {
   '/p/$projectId/requests': typeof AppPProjectIdRequestsRoute
   '/p/$projectId/settings': typeof AppPProjectIdSettingsRoute
   '/p/$projectId/triage': typeof AppPProjectIdTriageRoute
+  '/api/v1/github/$projectId': typeof ApiV1GithubProjectIdRoute
   '/p/$projectId/': typeof AppPProjectIdIndexRoute
   '/p/$projectId/issues/$number': typeof AppPProjectIdIssuesNumberRoute
   '/p/$projectId/issues/': typeof AppPProjectIdIssuesIndexRoute
@@ -209,6 +216,7 @@ export interface FileRoutesByTo {
   '/p/$projectId/requests': typeof AppPProjectIdRequestsRoute
   '/p/$projectId/settings': typeof AppPProjectIdSettingsRoute
   '/p/$projectId/triage': typeof AppPProjectIdTriageRoute
+  '/api/v1/github/$projectId': typeof ApiV1GithubProjectIdRoute
   '/p/$projectId': typeof AppPProjectIdIndexRoute
   '/p/$projectId/issues/$number': typeof AppPProjectIdIssuesNumberRoute
   '/p/$projectId/issues': typeof AppPProjectIdIssuesIndexRoute
@@ -237,6 +245,7 @@ export interface FileRoutesById {
   '/_app/p/$projectId/requests': typeof AppPProjectIdRequestsRoute
   '/_app/p/$projectId/settings': typeof AppPProjectIdSettingsRoute
   '/_app/p/$projectId/triage': typeof AppPProjectIdTriageRoute
+  '/api/v1/github/$projectId': typeof ApiV1GithubProjectIdRoute
   '/_app/p/$projectId/': typeof AppPProjectIdIndexRoute
   '/_app/p/$projectId/issues/$number': typeof AppPProjectIdIssuesNumberRoute
   '/_app/p/$projectId/issues/': typeof AppPProjectIdIssuesIndexRoute
@@ -265,6 +274,7 @@ export interface FileRouteTypes {
     | '/p/$projectId/requests'
     | '/p/$projectId/settings'
     | '/p/$projectId/triage'
+    | '/api/v1/github/$projectId'
     | '/p/$projectId/'
     | '/p/$projectId/issues/$number'
     | '/p/$projectId/issues/'
@@ -290,6 +300,7 @@ export interface FileRouteTypes {
     | '/p/$projectId/requests'
     | '/p/$projectId/settings'
     | '/p/$projectId/triage'
+    | '/api/v1/github/$projectId'
     | '/p/$projectId'
     | '/p/$projectId/issues/$number'
     | '/p/$projectId/issues'
@@ -317,6 +328,7 @@ export interface FileRouteTypes {
     | '/_app/p/$projectId/requests'
     | '/_app/p/$projectId/settings'
     | '/_app/p/$projectId/triage'
+    | '/api/v1/github/$projectId'
     | '/_app/p/$projectId/'
     | '/_app/p/$projectId/issues/$number'
     | '/_app/p/$projectId/issues/'
@@ -336,6 +348,7 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiV1FilesRoute: typeof ApiV1FilesRoute
   ApiV1IngestRoute: typeof ApiV1IngestRoute
+  ApiV1GithubProjectIdRoute: typeof ApiV1GithubProjectIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -501,6 +514,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPProjectIdTriageRouteImport
       parentRoute: typeof AppPProjectIdRoute
     }
+    '/api/v1/github/$projectId': {
+      id: '/api/v1/github/$projectId'
+      path: '/api/v1/github/$projectId'
+      fullPath: '/api/v1/github/$projectId'
+      preLoaderRoute: typeof ApiV1GithubProjectIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/p/$projectId/issues/': {
       id: '/_app/p/$projectId/issues/'
       path: '/issues'
@@ -574,6 +594,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiV1FilesRoute: ApiV1FilesRoute,
   ApiV1IngestRoute: ApiV1IngestRoute,
+  ApiV1GithubProjectIdRoute: ApiV1GithubProjectIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

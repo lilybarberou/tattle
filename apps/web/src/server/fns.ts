@@ -42,6 +42,7 @@ import { Database } from "./Database";
 import { DataLifecycle } from "./DataLifecycle";
 import { env } from "./env";
 import { type DbError, InvalidInput, NotFound } from "./errors";
+import { GitHub } from "./GitHub";
 import { Issues } from "./Issues";
 import { mailEnabled, sendMail } from "./mailer";
 import { Overview } from "./Overview";
@@ -969,6 +970,56 @@ const requireProjectAdmin = (projectId: string) =>
 		yield* requireAdmin(row.organizationId);
 		return row;
 	});
+
+// ---------- GitHub: merged pull requests move issues to Done ----------
+
+const isProjectAdmin = (organizationId: string) =>
+	requireAdmin(organizationId).pipe(
+		Effect.as(true),
+		Effect.catchTag("InvalidInput", () => Effect.succeed(false)),
+	);
+
+/** Everyone sees whether it is on; only owners and admins see the secret. */
+export const getGithubSettingsFn = createServerFn({ method: "GET" })
+	.validator(z.object({ projectId: z.string() }))
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				const { project: row } = yield* withProject(data.projectId);
+				const canManage = yield* isProjectAdmin(row.organizationId);
+				const settings = yield* (yield* GitHub).settings(row.id);
+				return {
+					...settings,
+					secret: canManage ? settings.secret : null,
+					canManage,
+				};
+			}),
+		),
+	);
+
+export const setGithubEnabledFn = createServerFn({ method: "POST" })
+	.validator(z.object({ projectId: z.string(), enabled: z.boolean() }))
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				const row = yield* requireProjectAdmin(data.projectId);
+				yield* (yield* GitHub).setEnabled(row.id, data.enabled);
+				return { ok: true };
+			}),
+		),
+	);
+
+export const regenerateGithubSecretFn = createServerFn({ method: "POST" })
+	.validator(z.object({ projectId: z.string() }))
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				const row = yield* requireProjectAdmin(data.projectId);
+				yield* (yield* GitHub).regenerateSecret(row.id);
+				return { ok: true };
+			}),
+		),
+	);
 
 export const deleteProjectFn = createServerFn({ method: "POST" })
 	.validator(z.object({ projectId: z.string(), confirmName: z.string() }))

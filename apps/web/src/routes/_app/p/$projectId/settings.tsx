@@ -5,7 +5,7 @@ import {
 	useNavigate,
 	useRouter,
 } from "@tanstack/react-router";
-import { SendIcon, Trash2Icon } from "lucide-react";
+import { RefreshCwIcon, SendIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CodeBlock } from "#/components/code-block";
@@ -22,8 +22,11 @@ import {
 	createWebhookFn,
 	deleteProjectFn,
 	deleteWebhookFn,
+	getGithubSettingsFn,
 	listWebhooksFn,
 	pingWebhookFn,
+	regenerateGithubSecretFn,
+	setGithubEnabledFn,
 	updateProjectFn,
 } from "#/server/fns";
 import type { WebhookEvent } from "#/shared/issues";
@@ -32,8 +35,13 @@ const projectRoute = getRouteApi("/_app/p/$projectId");
 const appRoute = getRouteApi("/_app");
 
 export const Route = createFileRoute("/_app/p/$projectId/settings")({
-	loader: ({ params }) =>
-		listWebhooksFn({ data: { projectId: params.projectId } }),
+	loader: async ({ params }) => {
+		const [webhooks, github] = await Promise.all([
+			listWebhooksFn({ data: { projectId: params.projectId } }),
+			getGithubSettingsFn({ data: { projectId: params.projectId } }),
+		]);
+		return { webhooks, github };
+	},
 	component: SettingsPage,
 });
 
@@ -53,7 +61,7 @@ const INSTALL_TABS: Array<{ id: InstallTab; label: string }> = [
 function SettingsPage() {
 	const project = projectRoute.useLoaderData();
 	const { baseUrl } = appRoute.useLoaderData();
-	const webhooks = Route.useLoaderData();
+	const { webhooks, github } = Route.useLoaderData();
 	const router = useRouter();
 	const [name, setName] = useState(project.name);
 	const [origins, setOrigins] = useState(project.allowedOrigins.join("\n"));
@@ -574,6 +582,35 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 				</SettingsSection>
 
 				<SettingsSection
+					id="github"
+					title="GitHub"
+					description={
+						<>
+							<p>
+								Moves an issue to Done when its pull request is merged into the
+								repository's default branch, so nobody has to do it by hand.
+								Reporters of a shipped feature get their email as usual.
+							</p>
+							<p className="mt-2">
+								A pull request is linked when it is the issue's PR (agents set
+								it with <code className="font-mono text-xs">update_issue</code>
+								), or when its title or description says{" "}
+								<code className="font-mono text-xs">Tattle #12</code> (or{" "}
+								<code className="font-mono text-xs">tattle#12</code>; a plain
+								#12 is GitHub's own issue). Opening such a pull request links it
+								and moves the issue from Todo or In progress to In review.
+							</p>
+						</>
+					}
+				>
+					<GithubSettings
+						projectId={project.id}
+						hookUrl={`${baseUrl}/api/v1/github/${project.id}`}
+						settings={github}
+					/>
+				</SettingsSection>
+
+				<SettingsSection
 					id="portal"
 					title="Public feature requests"
 					description="A public page where anyone can see what you plan, vote for ideas and suggest new ones. Only requests you accepted from Triage appear there."
@@ -674,5 +711,114 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 				</SettingsSection>
 			</div>
 		</>
+	);
+}
+
+type GithubSettingsData = Awaited<ReturnType<typeof getGithubSettingsFn>>;
+
+function GithubSettings({
+	projectId,
+	hookUrl,
+	settings,
+}: {
+	projectId: string;
+	hookUrl: string;
+	settings: GithubSettingsData;
+}) {
+	const router = useRouter();
+	const [busy, setBusy] = useState(false);
+
+	const act = async (action: () => Promise<unknown>, success: string) => {
+		setBusy(true);
+		try {
+			await action();
+			toast.success(success);
+			await router.invalidate();
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Could not save");
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	return (
+		<div className="space-y-4">
+			<label
+				htmlFor="github-enabled"
+				className="relative flex items-center gap-2.5"
+			>
+				<Checkbox
+					id="github-enabled"
+					checked={settings.enabled}
+					disabled={!settings.canManage || busy}
+					onCheckedChange={(v) =>
+						act(
+							() =>
+								setGithubEnabledFn({
+									data: { projectId, enabled: v === true },
+								}),
+							v === true ? "GitHub sync turned on" : "GitHub sync turned off",
+						)
+					}
+				/>
+				Move issues to Done when their pull request is merged
+			</label>
+			{!settings.canManage && (
+				<p className="text-muted-foreground">
+					Only owners and admins can change this.
+				</p>
+			)}
+			{settings.canManage && settings.enabled && settings.secret && (
+				<>
+					<ol className="list-decimal space-y-1.5 pl-5 text-muted-foreground">
+						<li>
+							In your repository on GitHub:{" "}
+							<b>Settings → Webhooks → Add webhook</b>.
+						</li>
+						<li>
+							<b>Payload URL</b>: the address below.
+						</li>
+						<li>
+							<b>Content type</b>:{" "}
+							<code className="font-mono text-xs">application/json</code>.
+						</li>
+						<li>
+							<b>Secret</b>: the secret below.
+						</li>
+						<li>
+							<b>Let me select individual events</b>, check <b>Pull requests</b>{" "}
+							only, then <b>Add webhook</b>. GitHub sends a ping right away.
+						</li>
+					</ol>
+					<CodeBlock label="Payload URL" code={hookUrl} />
+					<CodeBlock label="Secret" code={settings.secret} />
+					<div className="flex flex-wrap items-center gap-3">
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={busy}
+							onClick={() =>
+								act(
+									() => regenerateGithubSecretFn({ data: { projectId } }),
+									"New secret created: paste it in GitHub",
+								)
+							}
+						>
+							<RefreshCwIcon className="size-3.5" />
+							New secret
+						</Button>
+						<span className="text-muted-foreground">
+							The old one stops working at once.
+						</span>
+					</div>
+				</>
+			)}
+			{settings.lastDeliveryAt && (
+				<p className="text-muted-foreground">
+					Last delivery {relativeTime(settings.lastDeliveryAt)}:{" "}
+					{settings.lastDelivery}
+				</p>
+			)}
+		</div>
 	);
 }

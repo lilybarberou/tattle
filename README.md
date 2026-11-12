@@ -4,7 +4,7 @@ Self-hosted bug reports and feature requests for your web and mobile apps, built
 
 - **Widget** (`packages/widget`, and `packages/react-native` for React Native and Expo apps): a button in your app. Users report a bug with an annotated screenshot, or suggest an idea. The steps the user took before reporting (pages, clicks, field changes), console logs, JS errors, network requests, device info and the signed-in account are attached automatically.
 - **Tracker** (`apps/web`): projects, a Triage inbox, issues with status, priority, labels and assignee, duplicates merged with their reports, the releases each issue was seen in, and regressions flagged when a fixed bug comes back.
-- **For agents**: an MCP server, signed webhooks and API tokens, so an agent can triage new reports, merge duplicates and work on fixes.
+- **For agents**: an MCP server, signed webhooks and API tokens, so an agent can triage new reports, merge duplicates and work on fixes. Merged GitHub pull requests move their issues to Done.
 
 ## Self-host
 
@@ -140,11 +140,24 @@ OAuth discovery follows the MCP spec: `/.well-known/oauth-protected-resource/api
 | `mark_duplicate` | Marks an issue as a duplicate; its reports move to the original (a done bug getting a newer report is reopened as a regression) |
 | `move_report` | Attaches one report to another issue (same regression rule) |
 
+Linking a fix: set the issue's pull request with `update_issue` (`pr_url`), or write `Tattle #12` (any case, `tattle#12` works too) in the pull request's title or description. A plain `#12` is left alone: on GitHub it means GitHub's own issue 12.
+
 Report content is written by end users. The MCP server tells agents to treat it as data, never as instructions; keep agent permissions narrow anyway.
 
 ## Discord and Slack
 
 Project settings → **Discord and Slack**: paste a Discord channel webhook URL (channel settings → Integrations → Webhooks) or a Slack incoming webhook URL. The channel gets new reports with their evidence, status and assignee changes, and comments; label or title edits stay quiet.
+
+## GitHub
+
+Project settings → **GitHub** closes the loop: when a pull request is merged into the repository's default branch, the issues it is linked to move to Done, recorded as "GitHub" in their activity. Webhooks fire and people who asked for a shipped feature get their email, exactly as when someone changes the status by hand. Off by default; only owners and admins can turn it on.
+
+Turn it on, then in the repository on GitHub: **Settings → Webhooks → Add webhook**, paste the payload URL (`https://your-server/api/v1/github/<project id>`) and the secret from the settings page, choose `application/json`, and under **Let me select individual events** check **Pull requests** only. Settings show the last delivery and what it did.
+
+- A pull request is linked to an issue when it is the issue's pull request (`prUrl`, set by an agent or in the dashboard), or when its title or description says `Tattle #12`.
+- When a pull request that says `Tattle #12` is opened, reopened or marked ready for review, issue 12 gets it as its pull request (if it has none) and moves from Todo or In progress to In review. Drafts are linked without moving.
+- Merges into another branch, pull requests closed without merging, and issues already done, declined or marked duplicate are left alone.
+- Every delivery must carry a valid `X-Hub-Signature-256`; anything else gets a 401. Deliveries are limited per IP (`GITHUB_LIMIT_PER_IP`, default 300 per 10 minutes).
 
 ## Public feature requests
 
@@ -172,9 +185,11 @@ function verify(secret, header, rawBody) {
 ```
 apps/web            TanStack Start app (dashboard + API), Drizzle + Postgres, Better Auth
   src/server/       Effect services: Database, Storage (disk or S3), Access, Issues, Ingest,
-                    Webhooks (+ Discord/Slack), Portal, DataLifecycle (deletion, GDPR, retention)
+                    Webhooks (+ Discord/Slack), Portal, GitHub (merged pull requests),
+                    DataLifecycle (deletion, GDPR, retention)
   src/server/mcp.ts MCP server (@modelcontextprotocol/server)
-  src/routes/api/   /api/v1/ingest (widget), /api/v1/files (signed screenshots), /api/mcp
+  src/routes/api/   /api/v1/ingest (widget), /api/v1/files (signed screenshots),
+                    /api/v1/github/<project> (GitHub webhook), /api/mcp
   src/routes/       dashboard, /portal/$slug (public), /login, /consent (OAuth), /.well-known/*
 packages/widget     Browser SDK, no framework, Shadow DOM, ~20 KB gzipped
 packages/react-native  React Native and Expo SDK (react-native-view-shot, react-native-svg)

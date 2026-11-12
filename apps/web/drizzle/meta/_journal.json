@@ -29,6 +29,13 @@
       "when": 1794495965622,
       "tag": "0003_report_release",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794496655242,
+      "tag": "0004_github_sync",
+      "breakpoints": true
     }
   ]
 }
