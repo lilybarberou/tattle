@@ -10,6 +10,7 @@ import {
 } from "#/components/ui/dialog";
 import { createIssueFn } from "#/server/fns";
 import type { IssueStatus } from "#/shared/issues";
+import { MarkdownInput } from "./markdown";
 import {
 	AssigneePicker,
 	type AssigneeValue,
@@ -144,13 +145,15 @@ export function NewIssueDialog({
 						<label htmlFor="new-issue-description" className="sr-only">
 							Description
 						</label>
-						<textarea
+						<MarkdownInput
 							id="new-issue-description"
 							value={description}
 							onChange={(e) => setDescription(e.target.value)}
 							placeholder="Add a description: steps to reproduce, what you expected, links…"
 							rows={5}
-							className="field-sizing-content min-h-28 w-full resize-none bg-transparent leading-6 outline-none placeholder:text-muted-foreground/70"
+							headerClassName="-mx-2 pt-1 pb-1"
+							className="field-sizing-content block min-h-28 w-full resize-none bg-transparent leading-6 outline-none placeholder:text-muted-foreground/70"
+							previewClassName="min-h-28 leading-6"
 						/>
 					</div>
 					<div className="flex flex-wrap items-center gap-1 px-4 pb-3">

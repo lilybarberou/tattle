@@ -183,3 +183,139 @@
 		}
 	}
 }
+
+/*
+ * Markdown in issue descriptions and comments. Sizes are in em so the same
+ * rules fit the 15px description and the 14px comments.
+ */
+@layer components {
+	.markdown {
+		overflow-wrap: anywhere;
+	}
+	.markdown > :first-child {
+		margin-top: 0;
+	}
+	.markdown > :last-child {
+		margin-bottom: 0;
+	}
+	.markdown
+		:where(p, ul, ol, pre, blockquote, .markdown-table, hr, h1, h2, h3, h4, h5, h6, section) {
+		margin-block: 0.75em;
+	}
+	.markdown :where(h1, h2, h3, h4, h5, h6) {
+		margin-top: 1.25em;
+		font-weight: 600;
+		line-height: 1.4;
+	}
+	.markdown h1 {
+		font-size: 1.25em;
+	}
+	.markdown h2 {
+		font-size: 1.125em;
+	}
+	.markdown :where(h3, h4, h5, h6) {
+		font-size: 1em;
+	}
+	.markdown a {
+		color: var(--accent);
+		text-decoration: underline;
+		text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
+		text-underline-offset: 3px;
+	}
+	.markdown a:hover {
+		text-decoration-color: currentColor;
+	}
+	.markdown .markdown-image svg {
+		display: inline;
+		margin-right: 0.25em;
+		vertical-align: -0.125em;
+	}
+	.markdown strong {
+		font-weight: 600;
+	}
+	.markdown del {
+		color: var(--muted);
+	}
+	.markdown :where(ul, ol) {
+		padding-left: 1.5em;
+	}
+	.markdown ul {
+		list-style: disc;
+	}
+	.markdown ol {
+		list-style: decimal;
+	}
+	.markdown li + li,
+	.markdown li > :where(ul, ol) {
+		margin-top: 0.25em;
+	}
+	.markdown li > :where(ul, ol, p) {
+		margin-bottom: 0;
+	}
+	.markdown li::marker {
+		color: var(--muted);
+	}
+	.markdown .contains-task-list {
+		list-style: none;
+		padding-left: 0.25em;
+	}
+	.markdown .task-list-item input {
+		margin-right: 0.5em;
+		vertical-align: -0.1em;
+		accent-color: var(--accent);
+	}
+	.markdown blockquote {
+		border-left: 2px solid var(--control);
+		padding-left: 0.85em;
+		color: var(--muted);
+	}
+	.markdown hr {
+		border-top: 1px solid var(--border);
+	}
+	.markdown code {
+		@apply font-mono;
+		font-size: 0.875em;
+	}
+	.markdown :not(pre) > code {
+		border-radius: 4px;
+		background: var(--raised);
+		padding: 0.1em 0.35em;
+	}
+	.markdown pre {
+		overflow-x: auto;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-card);
+		background: var(--raised);
+		padding: 0.75em 1em;
+		line-height: 1.6;
+	}
+	.markdown pre code {
+		font-size: 0.8125em;
+	}
+	.markdown .markdown-table {
+		overflow-x: auto;
+	}
+	.markdown table {
+		border-collapse: collapse;
+		font-size: 0.9375em;
+	}
+	.markdown :where(th, td) {
+		border: 1px solid var(--border);
+		padding: 0.3em 0.75em;
+		text-align: left;
+	}
+	.markdown th {
+		background: var(--raised);
+		font-weight: 600;
+	}
+	.markdown [data-footnotes] {
+		border-top: 1px solid var(--border);
+		padding-top: 0.75em;
+		color: var(--muted);
+		font-size: 0.875em;
+	}
+	.markdown [data-footnotes] h2 {
+		margin-top: 0;
+		font-size: 1em;
+	}
+}

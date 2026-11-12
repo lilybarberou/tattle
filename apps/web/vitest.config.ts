@@ -7,7 +7,7 @@ export default defineConfig({
 	resolve: { tsconfigPaths: true },
 	test: {
 		environment: "node",
-		include: ["tests/**/*.test.ts"],
+		include: ["tests/**/*.test.{ts,tsx}"],
 		globalSetup: ["tests/global-setup.ts"],
 		setupFiles: ["tests/setup.ts"],
 		// Test files share one database: run them one after the other.

@@ -24,6 +24,7 @@ import {
 	shortTime,
 	TypeIcon,
 } from "#/components/issue-meta";
+import { Markdown } from "#/components/markdown";
 import { MergeDialog } from "#/components/merge-dialog";
 import { AssigneePicker, PriorityPicker } from "#/components/pickers";
 import {
@@ -263,6 +264,15 @@ function TriagePage() {
 	const latest = detail?.reports[0] ?? null;
 	const body =
 		latest && selected ? messageBody(latest.message, selected.title) : "";
+	// A widget issue's description is its first report's message, already shown
+	// as plain text. One written in the app, by an agent or on the portal is
+	// Markdown.
+	const description =
+		detail &&
+		(detail.reports.length === 0 ||
+			detail.issue.description.trim() !== detail.reports.at(-1)?.message.trim())
+			? detail.issue.description.trim()
+			: "";
 
 	return (
 		<div className="grid h-full min-h-[calc(100dvh-48px)] md:min-h-0 lg:grid-cols-[minmax(300px,384px)_minmax(0,1fr)]">
@@ -431,8 +441,19 @@ function TriagePage() {
 									<h2 className="text-xl leading-7 font-semibold text-balance">
 										{selected.title}
 									</h2>
+									{description && (
+										<Markdown className="mt-2 max-w-[70ch] text-[15px] leading-6">
+											{description}
+										</Markdown>
+									)}
 									{body && (
-										<p className="mt-2 max-w-[70ch] text-[15px] leading-6 whitespace-pre-wrap">
+										<p
+											className={cn(
+												"mt-2 max-w-[70ch] text-[15px] leading-6 whitespace-pre-wrap",
+												description &&
+													"border-l-2 border-control pl-3 text-muted-foreground",
+											)}
+										>
 											{body}
 										</p>
 									)}

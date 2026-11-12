@@ -8,6 +8,7 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	GitPullRequestIcon,
+	PencilIcon,
 	Trash2Icon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -21,6 +22,7 @@ import {
 	StatusIcon,
 	TypeIcon,
 } from "#/components/issue-meta";
+import { Markdown, MarkdownInput } from "#/components/markdown";
 import { MergeDialog } from "#/components/merge-dialog";
 import {
 	AssigneePicker,
@@ -204,6 +206,108 @@ function ReportBlock({
 	);
 }
 
+/** The description, shown as Markdown; Edit opens a Write / Preview editor. */
+function Description({
+	value,
+	onSave,
+}: {
+	value: string;
+	onSave: (description: string) => Promise<boolean>;
+}) {
+	const [editing, setEditing] = useState(false);
+	const [draft, setDraft] = useState(value);
+	const [saving, setSaving] = useState(false);
+
+	const edit = () => {
+		setDraft(value);
+		setEditing(true);
+	};
+	const save = async () => {
+		if (saving) return;
+		if (draft === value) return setEditing(false);
+		setSaving(true);
+		const saved = await onSave(draft);
+		setSaving(false);
+		if (saved) setEditing(false);
+	};
+
+	if (!editing)
+		return value.trim() ? (
+			<div className="mt-2 flex max-w-[75ch] items-start gap-2">
+				<Markdown className="min-w-0 max-w-[70ch] flex-1 px-0.5 text-[15px] leading-6">
+					{value}
+				</Markdown>
+				<Button
+					size="icon-xs"
+					variant="ghost"
+					className="flex-none text-muted-foreground"
+					aria-label="Edit the description"
+					title="Edit the description"
+					onClick={edit}
+				>
+					<PencilIcon />
+				</Button>
+			</div>
+		) : (
+			<button
+				type="button"
+				onClick={edit}
+				className="mt-2 block min-h-12 w-full max-w-[75ch] rounded-md px-0.5 text-left text-[15px] leading-6 text-muted-foreground hover:bg-raised"
+			>
+				Add a description…
+			</button>
+		);
+
+	return (
+		<form
+			className="mt-2 max-w-[75ch] rounded-lg border focus-within:border-control"
+			onSubmit={(event) => {
+				event.preventDefault();
+				void save();
+			}}
+			onKeyDown={(event) => {
+				if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+					event.preventDefault();
+					void save();
+				} else if (event.key === "Escape") {
+					event.preventDefault();
+					setEditing(false);
+				}
+			}}
+		>
+			<label htmlFor="issue-description" className="sr-only">
+				Description
+			</label>
+			<MarkdownInput
+				id="issue-description"
+				autoFocus
+				value={draft}
+				onChange={(e) => setDraft(e.target.value)}
+				placeholder="Add a description…"
+				headerClassName="px-2 pt-2"
+				className="field-sizing-content block min-h-24 w-full resize-none bg-transparent px-3 py-2 text-[15px] leading-6 outline-none placeholder:text-muted-foreground"
+				previewClassName="min-h-24 px-3 py-2 text-[15px] leading-6"
+			/>
+			<div className="flex justify-end gap-2 px-3 pb-3">
+				<Button
+					type="button"
+					size="sm"
+					variant="ghost"
+					onClick={() => setEditing(false)}
+				>
+					Cancel
+				</Button>
+				<Button type="submit" size="sm" disabled={saving}>
+					Save
+					<kbd className="border-white/20 bg-white/10 text-current dark:border-black/20 dark:bg-black/10">
+						⌘↵
+					</kbd>
+				</Button>
+			</div>
+		</form>
+	);
+}
+
 function PropertyRow({
 	label,
 	children,
@@ -225,7 +329,6 @@ function IssuePage() {
 	const router = useRouter();
 	const { issue } = detail;
 	const [title, setTitle] = useState(issue.title);
-	const [description, setDescription] = useState(issue.description);
 	const [comment, setComment] = useState("");
 	const [merging, setMerging] = useState(false);
 	const [deleting, setDeleting] = useState(false);
@@ -235,9 +338,8 @@ function IssuePage() {
 	// Navigating between issues reuses this component: resync local fields.
 	useEffect(() => {
 		setTitle(issue.title);
-		setDescription(issue.description);
 		setPrUrl(issue.prUrl ?? "");
-	}, [issue.title, issue.description, issue.prUrl]);
+	}, [issue.title, issue.prUrl]);
 
 	const update = async (patch: Patch, success?: string) => {
 		try {
@@ -246,8 +348,10 @@ function IssuePage() {
 			});
 			if (success) toast.success(success);
 			await router.invalidate();
+			return true;
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : "Update failed");
+			return false;
 		}
 	};
 
@@ -280,7 +384,7 @@ function IssuePage() {
 	// The description of a widget issue is its first report's message: show it once.
 	const showDescription =
 		detail.reports.length === 0 ||
-		description.trim() !== detail.reports.at(-1)?.message.trim();
+		issue.description.trim() !== detail.reports.at(-1)?.message.trim();
 
 	return (
 		<div className="grid min-h-full lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -345,22 +449,11 @@ function IssuePage() {
 				</div>
 
 				{showDescription && (
-					<div className="mt-2">
-						<label htmlFor="issue-description" className="sr-only">
-							Description
-						</label>
-						<textarea
-							id="issue-description"
-							value={description}
-							onChange={(e) => setDescription(e.target.value)}
-							onBlur={() => {
-								if (description !== issue.description)
-									void update({ description });
-							}}
-							placeholder="Add a description…"
-							className="field-sizing-content min-h-12 w-full max-w-[75ch] resize-none rounded-md bg-transparent px-0.5 text-[15px] leading-6 outline-none placeholder:text-muted-foreground hover:bg-raised focus:bg-raised"
-						/>
-					</div>
+					<Description
+						key={issue.id}
+						value={issue.description}
+						onSave={(description) => update({ description })}
+					/>
 				)}
 
 				{detail.reports.length > 0 && (
@@ -419,9 +512,7 @@ function IssuePage() {
 											</span>{" "}
 											· {relativeTime(entry.at)}
 										</p>
-										<p className="mt-1 whitespace-pre-wrap">
-											{entry.item.body}
-										</p>
+										<Markdown className="mt-1">{entry.item.body}</Markdown>
 									</div>
 								</li>
 							) : (
@@ -452,22 +543,24 @@ function IssuePage() {
 							event.preventDefault();
 							void sendComment();
 						}}
+						onKeyDown={(e) => {
+							if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+								e.preventDefault();
+								void sendComment();
+							}
+						}}
 					>
 						<label htmlFor="comment" className="sr-only">
 							Comment
 						</label>
-						<textarea
+						<MarkdownInput
 							id="comment"
 							value={comment}
 							onChange={(e) => setComment(e.target.value)}
-							onKeyDown={(e) => {
-								if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-									e.preventDefault();
-									void sendComment();
-								}
-							}}
 							placeholder="Leave a comment… your agent reads these too."
+							headerClassName="px-2 pt-2"
 							className="field-sizing-content block min-h-20 w-full resize-none bg-transparent px-4 py-3 outline-none placeholder:text-muted-foreground"
+							previewClassName="min-h-20 px-4 py-3"
 						/>
 						<div className="flex justify-end px-3 pb-3">
 							<Button type="submit" size="sm" disabled={!comment.trim()}>
