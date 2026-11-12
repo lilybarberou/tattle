@@ -41,6 +41,7 @@ import {
 	type Principal,
 } from "./Access";
 import { AiSettings } from "./AiSettings";
+import { errorKind } from "./background";
 import { Conversations } from "./Conversations";
 import { Database } from "./Database";
 import { DataLifecycle } from "./DataLifecycle";
@@ -853,7 +854,7 @@ export const inviteMemberFn = createServerFn({ method: "POST" })
 					catch: (cause) => cause,
 				}).pipe(
 					Effect.tapError((cause) =>
-						Effect.logError("Invitation email failed", cause),
+						Effect.logError(`Invitation email failed: ${errorKind(cause)}`),
 					),
 					Effect.orElseSucceed(() => false),
 				);

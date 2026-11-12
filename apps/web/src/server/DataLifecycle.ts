@@ -9,6 +9,7 @@ import {
 	reportMessage,
 } from "#/db/schema";
 import type { Actor } from "./Access";
+import { errorKind } from "./background";
 import { Database } from "./Database";
 import { type DbError, NotFound, type StorageError } from "./errors";
 import { Storage } from "./Storage";
@@ -468,7 +469,7 @@ export class DataLifecycle extends Context.Service<
 							: Effect.void,
 					),
 					Effect.catch((error) =>
-						Effect.logError("Retention purge failed", error),
+						Effect.logError(`Retention purge failed: ${errorKind(error)}`),
 					),
 					Effect.delay("30 seconds"),
 					Effect.repeat(Schedule.spaced("6 hours")),

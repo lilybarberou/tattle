@@ -1,5 +1,8 @@
+import { Cause } from "effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { passwordPolicy } from "#/lib/password-policy";
+import { causeKinds, errorKind } from "#/server/background";
+import { DbError } from "#/server/errors";
 import { limitIngest, limitPortal } from "#/server/rate-limit";
 import { buildTrail, trailLine } from "#/shared/trail";
 
@@ -125,5 +128,28 @@ describe("the trail before a report", () => {
 				timestamp: 1e20,
 			}),
 		).toBe("--:--:-- custom: x");
+	});
+});
+
+describe("error kinds in logs", () => {
+	it("keep the tag and the cause's code, never the message", () => {
+		const smtp = Object.assign(
+			new Error("550 5.1.1 <jo@example.com>: Recipient address rejected"),
+			{ code: "EENVELOPE" },
+		);
+		expect(errorKind({ _tag: "UnknownError", cause: smtp })).toBe(
+			"UnknownError EENVELOPE",
+		);
+		const sql = new DbError({
+			cause: Object.assign(new Error("insert … params: jo@example.com"), {
+				cause: { code: "23505", detail: "Key (email)=(jo@example.com)" },
+			}),
+		});
+		expect(errorKind(sql)).toBe("DbError 23505");
+		expect(errorKind(new Error("jo@example.com"))).toBe("Error");
+		expect(causeKinds(Cause.fail(sql))).toBe("DbError 23505");
+		expect(
+			JSON.stringify([errorKind(sql), causeKinds(Cause.fail(sql))]),
+		).not.toContain("jo@example.com");
 	});
 });

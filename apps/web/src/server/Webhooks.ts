@@ -8,7 +8,7 @@ import {
 	webhookEndpoint,
 } from "#/db/schema";
 import { WEBHOOK_EVENTS, type WebhookEvent } from "#/shared/issues";
-import { inBackground } from "./background";
+import { errorKind, inBackground } from "./background";
 import { describeEvent, toDiscord, toSlack } from "./chat-format";
 import { Database } from "./Database";
 import { Notifications } from "./Notifications";
@@ -222,7 +222,9 @@ export class Webhooks extends Context.Service<
 						),
 					),
 					Effect.catch((error) =>
-						Effect.logError("Webhook recovery sweep failed", error),
+						Effect.logError(
+							`Webhook recovery sweep failed: ${errorKind(error)}`,
+						),
 					),
 				);
 			yield* resumePending.pipe(
@@ -285,7 +287,10 @@ export class Webhooks extends Context.Service<
 						);
 					}
 				},
-				Effect.catch((error) => Effect.logError("Webhook emit failed", error)),
+				// The kind only: the error carries the payload, which holds reports.
+				Effect.catch((error) =>
+					Effect.logError(`Webhook emit failed: ${errorKind(error)}`),
+				),
 			);
 
 			const ping = Effect.fn("Webhooks.ping")(

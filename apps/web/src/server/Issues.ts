@@ -30,7 +30,7 @@ import {
 	PRIORITY_LABELS,
 } from "#/shared/issues";
 import type { Actor } from "./Access";
-import { inBackground } from "./background";
+import { errorKind, inBackground } from "./background";
 import { Database } from "./Database";
 import { openSuggestion } from "./Duplicates";
 import { env } from "./env";
@@ -776,7 +776,7 @@ export class Issues extends Context.Service<
 					);
 				},
 				Effect.catch((error) =>
-					Effect.logError("Shipped notice failed", error),
+					Effect.logError(`Shipped notice failed: ${errorKind(error)}`),
 				),
 			);
 

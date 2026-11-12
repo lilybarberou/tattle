@@ -32,6 +32,7 @@ import {
 	REPORTER_REPLY_WINDOW_MINUTES,
 } from "#/shared/notifications";
 import type { Actor } from "./Access";
+import { errorKind } from "./background";
 import { Database } from "./Database";
 import { env } from "./env";
 import type { DbError } from "./errors";
@@ -246,9 +247,7 @@ export class Notifications extends Context.Service<
 					}),
 				).pipe(
 					Effect.catch((error) =>
-						Effect.logError(
-							`Email "${type}" failed: ${error.cause instanceof Error ? error.cause.message : "unknown error"}`,
-						),
+						Effect.logError(`Email "${type}" failed: ${errorKind(error)}`),
 					),
 				);
 			};

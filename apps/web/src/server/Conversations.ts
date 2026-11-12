@@ -9,7 +9,7 @@ import {
 	reporterStatus,
 } from "#/shared/issues";
 import type { Actor } from "./Access";
-import { inBackground } from "./background";
+import { errorKind, inBackground } from "./background";
 import { Database } from "./Database";
 import { env } from "./env";
 import { type DbError, InvalidInput, NotFound } from "./errors";
@@ -543,8 +543,11 @@ export class Conversations extends Context.Service<
 						}),
 					);
 				},
+				// The kind only: the error can name the reporter's address.
 				Effect.catch((error) =>
-					Effect.logError("Reply email to the reporter failed", error),
+					Effect.logError(
+						`Reply email to the reporter failed: ${errorKind(error)}`,
+					),
 				),
 			);
 
