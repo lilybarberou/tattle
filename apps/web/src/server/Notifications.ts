@@ -36,6 +36,7 @@ import { errorKind } from "./background";
 import { Database } from "./Database";
 import { env } from "./env";
 import type { DbError } from "./errors";
+import { titleFromMessage } from "./Issues";
 import { type Mail, mailEnabled, sendMail } from "./mailer";
 import {
 	readUnsubscribe,
@@ -748,12 +749,10 @@ export class Notifications extends Context.Service<
 						.where(eq(report.id, target.reportId)),
 				);
 				if (!row) return null;
-				const firstLine = row.message.trim().split("\n")[0] ?? "";
 				return {
 					kind: "report" as const,
 					project: row.project,
-					title:
-						firstLine.length > 90 ? `${firstLine.slice(0, 87)}…` : firstLine,
+					title: titleFromMessage(row.message),
 				};
 			});
 
