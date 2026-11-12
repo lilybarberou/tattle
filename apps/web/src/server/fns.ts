@@ -162,8 +162,9 @@ export const getWorkspaceFn = createServerFn({ method: "GET" }).handler(() =>
 			const p: Principal = yield* principal();
 			const database = yield* Database;
 			const baseUrl = env.baseUrl;
+			const build = env.build;
 			if (p.organizationIds.length === 0)
-				return { baseUrl, organizations: [], projects: [] };
+				return { baseUrl, build, organizations: [], projects: [] };
 			const [organizations, projects] = yield* Effect.all([
 				database.query((db) =>
 					db
@@ -189,7 +190,7 @@ export const getWorkspaceFn = createServerFn({ method: "GET" }).handler(() =>
 						.orderBy(project.createdAt),
 				),
 			]);
-			return { baseUrl, organizations, projects };
+			return { baseUrl, build, organizations, projects };
 		}),
 	),
 );

@@ -18,7 +18,12 @@ RUN pnpm --filter @tattle/widget build \
 # ---- Run: only the bundled server, the migrator and the SQL migrations.
 FROM node:24-alpine
 WORKDIR /app
-ENV NODE_ENV=production \
+# Shown in the app, on /health and to agents. The release workflow sets them.
+ARG TATTLE_BUILD_VERSION=dev
+ARG TATTLE_BUILD_COMMIT=
+ENV TATTLE_BUILD_VERSION=$TATTLE_BUILD_VERSION \
+    TATTLE_BUILD_COMMIT=$TATTLE_BUILD_COMMIT \
+    NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
     STORAGE_DIR=/data/storage \

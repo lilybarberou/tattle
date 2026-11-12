@@ -107,7 +107,7 @@ function NavLink({
 }
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
-	const { organizations, projects } = Route.useLoaderData();
+	const { organizations, projects, build } = Route.useLoaderData();
 	const { user } = Route.useRouteContext();
 	const navigate = useNavigate();
 	const { newIssue } = useAppActions();
@@ -246,6 +246,23 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 							<LogOutIcon className="size-4" />
 							Sign out
 						</DropdownMenuItem>
+						<DropdownMenuSeparator />
+						{build.url ? (
+							<DropdownMenuItem asChild>
+								<a
+									href={build.url}
+									target="_blank"
+									rel="noreferrer"
+									className="text-xs text-muted-foreground"
+								>
+									Tattle {build.version}
+								</a>
+							</DropdownMenuItem>
+						) : (
+							<DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+								Tattle {build.version}
+							</DropdownMenuLabel>
+						)}
 					</DropdownMenuContent>
 				</DropdownMenu>
 			</nav>

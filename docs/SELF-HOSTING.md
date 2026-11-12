@@ -305,6 +305,11 @@ The app updates the database on start. [Make a backup](#make-a-backup) first.
 example) in `.env`, and change it when you choose to upgrade. Available versions are listed on the
 [releases page](https://github.com/lilybarberou/tattle/releases).
 
+To see which version is running: open the menu under your name, at the bottom left of the app, or
+visit `/health`, which answers `{"ok":true,"version":"0.2.0"}`. Versions before 0.2.1 don't show it;
+for those, run
+`docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' $(docker compose ps -q app)`.
+
 > [!CAUTION]
 > Never run `docker compose down -v` during an upgrade: `-v` erases the database and every
 > screenshot. Plain `docker compose down` stops Tattle and keeps the data.

@@ -7,6 +7,7 @@ import { project } from "#/db/schema";
 import { auth, MCP_RESOURCE } from "#/lib/auth";
 import { Access, actorOf, type Principal, TOKEN_PREFIX } from "./Access";
 import { Database } from "./Database";
+import { env } from "./env";
 import { NotFound } from "./errors";
 import { ISSUE_STATUSES, Issues } from "./Issues";
 import { HttpError, run } from "./runtime";
@@ -73,7 +74,7 @@ const resolveProject = (principal: Principal, idOrSlug: string) =>
 
 const buildServer = (principal: Principal) => {
 	const server = new McpServer(
-		{ name: "tattle", version: "0.1.0" },
+		{ name: "tattle", version: env.build.version },
 		{ instructions: INSTRUCTIONS },
 	);
 	const actor = actorOf(principal);

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { sql } from "drizzle-orm";
 import { Effect } from "effect";
 import { Database } from "#/server/Database";
+import { env } from "#/server/env";
 import { runtime } from "#/server/runtime";
 
 // Liveness and database check for Docker and uptime monitors. It goes through
@@ -19,10 +20,11 @@ export const Route = createFileRoute("/health")({
 						Effect.catch(() => Effect.succeed(false)),
 					),
 				);
+				const { version } = env.build;
 				return ok
-					? Response.json({ ok: true })
+					? Response.json({ ok: true, version })
 					: Response.json(
-							{ ok: false, error: "Database unreachable" },
+							{ ok: false, version, error: "Database unreachable" },
 							{ status: 503 },
 						);
 			},
