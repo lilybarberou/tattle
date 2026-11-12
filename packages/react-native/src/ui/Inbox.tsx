@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	ActivityIndicator,
 	Pressable,
@@ -237,29 +237,40 @@ export function ThreadScreen({
 	const [body, setBody] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [sending, setSending] = useState(false);
+	// The conversation on screen now: answers for another one are dropped.
+	const shownId = useRef<string | null>(reportId);
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: loads once per conversation
 	useEffect(() => {
 		let active = true;
+		shownId.current = reportId;
 		setThread(null);
 		setFailed(false);
 		void (async () => {
 			const h = await headers();
+			if (!active) return;
 			if (!h) return setFailed(true);
+			let loaded: Thread;
 			try {
-				const loaded = await fetchThread(apiUrl, h, reportId);
-				if (!active) return;
-				setThread(loaded);
-				if (unread) {
-					await markRead(apiUrl, h, reportId);
-					if (active) onRead();
-				}
+				loaded = await fetchThread(apiUrl, h, reportId);
 			} catch {
 				if (active) setFailed(true);
+				return;
 			}
+			if (!active) return;
+			setThread(loaded);
+			if (!unread) return;
+			try {
+				await markRead(apiUrl, h, reportId);
+			} catch {
+				// Still unread on the server: the conversation stays shown.
+				return;
+			}
+			if (active) onRead();
 		})();
 		return () => {
 			active = false;
+			shownId.current = null;
 		};
 	}, [reportId]);
 
@@ -267,15 +278,23 @@ export function ThreadScreen({
 		const text = body.trim();
 		if (!thread || sending) return;
 		if (!text) return setError(t.emptyMessage);
+		const id = thread.id;
+		const stillShown = () => shownId.current === id;
 		setSending(true);
 		setError(null);
 		try {
 			const h = await headers();
 			if (!h) throw new ReporterApiError("", 404);
-			const message = await sendMessage(apiUrl, h, thread.id, text);
-			setThread({ ...thread, messages: [...thread.messages, message] });
+			const message = await sendMessage(apiUrl, h, id, text);
+			if (!stillShown()) return;
+			setThread((current) =>
+				current?.id === id && !current.messages.some((m) => m.id === message.id)
+					? { ...current, messages: [...current.messages, message] }
+					: current,
+			);
 			setBody("");
 		} catch (err) {
+			if (!stillShown()) return;
 			setError(
 				err instanceof ReporterApiError && err.status === 0
 					? t.networkError

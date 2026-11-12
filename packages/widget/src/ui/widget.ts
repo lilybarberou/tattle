@@ -1,6 +1,7 @@
 import { openAnnotator, type Shape } from "../annotate";
 import { type Capture, captureViewport } from "../capture";
 import { getStrings, type Strings } from "../i18n";
+import { Latest } from "../latest";
 import { resolveMotion } from "../motion";
 import {
 	buildPayload,
@@ -130,6 +131,8 @@ export class Widget {
 	private view: "form" | "list" | "thread" = "form";
 	private reports: ReportSummary[] = [];
 	private thread: Thread | null = null;
+	/** The conversation being loaded: a slower, earlier one is dropped. */
+	private readonly threadRequest = new Latest();
 	private refreshId = 0;
 	private refreshTimer: ReturnType<typeof setTimeout> | undefined;
 	private replying = false;
@@ -658,7 +661,10 @@ export class Widget {
 		this.backBtn.hidden = view === "form";
 		this.titleEl.textContent =
 			view === "form" ? this.t.title : this.t.myReports;
-		if (view !== "thread") this.thread = null;
+		if (view !== "thread") {
+			this.thread = null;
+			this.threadRequest.cancel();
+		}
 		if (this.isOpen && !this.panel.hidden)
 			(view === "form" ? this.message : this.backBtn).focus({
 				preventScroll: true,
@@ -686,27 +692,40 @@ export class Widget {
 		const headers = this.headers();
 		if (!headers) return;
 		this.setView("thread");
+		// No reply goes to the previous conversation while this one loads.
+		this.thread = null;
+		const isLatest = this.threadRequest.next();
+		const current = () =>
+			isLatest() && this.view === "thread" && !this.destroyed;
 		this.replyError.hidden = true;
 		this.threadContent.replaceChildren(
 			h("span", { class: "fb-spinner", "aria-hidden": "true" }),
 		);
+		let thread: Thread;
 		try {
-			const thread = await fetchThread(this.config.apiUrl, headers, id);
-			if (this.view !== "thread" || this.destroyed) return;
-			this.thread = thread;
-			this.renderThreadView();
-			const report = this.reports.find((r) => r.id === id);
-			if (report?.unread) {
-				await markRead(this.config.apiUrl, headers, id);
-				report.unread = 0;
-				this.renderUnread();
-			}
+			thread = await fetchThread(this.config.apiUrl, headers, id);
 		} catch {
-			if (this.view === "thread")
+			if (current())
 				this.threadContent.replaceChildren(
 					h("p", { class: "fb-error" }, this.t.loadFailed),
 				);
+			return;
 		}
+		if (!current()) return;
+		this.thread = thread;
+		this.renderThreadView();
+		if (!this.reports.find((r) => r.id === id)?.unread) return;
+		try {
+			await markRead(this.config.apiUrl, headers, id);
+		} catch {
+			// Still unread on the server: the badge stays, the thread stays shown.
+			return;
+		}
+		if (this.destroyed) return;
+		// The list may have been fetched again meanwhile: update the newest copy.
+		const report = this.reports.find((r) => r.id === id);
+		if (report) report.unread = 0;
+		this.renderUnread();
 	}
 
 	private renderThreadView(): void {
@@ -738,11 +757,15 @@ export class Widget {
 				thread.id,
 				text,
 			);
-			if (this.thread !== thread) return;
-			thread.messages.push(message);
+			// The reporter may have opened another conversation meanwhile.
+			const shown = this.thread;
+			if (this.destroyed || shown?.id !== thread.id) return;
+			if (!shown.messages.some((m) => m.id === message.id))
+				shown.messages.push(message);
 			this.reply.value = "";
 			this.renderThreadView();
 		} catch (error) {
+			if (this.destroyed || this.thread?.id !== thread.id) return;
 			fail(
 				error instanceof ReporterApiError && error.status === 0
 					? this.t.networkError
