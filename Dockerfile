@@ -1,7 +1,9 @@
 # syntax=docker/dockerfile:1
 
 # ---- Build: install the workspace, build the widget, the app and the migrator.
-FROM node:24-alpine AS build
+# The output is plain JavaScript, so this stage runs on the builder's own
+# platform: building arm64 under emulation is slow and can hang in vite.
+FROM --platform=$BUILDPLATFORM node:24-alpine AS build
 WORKDIR /repo
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
