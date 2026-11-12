@@ -28,9 +28,12 @@ class DeliveryFailed extends Schema.TaggedError<DeliveryFailed>()(
 export const signPayload = (secret: string, timestamp: number, body: string) =>
 	createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex");
 
-const retrySchedule = Schedule.exponential("2 seconds").pipe(
-	Schedule.upTo({ times: 5 }),
-);
+// 5 retries, 2 seconds apart then doubling: about a minute in all. Tests
+// wait for every delivery before the next one starts, so they retry within
+// a few hundred milliseconds instead.
+const retrySchedule = Schedule.exponential(
+	process.env.NODE_ENV === "test" ? "10 millis" : "2 seconds",
+).pipe(Schedule.upTo({ times: 5 }));
 
 export class Webhooks extends Context.Service<
 	Webhooks,
@@ -206,12 +209,15 @@ export class Webhooks extends Context.Service<
 						Effect.forEach(
 							rows.filter((row) => !inFlight.has(row.delivery.id)),
 							({ delivery, endpoint }) =>
-								deliver(
-									endpoint,
-									delivery.id,
-									delivery.event,
-									JSON.stringify(delivery.payload),
-								).pipe(Effect.forkDetach),
+								inBackground(
+									"Webhook delivery",
+									deliver(
+										endpoint,
+										delivery.id,
+										delivery.event,
+										JSON.stringify(delivery.payload),
+									),
+								),
 							{ discard: true },
 						),
 					),
@@ -273,12 +279,10 @@ export class Webhooks extends Context.Service<
 								payload,
 							}),
 						);
-						yield* deliver(
-							endpoint,
-							deliveryId,
-							event,
-							JSON.stringify(payload),
-						).pipe(Effect.forkDetach);
+						yield* inBackground(
+							"Webhook delivery",
+							deliver(endpoint, deliveryId, event, JSON.stringify(payload)),
+						);
 					}
 				},
 				Effect.catch((error) => Effect.logError("Webhook emit failed", error)),

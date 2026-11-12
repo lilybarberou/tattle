@@ -21,24 +21,13 @@ export const resetDatabase = async () => {
 		sql`select tablename from pg_tables where schemaname = 'public'`,
 	);
 	if (rows.length === 0) return;
-	// Emails and duplicate checks the previous test started in the background.
+	// Emails, webhook deliveries and duplicate checks the previous test
+	// started in the background: none may hold a lock during the truncate.
 	await runtime.runPromise(backgroundSettled);
 	const tables = rows.map((r) => `"public"."${r.tablename}"`).join(", ");
-	// A background job of the previous test (the duplicate check that follows
-	// each report) may still hold locks: Postgres then picks the truncate as a
-	// deadlock victim. Try again once that job is done.
-	for (let attempt = 1; ; attempt++) {
-		try {
-			await db.execute(
-				sql.raw(`truncate table ${tables} restart identity cascade`),
-			);
-			return;
-		} catch (error) {
-			const code = (error as { cause?: { code?: string } }).cause?.code;
-			if (code !== "40P01" || attempt >= 5) throw error;
-			await new Promise((resolve) => setTimeout(resolve, 50 * attempt));
-		}
-	}
+	await db.execute(
+		sql.raw(`truncate table ${tables} restart identity cascade`),
+	);
 };
 
 /**

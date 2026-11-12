@@ -1,8 +1,9 @@
 import { type Cause, Effect, Fiber } from "effect";
 
-// Work that follows a request without holding it up: emails, the duplicate
-// check after a report. Each one is a detached fiber, remembered until it
-// ends so tests (and the test database reset) can wait for all of them.
+// Work that follows a request without holding it up: emails, webhook
+// deliveries, the duplicate check after a report. Each one is a detached
+// fiber, remembered until it ends so tests (and the test database reset) can
+// wait for all of them. Fire-and-forget work always goes through here.
 const running = new Set<Fiber.Fiber<unknown, unknown>>();
 
 /**
