@@ -23,6 +23,17 @@ export interface ThemeColors {
 	dangerBackground?: string;
 	/** Overlay behind the sheet. */
 	backdrop?: string;
+	/** Background of the chosen feedback type. Default: `background`. */
+	selected?: string;
+	/** Text and icon of the chosen type. Default: `text`, its icon `accent`. */
+	selectedText?: string;
+	/** Edge of the chosen type. Default: `border`. */
+	selectedBorder?: string;
+	/**
+	 * A solid edge under the send button, which sinks onto it while pressed
+	 * (usually a darker `accent`). Default: none, the button fades instead.
+	 */
+	accentEdge?: string;
 }
 
 export interface TattleTheme extends ThemeColors {
@@ -36,6 +47,14 @@ export interface TattleTheme extends ThemeColors {
 	 * Default: `fontFamily` with a bold weight.
 	 */
 	fontFamilyBold?: string;
+	/**
+	 * Font of the sheet's title, e.g. your headings' ("Fraunces_600SemiBold"),
+	 * drawn with no extra weight: give the file of the weight you want.
+	 * Default: the bold font.
+	 */
+	titleFontFamily?: string;
+	/** Size of the sheet's title. Default 17. */
+	titleFontSize?: number;
 	/** Corner radius of fields and cards. Default 11. */
 	radius?: number;
 	/** Corner radius of buttons. Default: `radius`. 999 gives pills. */

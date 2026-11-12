@@ -119,9 +119,15 @@ Give the widget your design tokens, and it reads like a screen of your app:
     danger: colors.error,
     dangerBackground: colors.errorContainer,
     backdrop: "rgba(0, 0, 0, 0.5)",
+    selected: colors.primaryContainer,      // the chosen type (bug or idea)
+    selectedText: colors.onPrimaryContainer,
+    selectedBorder: colors.primary,
+    accentEdge: colors.primaryDark,         // a solid edge under the send button
     dark: { background: "#111", text: "#eee" }, // optional, see below
     fontFamily: "Inter_400Regular",
     fontFamilyBold: "Inter_600SemiBold",
+    titleFontFamily: "Fraunces_600SemiBold", // your headings' font
+    titleFontSize: 22,
     radius: 8,                              // fields and cards
     buttonRadius: 999,                      // pill buttons
   }}
@@ -132,6 +138,9 @@ Give the widget your design tokens, and it reads like a screen of your app:
 - Every key is optional. The colors you leave out keep their default.
 - **Dark mode.** The colors at the top level apply to both schemes; `dark` replaces some of them in dark mode. If your app has its own light/dark switch, pass its current value to `colorScheme`: the widget re-renders with it. When you set surface colors (`background`, `text`…) without `dark`, the widget stays light unless you pass `colorScheme`, so your light colors never mix with its default dark ones.
 - **Fonts.** Load them in your app as usual (`expo-font`, `useFonts`) and pass their names. On Android, `fontWeight` has no effect on most custom fonts: give the bold file as `fontFamilyBold`, used for titles, labels and buttons.
+- **The chosen type** is drawn with `background`, `text` and `border`, its icon in `accent`, unless you set `selected`, `selectedText` and `selectedBorder`.
+- **Send button.** With `accentEdge`, it sits on a solid edge of that color and sinks onto it while pressed; without, it fades when pressed.
+- **Title.** `titleFontFamily` is drawn with no extra weight: give the file of the weight you want. Default: the bold font, at 17.
 - **Texts.** `strings` replaces any text by its key, in any language. The keys are in [`src/i18n.ts`](src/i18n.ts) and typed as `TattleStrings`.
 - **Entry point.** For the least "third-party" feel, set `showButton={false}` and open the form from your own UI with `Tattle.open()`.
 

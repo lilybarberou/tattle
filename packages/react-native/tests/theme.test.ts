@@ -54,3 +54,62 @@ describe("buildTheme", () => {
 		expect(buildTheme({}, "light").font("700")).toEqual({ fontWeight: "700" });
 	});
 });
+
+describe("buildTheme's derived colors and title", () => {
+	it("draws the chosen type from the surface colors by default", () => {
+		const theme = buildTheme({ background: "#fff", text: "#111" }, "light");
+		expect(theme).toMatchObject({
+			selectedBg: "#fff",
+			selectedFg: "#111",
+			selectedIcon: theme.accent,
+			selectedBorder: theme.border,
+			accentEdge: null,
+		});
+	});
+
+	it("takes the chosen type's colors and the edge, dark ones in dark mode", () => {
+		const input = {
+			selected: "#fde",
+			selectedText: "#a33",
+			selectedBorder: "#c53",
+			accentEdge: "#a33",
+			dark: { selected: "#422" },
+		};
+		expect(buildTheme(input, "light")).toMatchObject({
+			selectedBg: "#fde",
+			selectedFg: "#a33",
+			selectedIcon: "#a33",
+			selectedBorder: "#c53",
+			accentEdge: "#a33",
+		});
+		expect(buildTheme(input, "dark").selectedBg).toBe("#422");
+	});
+
+	it("sets the title's font and size", () => {
+		expect(buildTheme({}, "light").title).toEqual({
+			fontWeight: "700",
+			fontSize: 17,
+		});
+		expect(
+			buildTheme(
+				{
+					fontFamilyBold: "Inter_700Bold",
+					titleFontFamily: "Fraunces_600SemiBold",
+					titleFontSize: 22,
+				},
+				"light",
+			).title,
+		).toEqual({
+			fontFamily: "Fraunces_600SemiBold",
+			fontWeight: "normal",
+			fontSize: 22,
+		});
+		expect(
+			buildTheme({ fontFamilyBold: "Inter_700Bold" }, "light").title,
+		).toEqual({
+			fontFamily: "Inter_700Bold",
+			fontWeight: "normal",
+			fontSize: 17,
+		});
+	});
+});

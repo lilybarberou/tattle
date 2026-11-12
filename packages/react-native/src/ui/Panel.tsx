@@ -224,7 +224,7 @@ export function Panel({
 						<View style={[styles.grabber, { backgroundColor: theme.border }]} />
 						<View style={styles.header}>
 							<Text
-								style={[styles.title, theme.font("700"), { color: theme.fg }]}
+								style={[styles.title, theme.title, { color: theme.fg }]}
 								accessibilityRole="header"
 							>
 								{t.title}
@@ -295,21 +295,21 @@ export function Panel({
 													styles.segmentButton,
 													{ borderRadius: offset(theme.buttonRadius, -2) },
 													active && {
-														backgroundColor: theme.bg,
-														borderColor: theme.border,
+														backgroundColor: theme.selectedBg,
+														borderColor: theme.selectedBorder,
 													},
 												]}
 											>
 												<Icon
 													name={option === "bug" ? "bug" : "idea"}
-													color={active ? theme.accent : theme.muted}
+													color={active ? theme.selectedIcon : theme.muted}
 													size={18}
 												/>
 												<Text
 													style={[
 														styles.segmentText,
 														theme.font("600"),
-														{ color: active ? theme.fg : theme.muted },
+														{ color: active ? theme.selectedFg : theme.muted },
 													]}
 												>
 													{option === "bug" ? t.bug : t.feature}
@@ -514,27 +514,46 @@ export function Panel({
 									disabled={sending}
 									accessibilityRole="button"
 									accessibilityState={{ busy: sending }}
-									style={({ pressed }) => [
-										styles.submit,
-										{
-											backgroundColor: theme.accent,
-											borderRadius: theme.buttonRadius,
-										},
-										(pressed || sending) && styles.pressed,
-									]}
+									style={({ pressed }) => {
+										const down = pressed || sending;
+										// With an edge, the button sinks onto it; without, it fades.
+										return theme.accentEdge
+											? [
+													styles.submitEdge,
+													{
+														borderRadius: theme.buttonRadius,
+														backgroundColor: down
+															? "transparent"
+															: theme.accentEdge,
+														paddingTop: down ? EDGE : 0,
+														paddingBottom: down ? 0 : EDGE,
+													},
+												]
+											: [styles.submitEdge, down && styles.pressed];
+									}}
 								>
-									{sending && (
-										<ActivityIndicator size="small" color={theme.accentFg} />
-									)}
-									<Text
+									<View
 										style={[
-											styles.submitText,
-											theme.font("600"),
-											{ color: theme.accentFg },
+											styles.submit,
+											{
+												backgroundColor: theme.accent,
+												borderRadius: theme.buttonRadius,
+											},
 										]}
 									>
-										{sending ? t.sending : t.send}
-									</Text>
+										{sending && (
+											<ActivityIndicator size="small" color={theme.accentFg} />
+										)}
+										<Text
+											style={[
+												styles.submitText,
+												theme.font("600"),
+												{ color: theme.accentFg },
+											]}
+										>
+											{sending ? t.sending : t.send}
+										</Text>
+									</View>
 								</Pressable>
 							</ScrollView>
 						)}
@@ -580,6 +599,9 @@ function SmallButton({
 	);
 }
 
+/** Height of the send button's edge (`theme.accentEdge`). */
+const EDGE = 3;
+
 const styles = StyleSheet.create({
 	fill: { flex: 1, justifyContent: "flex-end" },
 	sheet: {
@@ -604,7 +626,7 @@ const styles = StyleSheet.create({
 		paddingLeft: 20,
 		paddingRight: 12,
 	},
-	title: { fontSize: 17, letterSpacing: -0.2 },
+	title: { letterSpacing: -0.2 },
 	iconButton: {
 		width: 36,
 		height: 36,
@@ -672,13 +694,13 @@ const styles = StyleSheet.create({
 		paddingVertical: 10,
 		overflow: "hidden",
 	},
+	submitEdge: { marginTop: 2 },
 	submit: {
 		flexDirection: "row",
 		alignItems: "center",
 		justifyContent: "center",
 		gap: 8,
 		minHeight: 48,
-		marginTop: 2,
 	},
 	submitText: { fontSize: 16 },
 	pressed: { opacity: 0.75 },
