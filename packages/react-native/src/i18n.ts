@@ -1,0 +1,97 @@
+import type { Locale } from "./types";
+
+const en = {
+	launcher: "Send feedback",
+	title: "Send feedback",
+	close: "Close",
+	bug: "Report a bug",
+	feature: "Suggest an idea",
+	capture: "Add a screenshot",
+	captureHint: "Optional: an annotated screenshot of the screen you were on.",
+	capturing: "Capturing…",
+	captureFailed: "Could not capture the screen.",
+	screenshotAlt: "Screenshot of the app",
+	editShot: "Annotate",
+	removeShot: "Remove",
+	messageLabelBug: "What went wrong?",
+	messageLabelFeature: "What's your idea?",
+	placeholderBug: "Describe what happened and what you expected…",
+	placeholderFeature: "Describe your idea and what it would help you do…",
+	emailLabel: "Your email (optional)",
+	emailPlaceholder: "you@example.com",
+	invalidEmail: "Please enter a valid email address.",
+	emptyMessage: "Please write a message.",
+	send: "Send",
+	sending: "Sending…",
+	success: "Thanks! We got it.",
+	genericError: "Something went wrong. Please try again.",
+	networkError:
+		"Could not reach the server. Check your connection and try again.",
+	editorLabel: "Annotate screenshot",
+	toolRect: "Rectangle",
+	toolEllipse: "Circle",
+	toolArrow: "Arrow",
+	toolPen: "Pen",
+	toolBlur: "Blur",
+	undo: "Undo",
+	clear: "Clear all",
+	cancel: "Cancel",
+	done: "Done",
+};
+
+export type Strings = typeof en;
+
+const fr: Strings = {
+	launcher: "Envoyer un retour",
+	title: "Envoyer un retour",
+	close: "Fermer",
+	bug: "Signaler un bug",
+	feature: "Suggérer une idée",
+	capture: "Joindre une capture",
+	captureHint: "Facultatif : une capture annotée de l'écran où vous étiez.",
+	capturing: "Capture…",
+	captureFailed: "Impossible de capturer l'écran.",
+	screenshotAlt: "Capture d'écran de l'application",
+	editShot: "Annoter",
+	removeShot: "Supprimer",
+	messageLabelBug: "Que s'est-il passé ?",
+	messageLabelFeature: "Quelle est votre idée ?",
+	placeholderBug: "Décrivez ce qui s'est passé et ce que vous attendiez…",
+	placeholderFeature:
+		"Décrivez votre idée et ce qu'elle vous permettrait de faire…",
+	emailLabel: "Votre e-mail (facultatif)",
+	emailPlaceholder: "vous@exemple.fr",
+	invalidEmail: "Veuillez saisir une adresse e-mail valide.",
+	emptyMessage: "Veuillez écrire un message.",
+	send: "Envoyer",
+	sending: "Envoi…",
+	success: "Merci ! C'est bien reçu.",
+	genericError: "Une erreur est survenue. Veuillez réessayer.",
+	networkError:
+		"Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.",
+	editorLabel: "Annoter la capture",
+	toolRect: "Rectangle",
+	toolEllipse: "Cercle",
+	toolArrow: "Flèche",
+	toolPen: "Crayon",
+	toolBlur: "Flouter",
+	undo: "Annuler",
+	clear: "Tout effacer",
+	cancel: "Annuler",
+	done: "Terminer",
+};
+
+const STRINGS: Record<Locale, Strings> = { en, fr };
+
+export function detectLocale(): Locale {
+	try {
+		const locale = Intl.DateTimeFormat().resolvedOptions().locale;
+		return locale.toLowerCase().startsWith("fr") ? "fr" : "en";
+	} catch {
+		return "en";
+	}
+}
+
+export function getStrings(locale: Locale): Strings {
+	return STRINGS[locale] ?? en;
+}

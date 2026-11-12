@@ -1,8 +1,8 @@
 # Tattle
 
-Self-hosted bug reports and feature requests for your web app, built to be triaged by AI agents.
+Self-hosted bug reports and feature requests for your web and mobile apps, built to be triaged by AI agents.
 
-- **Widget** (`packages/widget`): a button in your app. Users report a bug with an annotated screenshot, or suggest an idea. Console logs, JS errors, network requests, device info and the signed-in account are attached automatically.
+- **Widget** (`packages/widget`, and `packages/react-native` for React Native and Expo apps): a button in your app. Users report a bug with an annotated screenshot, or suggest an idea. Console logs, JS errors, network requests, device info and the signed-in account are attached automatically.
 - **Tracker** (`apps/web`): projects, a Triage inbox, issues with status, priority, labels and assignee, duplicates merged with their reports.
 - **For agents**: an MCP server, signed webhooks and API tokens, so an agent can triage new reports, merge duplicates and work on fixes.
 
@@ -90,6 +90,25 @@ git tag v0.2.0 && git push origin v0.2.0
 
 See [packages/widget/README.md](packages/widget/README.md) for the options, the API and what is collected.
 
+## Install in a mobile app
+
+**React Native and Expo**: `@tattle/react-native` adds the same button and form, with an annotated screenshot of the current screen, console logs, uncaught errors, network requests, and the device and app version. It is not on npm yet: its README explains how to install it from this repository.
+
+```tsx
+import { TattleProvider, Tattle } from "@tattle/react-native";
+
+<TattleProvider projectKey="pk_…" apiUrl="https://your-server">
+  <App />
+</TattleProvider>
+
+Tattle.identify({ id: user.id, email: user.email, name: user.name });
+Tattle.setScreen(route.name); // on every navigation
+```
+
+See [packages/react-native/README.md](packages/react-native/README.md).
+
+**Swift, Kotlin, Flutter or anything else**: send reports with one JSON request. The [ingest API reference](docs/INGEST-API.md) lists every field, with examples.
+
 ## Connect an agent
 
 Two ways, both on `https://your-server/api/mcp`:
@@ -157,6 +176,7 @@ apps/web            TanStack Start app (dashboard + API), Drizzle + Postgres, Be
   src/routes/api/   /api/v1/ingest (widget), /api/v1/files (signed screenshots), /api/mcp
   src/routes/       dashboard, /portal/$slug (public), /login, /consent (OAuth), /.well-known/*
 packages/widget     Browser SDK, no framework, Shadow DOM, ~20 KB gzipped
+packages/react-native  React Native and Expo SDK (react-native-view-shot, react-native-svg)
 ```
 
 A **report** is one raw submission from the widget. An **issue** is the problem to fix. Several reports can point at one issue: that is how duplicates and popular feature requests are counted.
@@ -164,4 +184,4 @@ A **report** is one raw submission from the widget. An **issue** is the problem 
 ## License
 
 - **Server** (`apps/web`): [AGPL-3.0](LICENSE). You can use, change and self-host it freely. If you offer a modified version to others over a network, you must publish your changes under the same licence.
-- **Widget** (`packages/widget`): [MIT](packages/widget/LICENSE), so embedding it puts no conditions on your app.
+- **Widgets** (`packages/widget`, `packages/react-native`): [MIT](packages/widget/LICENSE), so embedding them puts no conditions on your app.

@@ -52,11 +52,14 @@ jobs:
       - name: Biome
         run: pnpm check
 
-      - name: Typecheck (web, widget)
+      - name: Typecheck (web, widgets)
         run: pnpm typecheck
 
       - name: Build widget
         run: pnpm --filter @tattle/widget build
+
+      - name: Build React Native SDK
+        run: pnpm --filter @tattle/react-native build
 
       - name: Test
         run: pnpm test
