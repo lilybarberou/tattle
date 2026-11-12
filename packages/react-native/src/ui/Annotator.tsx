@@ -23,7 +23,7 @@ import {
 import type { Strings } from "../i18n";
 import { Icon, type IconName } from "./icons";
 import { useInsets } from "./insets";
-import type { Theme } from "./theme";
+import { offset, type Theme } from "./theme";
 
 const STROKE = "#ef4444";
 const STROKE_WIDTH = 4;
@@ -294,9 +294,12 @@ export function Annotator({
 					hitSlop={8}
 					style={styles.textButton}
 				>
-					<Text style={styles.cancelText}>{t.cancel}</Text>
+					<Text style={[styles.cancelText, theme.font("400")]}>{t.cancel}</Text>
 				</Pressable>
-				<Text style={styles.title} accessibilityRole="header">
+				<Text
+					style={[styles.title, theme.font("600")]}
+					accessibilityRole="header"
+				>
 					{t.editorLabel}
 				</Text>
 				<Pressable
@@ -304,12 +307,24 @@ export function Annotator({
 					disabled={saving}
 					accessibilityRole="button"
 					hitSlop={8}
-					style={[styles.doneButton, { backgroundColor: theme.accent }]}
+					style={[
+						styles.doneButton,
+						{
+							backgroundColor: theme.accent,
+							borderRadius: offset(theme.buttonRadius, -2),
+						},
+					]}
 				>
 					{saving ? (
 						<ActivityIndicator size="small" color={theme.accentFg} />
 					) : (
-						<Text style={[styles.doneText, { color: theme.accentFg }]}>
+						<Text
+							style={[
+								styles.doneText,
+								theme.font("600"),
+								{ color: theme.accentFg },
+							]}
+						>
 							{t.done}
 						</Text>
 					)}
@@ -362,7 +377,7 @@ export function Annotator({
 				)}
 			</View>
 
-			<View style={styles.toolbar}>
+			<View style={[styles.toolbar, { borderRadius: theme.buttonRadius + 3 }]}>
 				{TOOLS.map((item) => {
 					const active = tool === item.tool;
 					return (
@@ -372,7 +387,11 @@ export function Annotator({
 							accessibilityRole="button"
 							accessibilityLabel={t[item.label]}
 							accessibilityState={{ selected: active }}
-							style={[styles.tool, active && { backgroundColor: theme.accent }]}
+							style={[
+								styles.tool,
+								{ borderRadius: offset(theme.buttonRadius, -1) },
+								active && { backgroundColor: theme.accent },
+							]}
 						>
 							<Icon
 								name={item.icon}
@@ -387,7 +406,11 @@ export function Annotator({
 					disabled={shapes.length === 0}
 					accessibilityRole="button"
 					accessibilityLabel={t.undo}
-					style={[styles.tool, shapes.length === 0 && styles.disabled]}
+					style={[
+						styles.tool,
+						{ borderRadius: offset(theme.buttonRadius, -1) },
+						shapes.length === 0 && styles.disabled,
+					]}
 				>
 					<Icon name="undo" color="#d4d4d8" />
 				</Pressable>
@@ -396,7 +419,11 @@ export function Annotator({
 					disabled={shapes.length === 0}
 					accessibilityRole="button"
 					accessibilityLabel={t.clear}
-					style={[styles.tool, shapes.length === 0 && styles.disabled]}
+					style={[
+						styles.tool,
+						{ borderRadius: offset(theme.buttonRadius, -1) },
+						shapes.length === 0 && styles.disabled,
+					]}
 				>
 					<Icon name="clear" color="#d4d4d8" />
 				</Pressable>
@@ -420,7 +447,6 @@ const styles = StyleSheet.create({
 		textAlign: "center",
 		color: "#f4f4f5",
 		fontSize: 15,
-		fontWeight: "600",
 	},
 	textButton: { minWidth: 72, paddingVertical: 6 },
 	cancelText: { color: "#d4d4d8", fontSize: 15 },
@@ -428,11 +454,10 @@ const styles = StyleSheet.create({
 		minWidth: 72,
 		minHeight: 34,
 		paddingHorizontal: 14,
-		borderRadius: 9,
 		alignItems: "center",
 		justifyContent: "center",
 	},
-	doneText: { fontSize: 15, fontWeight: "600" },
+	doneText: { fontSize: 15 },
 	area: {
 		flex: 1,
 		alignItems: "center",
@@ -449,13 +474,11 @@ const styles = StyleSheet.create({
 		maxWidth: "100%",
 		gap: 4,
 		padding: 6,
-		borderRadius: 14,
 		backgroundColor: "#18181b",
 	},
 	tool: {
 		width: 42,
 		height: 42,
-		borderRadius: 10,
 		alignItems: "center",
 		justifyContent: "center",
 	},

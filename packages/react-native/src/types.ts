@@ -1,4 +1,46 @@
+import type { Strings } from "./i18n";
+
+export type TattleStrings = Strings;
 export type TattleType = "bug" | "feature";
+/** "system" follows the device's appearance. */
+export type ColorScheme = "light" | "dark" | "system";
+
+/** The widget's colors, any React Native color. */
+export interface ThemeColors {
+	/** Primary buttons, selected states and the floating button. */
+	accent?: string;
+	/** Text and icons on `accent`. */
+	accentText?: string;
+	/** Sheet and field background. */
+	background?: string;
+	text?: string;
+	/** Hints, placeholders and secondary text. */
+	mutedText?: string;
+	border?: string;
+	/** Secondary surfaces: the type switch and secondary buttons. */
+	surface?: string;
+	danger?: string;
+	dangerBackground?: string;
+	/** Overlay behind the sheet. */
+	backdrop?: string;
+}
+
+export interface TattleTheme extends ThemeColors {
+	/** Colors used in dark mode instead of the ones above. */
+	dark?: ThemeColors;
+	/** Font for all texts, as you load it (e.g. "Inter_400Regular"). */
+	fontFamily?: string;
+	/**
+	 * Font for titles, labels and buttons. Android ignores `fontWeight` with
+	 * most custom fonts, so give the bold file here (e.g. "Inter_600SemiBold").
+	 * Default: `fontFamily` with a bold weight.
+	 */
+	fontFamilyBold?: string;
+	/** Corner radius of fields and cards. Default 11. */
+	radius?: number;
+	/** Corner radius of buttons. Default: `radius`. 999 gives pills. */
+	buttonRadius?: number;
+}
 export type Locale = "fr" | "en";
 
 export interface TattleOptions {
@@ -12,8 +54,18 @@ export interface TattleOptions {
 	buttonSide?: "left" | "right";
 	/** Default from the device language ("fr" if it starts with "fr", else "en"). */
 	locale?: Locale;
-	/** Any React Native color. Default "#2f55c9". */
+	/** Any React Native color. Default "#2f55c9". Same as `theme.accent`. */
 	accentColor?: string;
+	/** Colors, fonts and corner radius, to match your app's design. */
+	theme?: TattleTheme;
+	/**
+	 * Default "system". Pass your app's own scheme when it has a theme switch.
+	 * When `theme` sets surface colors (background, text…) without
+	 * `theme.dark`, it defaults to "light" instead.
+	 */
+	colorScheme?: ColorScheme;
+	/** Replaces any of the widget's texts. */
+	strings?: Partial<TattleStrings>;
 	/**
 	 * Background behind your app, seen in screenshots wherever your screens
 	 * are transparent. Default white, or black in dark mode.

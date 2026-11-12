@@ -5,7 +5,8 @@ Tattle's bug report and feedback widget for React Native and Expo apps.
 Users tap a floating button, choose **Report a bug** or **Suggest an idea**, write a message and send it. A bug report comes with a screenshot of the screen they were on. Users can annotate it (rectangle, circle, arrow, pen, blur) or remove it. Each report also carries the recent console logs, uncaught errors, network requests, the device and app version, and the user and context your app provides.
 
 - Works with Expo (including Expo Go) and bare React Native, iOS and Android
-- French and English UI, light and dark themes that follow the system
+- French and English UI, light and dark themes that follow the system or your app
+- Themable to look like part of your app: colors, fonts, corner radius and texts
 - Pure JavaScript: its only native modules are `react-native-view-shot` (screenshots) and `react-native-svg` (icons and annotations), both part of Expo Go
 
 ## Install
@@ -78,7 +79,10 @@ useEffect(() => Tattle.setScreen(pathname), [pathname]);
   showButton={true}                    // false: open the form yourself with Tattle.open()
   buttonSide="right"                   // edge the button starts on: "left" | "right"
   locale="fr"                          // "fr" | "en", default from the device language
-  accentColor="#2f55c9"                // any React Native color
+  accentColor="#2f55c9"                // any React Native color, same as theme.accent
+  theme={{ ... }}                      // colors, fonts, corner radius: see below
+  colorScheme="system"                 // "light" | "dark" | "system"
+  strings={{ title: "Report a problem" }}  // replaces any text
   backgroundColor="#ffffff"            // behind transparent screens; default white, black in dark mode
   app={{ name: "Shop", version: "1.4.2", build: "87" }}
 >
@@ -93,6 +97,45 @@ Tattle.close();
 ```
 
 The app's name, version and build number are read from `expo-application` when it is installed. Otherwise pass `app`, for example from `react-native-device-info`.
+
+## Match your app's design
+
+Give the widget your design tokens, and it reads like a screen of your app:
+
+```tsx
+<TattleProvider
+  projectKey="pk_..."
+  apiUrl="https://tattle.example.com"
+  showButton={false}                        // open it from your own menu item
+  colorScheme={appScheme}                   // follows your app's theme switch
+  theme={{
+    accent: colors.primary,
+    accentText: colors.onPrimary,
+    background: colors.card,
+    text: colors.text,
+    mutedText: colors.textSecondary,
+    border: colors.border,
+    surface: colors.muted,
+    danger: colors.error,
+    dangerBackground: colors.errorContainer,
+    backdrop: "rgba(0, 0, 0, 0.5)",
+    dark: { background: "#111", text: "#eee" }, // optional, see below
+    fontFamily: "Inter_400Regular",
+    fontFamilyBold: "Inter_600SemiBold",
+    radius: 8,                              // fields and cards
+    buttonRadius: 999,                      // pill buttons
+  }}
+  strings={{ title: "Something wrong?", send: "Send to the team" }}
+>
+```
+
+- Every key is optional. The colors you leave out keep their default.
+- **Dark mode.** The colors at the top level apply to both schemes; `dark` replaces some of them in dark mode. If your app has its own light/dark switch, pass its current value to `colorScheme`: the widget re-renders with it. When you set surface colors (`background`, `text`…) without `dark`, the widget stays light unless you pass `colorScheme`, so your light colors never mix with its default dark ones.
+- **Fonts.** Load them in your app as usual (`expo-font`, `useFonts`) and pass their names. On Android, `fontWeight` has no effect on most custom fonts: give the bold file as `fontFamilyBold`, used for titles, labels and buttons.
+- **Texts.** `strings` replaces any text by its key, in any language. The keys are in [`src/i18n.ts`](src/i18n.ts) and typed as `TattleStrings`.
+- **Entry point.** For the least "third-party" feel, set `showButton={false}` and open the form from your own UI with `Tattle.open()`.
+
+The annotation editor keeps its dark, full-screen look; it uses your accent, fonts and button radius.
 
 ## Hide sensitive content from screenshots
 

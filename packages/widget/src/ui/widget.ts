@@ -7,7 +7,15 @@ import {
 	MAX_MESSAGE_LENGTH,
 	sendPayload,
 } from "../payload";
-import type { Locale, Position, TattleType, TattleUser } from "../types";
+import { resolveScheme, themeVariables } from "../theme";
+import type {
+	ColorScheme,
+	Locale,
+	Position,
+	TattleTheme,
+	TattleType,
+	TattleUser,
+} from "../types";
 import { h, iconButton, trapTab } from "./dom";
 import { icons } from "./icons";
 import { styles } from "./styles";
@@ -18,7 +26,11 @@ export interface WidgetConfig {
 	position: Position;
 	showButton: boolean;
 	locale: Locale;
-	accentColor: string;
+	accentColor: string | undefined;
+	theme: TattleTheme;
+	colorScheme: ColorScheme | undefined;
+	strings: Partial<Strings>;
+	css: string;
 	maskSelectors: string[];
 }
 
@@ -75,21 +87,30 @@ export class Widget {
 	private successTimer: ReturnType<typeof setTimeout> | undefined;
 	private mounted = false;
 	private destroyed = false;
+	private theme: TattleTheme;
+	private colorScheme: ColorScheme | undefined;
+	private readonly darkQuery: MediaQueryList | null =
+		typeof matchMedia === "function"
+			? matchMedia("(prefers-color-scheme: dark)")
+			: null;
 
 	constructor(
 		private readonly config: WidgetConfig,
 		private readonly deps: WidgetDeps,
 	) {
-		const t = getStrings(config.locale);
+		const t = { ...getStrings(config.locale), ...config.strings };
 		this.t = t;
+		this.theme = config.theme;
+		this.colorScheme = config.colorScheme;
 		this.host = document.createElement(HOST_TAG);
 		this.host.setAttribute("style", HOST_STYLE);
 		this.host.setAttribute("data-tattle-widget", "");
 		this.shadow = this.host.attachShadow({ mode: "closed" });
 		this.shadow.append(h("style", {}, styles));
+		if (config.css) this.shadow.append(h("style", {}, config.css));
 
 		this.root = h("div", { class: "fb-root" });
-		this.root.style.setProperty("--fb-accent", config.accentColor);
+		this.applyTheme();
 		if (config.position === "bottom-left") this.root.classList.add("fb-left");
 		if (!config.showButton) this.root.classList.add("fb-no-button");
 
@@ -309,7 +330,42 @@ export class Widget {
 		this.mounted = true;
 		document.body.append(this.host);
 		document.addEventListener("keydown", this.onDocumentKey, true);
+		this.darkQuery?.addEventListener?.("change", this.applyTheme);
+		// "inherit" reads the font of <body>, which may not have existed before.
+		if (this.theme.fontFamily === "inherit") this.applyTheme();
 	}
+
+	setTheme(theme: TattleTheme): void {
+		this.theme = theme;
+		this.applyTheme();
+	}
+
+	setColorScheme(scheme: ColorScheme | undefined): void {
+		this.colorScheme = scheme;
+		this.applyTheme();
+	}
+
+	private applyTheme = (): void => {
+		const scheme = resolveScheme(this.colorScheme, this.theme);
+		const dark =
+			scheme === "dark" || (scheme === "system" && !!this.darkQuery?.matches);
+		const theme = { ...this.theme };
+		if (theme.fontFamily === "inherit") {
+			const font = document.body
+				? getComputedStyle(document.body).fontFamily
+				: "";
+			if (font) theme.fontFamily = font;
+			else delete theme.fontFamily;
+		}
+		const vars = themeVariables(
+			theme,
+			dark ? "dark" : "light",
+			this.config.accentColor,
+		);
+		for (const [name, value] of Object.entries(vars))
+			this.root.style.setProperty(name, value);
+		this.root.style.colorScheme = dark ? "dark" : "light";
+	};
 
 	private onDocumentKey = (event: KeyboardEvent): void => {
 		if (event.key !== "Escape") return;
@@ -378,6 +434,7 @@ export class Widget {
 		this.editor?.cancel();
 		clearTimeout(this.successTimer);
 		document.removeEventListener("keydown", this.onDocumentKey, true);
+		this.darkQuery?.removeEventListener?.("change", this.applyTheme);
 		this.host.remove();
 		this.destroyed = true;
 		this.isOpen = false;

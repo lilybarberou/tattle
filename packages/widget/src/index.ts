@@ -9,10 +9,23 @@ import {
 import { detectLocale } from "./i18n";
 import { internalState } from "./internal";
 import { ingestUrl } from "./payload";
-import type { InitOptions, OpenOptions, TattleUser } from "./types";
+import {
+	isColor,
+	isColorScheme,
+	sanitizeStrings,
+	sanitizeTheme,
+} from "./theme";
+import type {
+	ColorScheme,
+	InitOptions,
+	OpenOptions,
+	TattleTheme,
+	TattleUser,
+} from "./types";
 import { Widget } from "./ui/widget";
 
 export type {
+	ColorScheme,
 	ConsoleEntry,
 	ConsoleLevel,
 	DeviceInfo,
@@ -24,11 +37,13 @@ export type {
 	OpenOptions,
 	Position,
 	Reporter,
+	TattleStrings,
+	TattleTheme,
 	TattleType,
 	TattleUser,
+	ThemeColors,
 } from "./types";
 
-const DEFAULT_ACCENT = "#2f55c9";
 const isBrowser =
 	typeof window !== "undefined" && typeof document !== "undefined";
 
@@ -36,6 +51,9 @@ let widget: Widget | null = null;
 let user: TattleUser | null = null;
 let context: Record<string, unknown> | null = null;
 let pendingOpen: OpenOptions | null = null;
+/** setTheme / setColorScheme calls made before init. */
+let pendingTheme: TattleTheme | undefined;
+let pendingScheme: ColorScheme | undefined;
 
 function startCollectors(): void {
 	if (!isBrowser) return;
@@ -48,19 +66,6 @@ startCollectors();
 
 function defaultApiUrl(): string {
 	return isBrowser ? location.origin : "";
-}
-
-function validColor(color: string | undefined): string {
-	if (!color) return DEFAULT_ACCENT;
-	try {
-		return typeof CSS !== "undefined" &&
-			CSS.supports &&
-			!CSS.supports("color", color)
-			? DEFAULT_ACCENT
-			: color;
-	} catch {
-		return DEFAULT_ACCENT;
-	}
 }
 
 /** Initializes the widget. Calling it again replaces the previous instance. */
@@ -92,13 +97,26 @@ export function init(options: InitOptions): void {
 				options.locale === "fr" || options.locale === "en"
 					? options.locale
 					: detectLocale(),
-			accentColor: validColor(options.accentColor),
+			accentColor: isColor(options.accentColor)
+				? options.accentColor
+				: undefined,
+			theme:
+				options.theme !== undefined
+					? sanitizeTheme(options.theme)
+					: (pendingTheme ?? {}),
+			colorScheme: isColorScheme(options.colorScheme)
+				? options.colorScheme
+				: pendingScheme,
+			strings: sanitizeStrings(options.strings),
+			css: typeof options.css === "string" ? options.css : "",
 			maskSelectors: Array.isArray(options.maskSelectors)
 				? options.maskSelectors.filter((s) => typeof s === "string")
 				: [],
 		},
 		{ getUser: () => user, getContext: () => context },
 	);
+	pendingTheme = undefined;
+	pendingScheme = undefined;
 	widget.mount();
 	if (pendingOpen) {
 		const opts = pendingOpen;
@@ -132,6 +150,24 @@ export function open(options?: OpenOptions): void {
 	widget.open(type);
 }
 
+/**
+ * Replaces the theme given to `init`, without losing what the user typed.
+ * Before `init`, it is kept and used when `init` sets no theme.
+ * For a light/dark switch, `setColorScheme` is enough.
+ */
+export function setTheme(theme: TattleTheme): void {
+	const next = sanitizeTheme(theme);
+	if (widget) widget.setTheme(next);
+	else pendingTheme = next;
+}
+
+/** Forces light or dark, e.g. to follow your app's own theme switch. */
+export function setColorScheme(scheme: ColorScheme): void {
+	const next = isColorScheme(scheme) ? scheme : undefined;
+	if (widget) widget.setColorScheme(next);
+	else pendingScheme = next;
+}
+
 export function close(): void {
 	pendingOpen = null;
 	widget?.close();
@@ -144,11 +180,22 @@ export function destroy(): void {
 	user = null;
 	context = null;
 	pendingOpen = null;
+	pendingTheme = undefined;
+	pendingScheme = undefined;
 	internalState.ignoredUrls.length = 0;
 	if (!isBrowser) return;
 	uninstallConsoleCollector();
 	uninstallNetworkCollector();
 }
 
-export const Tattle = { init, identify, setContext, open, close, destroy };
+export const Tattle = {
+	init,
+	identify,
+	setContext,
+	setTheme,
+	setColorScheme,
+	open,
+	close,
+	destroy,
+};
 export default Tattle;

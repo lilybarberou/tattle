@@ -5,6 +5,7 @@ import type { OpenOptions, TattleUser } from "./types";
 
 export type {
 	AppInfo,
+	ColorScheme,
 	ConsoleEntry,
 	ConsoleLevel,
 	DeviceInfo,
@@ -15,8 +16,11 @@ export type {
 	OpenOptions,
 	Reporter,
 	TattleOptions,
+	TattleStrings,
+	TattleTheme,
 	TattleType,
 	TattleUser,
+	ThemeColors,
 } from "./types";
 export { TattleMask } from "./ui/Mask";
 export { TattleProvider, type TattleProviderProps } from "./ui/Provider";

@@ -1,9 +1,28 @@
 // Script-tag entry: exposes `window.Tattle` and auto-initializes from the
 // <script data-project-key="pk_..." data-api-url="https://host"> attributes.
-import { close, destroy, identify, init, open, setContext } from "./index";
+import {
+	close,
+	destroy,
+	identify,
+	init,
+	open,
+	setColorScheme,
+	setContext,
+	setTheme,
+} from "./index";
+import { isColorScheme } from "./theme";
 import type { InitOptions } from "./types";
 
-export { close, destroy, identify, init, open, setContext };
+export {
+	close,
+	destroy,
+	identify,
+	init,
+	open,
+	setColorScheme,
+	setContext,
+	setTheme,
+};
 
 /** A queued call: `[method, ...args]` or the `arguments` object of a stub function. */
 type QueuedCall = ArrayLike<unknown>;
@@ -12,6 +31,8 @@ const api: Record<string, (...args: never[]) => void> = {
 	init,
 	identify,
 	setContext,
+	setTheme,
+	setColorScheme,
 	open,
 	close,
 	destroy,
@@ -37,6 +58,8 @@ function readScriptOptions(script: HTMLScriptElement): InitOptions | null {
 	if (locale === "fr" || locale === "en") options.locale = locale;
 	const accent = script.getAttribute("data-accent-color");
 	if (accent) options.accentColor = accent;
+	const scheme = script.getAttribute("data-color-scheme");
+	if (isColorScheme(scheme)) options.colorScheme = scheme;
 	if (script.getAttribute("data-show-button") === "false")
 		options.showButton = false;
 	return options;
@@ -45,7 +68,7 @@ function readScriptOptions(script: HTMLScriptElement): InitOptions | null {
 /**
  * Replays calls recorded by the optional loader stub:
  *   window.Tattle = window.Tattle || { q: [] };
- *   ["init","identify","setContext","open","close","destroy"].forEach(m =>
+ *   ["init","identify","setContext","setTheme","setColorScheme","open","close","destroy"].forEach(m =>
  *     Tattle[m] = (...a) => Tattle.q.push([m, ...a]));
  */
 function replayQueue(stub: unknown): void {

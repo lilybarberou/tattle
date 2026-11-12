@@ -8,13 +8,13 @@ import {
 } from "react";
 import { StyleSheet, useColorScheme, View } from "react-native";
 import { captureView, type ViewRef } from "../capture";
-import { detectLocale, getStrings } from "../i18n";
+import { detectLocale, getStrings, type Strings } from "../i18n";
 import { ingestUrl } from "../payload";
 import { state, subscribe } from "../state";
 import type { TattleOptions, TattleType } from "../types";
 import { Launcher } from "./Launcher";
 import { Panel } from "./Panel";
-import { DEFAULT_ACCENT, useTheme } from "./theme";
+import { buildTheme, resolveScheme } from "./theme";
 
 export type TattleProviderProps = TattleOptions & { children?: ReactNode };
 
@@ -33,20 +33,33 @@ export function TattleProvider({
 	buttonSide = "right",
 	locale,
 	accentColor,
+	theme: themeInput,
+	colorScheme,
+	strings,
 	backgroundColor,
 	app,
 }: TattleProviderProps) {
-	const scheme = useColorScheme();
+	const systemScheme = useColorScheme();
+	const scheme = resolveScheme(colorScheme, themeInput, systemScheme);
 	const rootRef: ViewRef = useRef(null);
 	const [screenSize, setScreenSize] = useState({ width: 0, height: 0 });
 	const [open, setOpen] = useState(false);
 	const [type, setType] = useState<TattleType>("bug");
-	const t = useMemo(
-		() =>
-			getStrings(locale === "fr" || locale === "en" ? locale : detectLocale()),
-		[locale],
+	const t = useMemo(() => {
+		const base = getStrings(
+			locale === "fr" || locale === "en" ? locale : detectLocale(),
+		);
+		const custom: Partial<Strings> = {};
+		if (strings && typeof strings === "object")
+			for (const [key, value] of Object.entries(strings))
+				if (typeof value === "string" && key in base)
+					custom[key as keyof Strings] = value;
+		return { ...base, ...custom };
+	}, [locale, strings]);
+	const theme = useMemo(
+		() => buildTheme(themeInput, scheme, accentColor || undefined),
+		[themeInput, scheme, accentColor],
 	);
-	const theme = useTheme(accentColor || DEFAULT_ACCENT);
 	const configured =
 		typeof projectKey === "string" &&
 		projectKey !== "" &&

@@ -25,7 +25,7 @@ import type { AppInfo, TattleType } from "../types";
 import { type Annotation, Annotator } from "./Annotator";
 import { Icon } from "./icons";
 import { useInsets } from "./insets";
-import type { Theme } from "./theme";
+import { offset, type Theme } from "./theme";
 
 const SUCCESS_CLOSE_MS = 2500;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -214,6 +214,8 @@ export function Panel({
 							styles.sheet,
 							{
 								backgroundColor: theme.bg,
+								borderTopLeftRadius: theme.radius + 7,
+								borderTopRightRadius: theme.radius + 7,
 								paddingBottom: Math.max(insets.bottom, 16),
 							},
 						]}
@@ -222,7 +224,7 @@ export function Panel({
 						<View style={[styles.grabber, { backgroundColor: theme.border }]} />
 						<View style={styles.header}>
 							<Text
-								style={[styles.title, { color: theme.fg }]}
+								style={[styles.title, theme.font("700"), { color: theme.fg }]}
 								accessibilityRole="header"
 							>
 								{t.title}
@@ -232,7 +234,10 @@ export function Panel({
 								hitSlop={8}
 								accessibilityRole="button"
 								accessibilityLabel={t.close}
-								style={styles.iconButton}
+								style={[
+									styles.iconButton,
+									{ borderRadius: offset(theme.buttonRadius, -2) },
+								]}
 							>
 								<Icon name="close" color={theme.muted} />
 							</Pressable>
@@ -251,7 +256,11 @@ export function Panel({
 									<Icon name="check" color={theme.accent} size={26} />
 								</View>
 								<Text
-									style={[styles.successText, { color: theme.fg }]}
+									style={[
+										styles.successText,
+										theme.font("600"),
+										{ color: theme.fg },
+									]}
 									accessibilityLiveRegion="polite"
 								>
 									{t.success}
@@ -265,7 +274,13 @@ export function Panel({
 								bounces={false}
 							>
 								<View
-									style={[styles.segment, { backgroundColor: theme.subtle }]}
+									style={[
+										styles.segment,
+										{
+											backgroundColor: theme.subtle,
+											borderRadius: theme.buttonRadius + 1,
+										},
+									]}
 									accessibilityRole="tablist"
 								>
 									{(["bug", "feature"] as const).map((option) => {
@@ -278,6 +293,7 @@ export function Panel({
 												accessibilityState={{ selected: active }}
 												style={[
 													styles.segmentButton,
+													{ borderRadius: offset(theme.buttonRadius, -2) },
 													active && {
 														backgroundColor: theme.bg,
 														borderColor: theme.border,
@@ -292,6 +308,7 @@ export function Panel({
 												<Text
 													style={[
 														styles.segmentText,
+														theme.font("600"),
 														{ color: active ? theme.fg : theme.muted },
 													]}
 												>
@@ -304,7 +321,15 @@ export function Panel({
 
 								{type === "bug" &&
 									(shot ? (
-										<View style={[styles.shot, { borderColor: theme.border }]}>
+										<View
+											style={[
+												styles.shot,
+												{
+													borderColor: theme.border,
+													borderRadius: theme.radius + 2,
+												},
+											]}
+										>
 											<Pressable
 												onPress={() => setView("editor")}
 												accessibilityRole="imagebutton"
@@ -315,6 +340,7 @@ export function Panel({
 													style={[
 														styles.thumb,
 														{
+															borderRadius: offset(theme.radius, -4),
 															borderColor: theme.border,
 															backgroundColor: theme.subtle,
 														},
@@ -349,7 +375,13 @@ export function Panel({
 												}}
 												disabled={capturing}
 												accessibilityRole="button"
-												style={[styles.capture, { borderColor: theme.border }]}
+												style={[
+													styles.capture,
+													{
+														borderColor: theme.border,
+														borderRadius: theme.radius,
+													},
+												]}
 											>
 												{capturing ? (
 													<ActivityIndicator
@@ -359,13 +391,20 @@ export function Panel({
 												) : (
 													<Icon name="camera" color={theme.accent} />
 												)}
-												<Text style={[styles.captureText, { color: theme.fg }]}>
+												<Text
+													style={[
+														styles.captureText,
+														theme.font("500"),
+														{ color: theme.fg },
+													]}
+												>
 													{capturing ? t.capturing : t.capture}
 												</Text>
 											</Pressable>
 											<Text
 												style={[
 													styles.hint,
+													theme.font("400"),
 													{ color: captureFailed ? theme.danger : theme.muted },
 												]}
 											>
@@ -375,7 +414,13 @@ export function Panel({
 									))}
 
 								<View style={styles.field}>
-									<Text style={[styles.label, { color: theme.fg }]}>
+									<Text
+										style={[
+											styles.label,
+											theme.font("600"),
+											{ color: theme.fg },
+										]}
+									>
 										{type === "bug" ? t.messageLabelBug : t.messageLabelFeature}
 									</Text>
 									<TextInput
@@ -398,7 +443,9 @@ export function Panel({
 										style={[
 											styles.input,
 											styles.textarea,
+											theme.font("400"),
 											{
+												borderRadius: theme.radius,
 												color: theme.fg,
 												borderColor: theme.border,
 												backgroundColor: theme.bg,
@@ -409,7 +456,13 @@ export function Panel({
 
 								{!userEmail && (
 									<View style={styles.field}>
-										<Text style={[styles.label, { color: theme.fg }]}>
+										<Text
+											style={[
+												styles.label,
+												theme.font("600"),
+												{ color: theme.fg },
+											]}
+										>
 											{t.emailLabel}
 										</Text>
 										<TextInput
@@ -426,7 +479,9 @@ export function Panel({
 											accessibilityLabel={t.emailLabel}
 											style={[
 												styles.input,
+												theme.font("400"),
 												{
+													borderRadius: theme.radius,
 													color: theme.fg,
 													borderColor: theme.border,
 													backgroundColor: theme.bg,
@@ -440,7 +495,12 @@ export function Panel({
 									<Text
 										style={[
 											styles.error,
-											{ color: theme.danger, backgroundColor: theme.dangerBg },
+											theme.font("400"),
+											{
+												color: theme.danger,
+												backgroundColor: theme.dangerBg,
+												borderRadius: offset(theme.radius, -1),
+											},
 										]}
 										accessibilityLiveRegion="assertive"
 									>
@@ -456,14 +516,23 @@ export function Panel({
 									accessibilityState={{ busy: sending }}
 									style={({ pressed }) => [
 										styles.submit,
-										{ backgroundColor: theme.accent },
+										{
+											backgroundColor: theme.accent,
+											borderRadius: theme.buttonRadius,
+										},
 										(pressed || sending) && styles.pressed,
 									]}
 								>
 									{sending && (
 										<ActivityIndicator size="small" color={theme.accentFg} />
 									)}
-									<Text style={[styles.submitText, { color: theme.accentFg }]}>
+									<Text
+										style={[
+											styles.submitText,
+											theme.font("600"),
+											{ color: theme.accentFg },
+										]}
+									>
 										{sending ? t.sending : t.send}
 									</Text>
 								</Pressable>
@@ -496,12 +565,17 @@ function SmallButton({
 			accessibilityRole="button"
 			style={({ pressed }) => [
 				styles.smallButton,
-				{ backgroundColor: theme.subtle },
+				{
+					backgroundColor: theme.subtle,
+					borderRadius: offset(theme.buttonRadius, -2),
+				},
 				pressed && styles.pressed,
 			]}
 		>
 			<Icon name={icon} color={color} size={16} />
-			<Text style={[styles.smallButtonText, { color }]}>{label}</Text>
+			<Text style={[styles.smallButtonText, theme.font("500"), { color }]}>
+				{label}
+			</Text>
 		</Pressable>
 	);
 }
@@ -510,8 +584,6 @@ const styles = StyleSheet.create({
 	fill: { flex: 1, justifyContent: "flex-end" },
 	sheet: {
 		flexShrink: 1,
-		borderTopLeftRadius: 18,
-		borderTopRightRadius: 18,
 		width: "100%",
 		maxWidth: 560,
 		alignSelf: "center",
@@ -532,11 +604,10 @@ const styles = StyleSheet.create({
 		paddingLeft: 20,
 		paddingRight: 12,
 	},
-	title: { fontSize: 17, fontWeight: "700", letterSpacing: -0.2 },
+	title: { fontSize: 17, letterSpacing: -0.2 },
 	iconButton: {
 		width: 36,
 		height: 36,
-		borderRadius: 9,
 		alignItems: "center",
 		justifyContent: "center",
 	},
@@ -545,7 +616,6 @@ const styles = StyleSheet.create({
 	segment: {
 		flexDirection: "row",
 		padding: 4,
-		borderRadius: 12,
 		gap: 4,
 	},
 	segmentButton: {
@@ -555,13 +625,12 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 		gap: 7,
 		minHeight: 40,
-		borderRadius: 9,
 		borderWidth: 1,
 		borderColor: "transparent",
 	},
-	segmentText: { fontSize: 14, fontWeight: "600" },
+	segmentText: { fontSize: 14 },
 	field: { gap: 7 },
-	label: { fontSize: 14, fontWeight: "600" },
+	label: { fontSize: 14 },
 	hint: { fontSize: 12.5 },
 	capture: {
 		flexDirection: "row",
@@ -569,20 +638,18 @@ const styles = StyleSheet.create({
 		gap: 10,
 		minHeight: 46,
 		paddingHorizontal: 14,
-		borderRadius: 11,
 		borderWidth: 1,
 		borderStyle: "dashed",
 	},
-	captureText: { fontSize: 15, fontWeight: "500" },
+	captureText: { fontSize: 15 },
 	shot: {
 		flexDirection: "row",
 		alignItems: "center",
 		gap: 12,
 		padding: 8,
 		borderWidth: 1,
-		borderRadius: 13,
 	},
-	thumb: { width: 64, height: 96, borderRadius: 7, borderWidth: 1 },
+	thumb: { width: 64, height: 96, borderWidth: 1 },
 	shotActions: { flex: 1, gap: 8, alignItems: "flex-start" },
 	smallButton: {
 		flexDirection: "row",
@@ -590,12 +657,10 @@ const styles = StyleSheet.create({
 		gap: 6,
 		minHeight: 34,
 		paddingHorizontal: 12,
-		borderRadius: 9,
 	},
-	smallButtonText: { fontSize: 14, fontWeight: "500" },
+	smallButtonText: { fontSize: 14 },
 	input: {
 		borderWidth: 1,
-		borderRadius: 11,
 		paddingHorizontal: 13,
 		paddingVertical: 11,
 		fontSize: 16,
@@ -605,7 +670,6 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		paddingHorizontal: 12,
 		paddingVertical: 10,
-		borderRadius: 10,
 		overflow: "hidden",
 	},
 	submit: {
@@ -614,10 +678,9 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 		gap: 8,
 		minHeight: 48,
-		borderRadius: 11,
 		marginTop: 2,
 	},
-	submitText: { fontSize: 16, fontWeight: "600" },
+	submitText: { fontSize: 16 },
 	pressed: { opacity: 0.75 },
 	success: {
 		alignItems: "center",
@@ -633,5 +696,5 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 	},
 	successTint: { borderRadius: 28, opacity: 0.14 },
-	successText: { fontSize: 16, fontWeight: "600" },
+	successText: { fontSize: 16 },
 });
