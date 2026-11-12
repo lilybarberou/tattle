@@ -9,14 +9,19 @@ import {
 import { Access, type Principal } from "./Access";
 import {
 	type AiConfig,
+	type AiErrorKind,
+	aiErrorMessage,
 	decryptSecret,
 	encryptSecret,
+	PRIVATE_URL_REFUSED,
 	testConnection,
 } from "./ai";
 import { inBackground } from "./background";
 import { Database } from "./Database";
+import { env } from "./env";
 import { type DbError, type Forbidden, InvalidInput } from "./errors";
 import { Notifications } from "./Notifications";
+import { checkUrlHost } from "./private-address";
 
 export type AiSettingsInput = {
 	provider: AiProvider;
@@ -27,7 +32,10 @@ export type AiSettingsInput = {
 	enabled: boolean;
 };
 
-export type AiTestResult = { ok: true } | { ok: false; error: string };
+/** A failed test says only what kind of failure it was, never the provider's answer. */
+export type AiTestResult =
+	| { ok: true }
+	| { ok: false; error: string; kind?: AiErrorKind; status?: number };
 
 type Row = typeof aiSettings.$inferSelect;
 
@@ -54,6 +62,15 @@ const normalizeBaseUrl = (provider: AiProvider, baseUrl?: string | null) =>
 			return yield* new InvalidInput({
 				message:
 					"Enter the server's base URL, e.g. https://api.mistral.ai/v1 or http://localhost:11434/v1",
+			});
+		}
+		// Checked again before each call, since a name can later resolve elsewhere.
+		if (
+			!env.aiAllowPrivateUrls &&
+			(yield* Effect.promise(() => checkUrlHost(url.href))) === "private"
+		) {
+			return yield* new InvalidInput({
+				message: PRIVATE_URL_REFUSED,
 			});
 		}
 		return value.replace(/\/+$/, "");
@@ -278,7 +295,9 @@ export class AiSettings extends Context.Service<
 					? ({ ok: true } satisfies AiTestResult)
 					: ({
 							ok: false,
-							error: result.failure.message,
+							error: aiErrorMessage(result.failure),
+							kind: result.failure.kind,
+							status: result.failure.status,
 						} satisfies AiTestResult);
 			});
 

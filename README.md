@@ -177,6 +177,7 @@ Each new report is compared with the project's most similar issues (Postgres ful
 
 - **Without AI** (the default): only a near-identical wording is suggested. Nothing leaves your server.
 - **With your own AI key**: **Agents & API → Duplicate suggestions**, owners and admins only. Pick Anthropic, OpenAI, or any OpenAI-compatible server (Mistral, OpenRouter, Ollama…), paste a key, **Test**, turn it on. The default models are cheap and fast (`claude-haiku-5-5`, `gpt-5-mini`). The model judges whether the report describes the same problem as one of the candidates.
+- **A model on your own machine or network** (Ollama, LM Studio…): an OpenAI-compatible base URL that is, or resolves to, a loopback, private, link-local or unique-local address (`localhost`, `192.168.…`, `169.254.169.254`…) is refused by default, so a workspace admin cannot make the server call inside its own network. Set `AI_ALLOW_PRIVATE_URLS=true` to allow it. The address is checked when the settings are saved and again before each call, and redirects are not followed. **Test** shows only the kind of error and its HTTP status, never what the server answered.
 
 When it is on, each new report sends the provider its **message, page URL, type and up to 5 console errors**, with the **number, title, shortened description, status and type of up to 8 similar issues**. No screenshot, reporter, device, network log or step is sent. When it is off, nothing is sent.
 

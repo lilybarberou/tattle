@@ -148,8 +148,12 @@ export function AiSettingsForm({
 					<p className="text-muted-foreground">
 						The address before{" "}
 						<span className="font-mono text-xs">/chat/completions</span>, e.g.
-						https://openrouter.ai/api/v1 or http://localhost:11434/v1 for
-						Ollama.
+						https://openrouter.ai/api/v1. Addresses on the server's own machine
+						or private network, like http://localhost:11434/v1 for Ollama, need{" "}
+						<span className="font-mono text-xs">
+							AI_ALLOW_PRIVATE_URLS=true
+						</span>{" "}
+						on the server.
 					</p>
 				</div>
 			)}

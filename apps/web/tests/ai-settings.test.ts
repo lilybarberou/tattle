@@ -4,7 +4,7 @@ import { db } from "#/db";
 import { aiSettings } from "#/db/schema";
 import type { Principal } from "#/server/Access";
 import { AiSettings, type AiSettingsInput } from "#/server/AiSettings";
-import { decryptSecret } from "#/server/ai";
+import { type AiConfig, complete, decryptSecret } from "#/server/ai";
 import { createOrganization, createPrincipal } from "./helpers/factories";
 import { run, runFailure, setupTestDatabase } from "./helpers/runtime";
 
@@ -133,18 +133,18 @@ describe("AiSettings", () => {
 		expect(
 			await saveFailure(owner, org.id, {
 				provider: "openai_compatible",
-				baseUrl: "http://localhost:11434/v1",
+				baseUrl: "http://203.0.113.10:11434/v1",
 				enabled: true,
 			}),
 		).toMatchObject({ message: "Enter the model to use" });
 		const saved = await save(owner, org.id, {
 			provider: "openai_compatible",
-			baseUrl: "http://localhost:11434/v1/",
+			baseUrl: "http://203.0.113.10:11434/v1/",
 			model: "llama3.2",
 			enabled: true,
 		});
 		expect(saved).toMatchObject({
-			baseUrl: "http://localhost:11434/v1",
+			baseUrl: "http://203.0.113.10:11434/v1",
 			enabled: true,
 			keyLast4: null,
 		});
@@ -282,7 +282,7 @@ describe("AiSettings", () => {
 			);
 		});
 
-		it("reports the provider's error with the key masked", async () => {
+		it("reports the kind of error and its status, never what the provider said", async () => {
 			const org = await createOrganization();
 			const owner = await createPrincipal(org.id);
 			mockFetch(401, {
@@ -294,25 +294,167 @@ describe("AiSettings", () => {
 			});
 			expect(result).toEqual({
 				ok: false,
-				error: "HTTP 401: Incorrect API key provided: …",
+				error: "HTTP 401: The provider refused the key",
+				kind: "unauthorized",
+				status: 401,
 			});
 		});
 
-		it("reports an unreachable server", async () => {
+		it("keeps the body of any answer away from the browser", async () => {
+			const org = await createOrganization();
+			const owner = await createPrincipal(org.id);
+			const input = {
+				provider: "openai_compatible" as const,
+				baseUrl: "http://203.0.113.10/v1",
+				model: "llama3.2",
+			};
+			vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+				new Response("<h1>Internal admin page</h1>", { status: 500 }),
+			);
+			const failed = await test(owner, org.id, input);
+			expect(failed).toMatchObject({ kind: "http_error", status: 500 });
+			expect(JSON.stringify(failed)).not.toContain("admin");
+
+			vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+				new Response("<h1>Internal admin page</h1>", { status: 200 }),
+			);
+			const unreadable = await test(owner, org.id, input);
+			expect(unreadable).toMatchObject({ kind: "bad_response" });
+			expect(JSON.stringify(unreadable)).not.toContain("admin");
+
+			for (const [status, kind] of [
+				[402, "quota"],
+				[429, "quota"],
+				[403, "unauthorized"],
+				[404, "not_found"],
+			] as const) {
+				vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+					new Response("secret", { status }),
+				);
+				expect(await test(owner, org.id, input)).toMatchObject({
+					kind,
+					status,
+				});
+			}
+		});
+
+		it("reports an unreachable server without the network error's text", async () => {
 			const org = await createOrganization();
 			const owner = await createPrincipal(org.id);
 			vi.spyOn(globalThis, "fetch").mockRejectedValue(
-				new TypeError("fetch failed"),
+				new TypeError("connect ECONNREFUSED 203.0.113.10:1"),
 			);
 			const result = await test(owner, org.id, {
 				provider: "openai_compatible",
-				baseUrl: "http://localhost:1/v1",
+				baseUrl: "http://203.0.113.10:1/v1",
 				model: "llama3.2",
 			});
 			expect(result).toEqual({
 				ok: false,
-				error: "Could not reach the provider: fetch failed",
+				error: "Could not reach the provider",
+				kind: "unreachable",
 			});
+		});
+
+		it("refuses redirects", async () => {
+			const org = await createOrganization();
+			const owner = await createPrincipal(org.id);
+			const fetchMock = mockFetch(200, {
+				choices: [{ message: { content: "ok" } }],
+			});
+			await test(owner, org.id, {
+				provider: "openai_compatible",
+				baseUrl: "http://203.0.113.10/v1",
+				model: "llama3.2",
+			});
+			expect(fetchMock.mock.calls[0]?.[1]?.redirect).toBe("error");
+		});
+	});
+
+	describe("private addresses", () => {
+		const allowPrivate = (value: string | undefined) => {
+			if (value === undefined) delete process.env.AI_ALLOW_PRIVATE_URLS;
+			else process.env.AI_ALLOW_PRIVATE_URLS = value;
+		};
+		afterEach(() => allowPrivate(undefined));
+
+		const compatible = (baseUrl: string) => ({
+			provider: "openai_compatible" as const,
+			baseUrl,
+			model: "llama3.2",
+			enabled: true,
+		});
+
+		it("refuses base URLs on this machine or a private network", async () => {
+			const org = await createOrganization();
+			const owner = await createPrincipal(org.id);
+			const fetchMock = mockFetch(200, {
+				choices: [{ message: { content: "ok" } }],
+			});
+			for (const baseUrl of [
+				"http://localhost:11434/v1",
+				"http://127.0.0.1:11434/v1",
+				"http://2130706433/v1",
+				"http://0.0.0.0/v1",
+				"http://[::1]/v1",
+				"http://[::]/v1",
+				"http://[::ffff:127.0.0.1]/v1",
+				"http://[::ffff:a9fe:a9fe]/v1",
+				"http://169.254.169.254/latest",
+				"http://10.0.0.5/v1",
+				"http://172.20.1.1/v1",
+				"http://192.168.1.10/v1",
+				"http://[fd12:3456::1]/v1",
+				"http://[fe80::1]/v1",
+			]) {
+				const error = await saveFailure(owner, org.id, compatible(baseUrl));
+				expect(error, baseUrl).toMatchObject({ _tag: "InvalidInput" });
+				expect(error.message).toContain("AI_ALLOW_PRIVATE_URLS=true");
+				expect(
+					await runFailure(
+						AiSettings.use((s) => s.test(owner, org.id, compatible(baseUrl))),
+					),
+				).toMatchObject({ _tag: "InvalidInput" });
+			}
+			expect(fetchMock).not.toHaveBeenCalled();
+		});
+
+		it("allows them with AI_ALLOW_PRIVATE_URLS=true", async () => {
+			allowPrivate("true");
+			const org = await createOrganization();
+			const owner = await createPrincipal(org.id);
+			const fetchMock = mockFetch(200, {
+				choices: [{ message: { content: "ok" } }],
+			});
+			await save(owner, org.id, compatible("http://localhost:11434/v1"));
+			expect(
+				await test(owner, org.id, compatible("http://localhost:11434/v1")),
+			).toEqual({ ok: true });
+			expect(fetchMock.mock.calls[0]?.[0]).toBe(
+				"http://localhost:11434/v1/chat/completions",
+			);
+		});
+
+		it("checks the address again right before each call", async () => {
+			allowPrivate("true");
+			const org = await createOrganization();
+			const owner = await createPrincipal(org.id);
+			await save(owner, org.id, compatible("http://localhost:11434/v1"));
+			allowPrivate(undefined);
+			const fetchMock = mockFetch(200, {
+				choices: [{ message: { content: "ok" } }],
+			});
+			const config = await run(AiSettings.use((s) => s.configFor(org.id)));
+			expect(config).not.toBeNull();
+			const error = await runFailure(
+				complete(config as AiConfig, {
+					system: "s",
+					user: "u",
+					maxTokens: 10,
+				}),
+			);
+			expect(error).toMatchObject({ _tag: "AiError", kind: "private_address" });
+			expect(fetchMock).not.toHaveBeenCalled();
 		});
 	});
 });

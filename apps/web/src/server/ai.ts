@@ -7,6 +7,7 @@ import {
 import { Effect, Schema } from "effect";
 import type { AiProvider } from "#/shared/ai";
 import { env } from "./env";
+import { checkUrlHost } from "./private-address";
 
 // ---------- API key encryption ----------
 
@@ -63,34 +64,65 @@ export type AiConfig = {
 };
 
 /**
- * A failed call. `message` is for the admin testing their settings (the key is
- * masked); logs only get `status`, since a provider can echo request content.
+ * Why a call failed, as one of a few known kinds and the HTTP status: never
+ * what the provider answered, which can echo the key or the request, or show
+ * what sits at an address it should not have been asked to call.
  */
+export const AI_ERROR_KINDS = [
+	"unauthorized",
+	"quota",
+	"not_found",
+	"timeout",
+	"unreachable",
+	"private_address",
+	"http_error",
+	"bad_response",
+	"declined",
+] as const;
+export type AiErrorKind = (typeof AI_ERROR_KINDS)[number];
+
 export class AiError extends Schema.TaggedError<AiError>()("AiError", {
-	message: Schema.String,
+	kind: Schema.Literals(AI_ERROR_KINDS),
 	status: Schema.optional(Schema.Number),
 }) {}
+
+export const PRIVATE_URL_REFUSED =
+	"This address is on the server's own machine or private network. To use a model there (Ollama, LM Studio…), set AI_ALLOW_PRIVATE_URLS=true on the server";
+
+/** Our own sentence for a failed call, for the admin testing their settings. */
+export const aiErrorMessage = (error: {
+	kind: AiErrorKind;
+	status?: number;
+}) => {
+	const text: Record<AiErrorKind, string> = {
+		unauthorized: "The provider refused the key",
+		quota: "Out of credit or over the rate limit",
+		not_found: "Not found: check the base URL and the model",
+		timeout: "No answer in time",
+		unreachable: "Could not reach the provider",
+		private_address: PRIVATE_URL_REFUSED,
+		http_error: "The provider answered with an error",
+		bad_response: "The provider's answer could not be read",
+		declined: "The model declined to answer",
+	};
+	return error.status
+		? `HTTP ${error.status}: ${text[error.kind]}`
+		: text[error.kind];
+};
+
+const kindOfStatus = (status: number): AiErrorKind => {
+	if (status === 401 || status === 403) return "unauthorized";
+	if (status === 402 || status === 429) return "quota";
+	if (status === 404) return "not_found";
+	if (status === 408 || status === 504) return "timeout";
+	return "http_error";
+};
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 export const chatCompletionsUrl = (baseUrl: string) =>
 	`${baseUrl.trim().replace(/\/+$/, "")}/chat/completions`;
-
-const mask = (text: string, secret: string | null) =>
-	secret && secret.length >= 4 ? text.split(secret).join("…") : text;
-
-const providerMessage = (body: unknown): string | undefined => {
-	if (!body || typeof body !== "object") return undefined;
-	const error = (body as { error?: unknown }).error;
-	if (typeof error === "string") return error;
-	if (error && typeof error === "object") {
-		const message = (error as { message?: unknown }).message;
-		if (typeof message === "string") return message;
-	}
-	const message = (body as { message?: unknown }).message;
-	return typeof message === "string" ? message : undefined;
-};
 
 const textOf = (provider: AiProvider, body: unknown): string | null => {
 	if (!body || typeof body !== "object") return null;
@@ -112,7 +144,10 @@ const textOf = (provider: AiProvider, body: unknown): string | null => {
 
 /**
  * One request to the provider's HTTP API, with plain fetch and a timeout.
- * Returns the model's text.
+ * Returns the model's text. An OpenAI-compatible base URL is checked again
+ * right before the call (its name may now resolve elsewhere), and redirects
+ * are refused, so the call never lands on a private address unless
+ * AI_ALLOW_PRIVATE_URLS=true.
  */
 export const complete = (
 	config: AiConfig,
@@ -161,6 +196,11 @@ export const complete = (
 							}
 						: { model: config.model, messages, max_tokens: prompt.maxTokens };
 			}
+			if (config.provider === "openai_compatible" && !env.aiAllowPrivateUrls) {
+				const host = await checkUrlHost(url);
+				if (host === "private") throw new AiError({ kind: "private_address" });
+				if (host === "unresolved") throw new AiError({ kind: "unreachable" });
+			}
 			const response = await fetch(url, {
 				method: "POST",
 				headers,
@@ -168,49 +208,37 @@ export const complete = (
 				signal: AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]),
 				redirect: "error",
 			});
-			const raw = await response.text();
-			let json: unknown = null;
-			try {
-				json = JSON.parse(raw);
-			} catch {
-				// Some proxies answer HTML or plain text.
-			}
 			if (!response.ok) {
-				const detail = providerMessage(json) ?? raw.slice(0, 200);
+				// The body is never read: nothing of it may reach the browser.
+				await response.body?.cancel().catch(() => {});
 				throw new AiError({
-					message: mask(
-						`HTTP ${response.status}${detail ? `: ${detail}` : ""}`.slice(
-							0,
-							300,
-						),
-						config.apiKey,
-					),
+					kind: kindOfStatus(response.status),
 					status: response.status,
 				});
+			}
+			let json: unknown = null;
+			try {
+				json = JSON.parse(await response.text());
+			} catch {
+				throw new AiError({ kind: "bad_response" });
 			}
 			if (
 				config.provider === "anthropic" &&
 				(json as { stop_reason?: unknown })?.stop_reason === "refusal"
 			) {
-				throw new AiError({ message: "The model declined to answer" });
+				throw new AiError({ kind: "declined" });
 			}
 			const text = textOf(config.provider, json);
-			if (text === null)
-				throw new AiError({ message: "The answer had no text in it" });
+			if (text === null) throw new AiError({ kind: "bad_response" });
 			return text;
 		},
 		catch: (cause) => {
 			if (cause instanceof AiError) return cause;
 			if (cause instanceof Error && cause.name === "TimeoutError")
-				return new AiError({
-					message: `No answer within ${timeoutMs / 1000}s`,
-				});
-			return new AiError({
-				message: mask(
-					`Could not reach the provider: ${cause instanceof Error ? cause.message : String(cause)}`,
-					config.apiKey,
-				).slice(0, 300),
-			});
+				return new AiError({ kind: "timeout" });
+			// A network error, a refused redirect: its text could tell what sits
+			// at the address, so only the kind is kept.
+			return new AiError({ kind: "unreachable" });
 		},
 	});
 

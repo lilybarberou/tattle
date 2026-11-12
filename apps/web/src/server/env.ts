@@ -17,6 +17,13 @@ export const env = {
 		return process.env.STORAGE_DIR ?? "./storage";
 	},
 	/**
+	 * Lets an OpenAI-compatible AI base URL point at this machine or a private
+	 * network (Ollama, a model on the LAN). Off by default.
+	 */
+	get aiAllowPrivateUrls() {
+		return process.env.AI_ALLOW_PRIVATE_URLS === "true";
+	},
+	/**
 	 * The running version, set when the Docker image is built: "0.2.0" for a
 	 * release, "main (382e31e)" for the main branch image, "dev" from source.
 	 * `url` opens its release notes, or its commit.
