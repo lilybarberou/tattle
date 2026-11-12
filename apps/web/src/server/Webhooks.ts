@@ -7,18 +7,40 @@ import {
 	webhookDelivery,
 	webhookEndpoint,
 } from "#/db/schema";
-import { WEBHOOK_EVENTS, type WebhookEvent } from "#/shared/issues";
+import {
+	WEBHOOK_EVENTS,
+	type WEBHOOK_FORMATS,
+	type WebhookEvent,
+} from "#/shared/issues";
+import { generateToken } from "./Access";
 import { errorKind, inBackground } from "./background";
 import { describeEvent, toDiscord, toSlack } from "./chat-format";
 import { Database } from "./Database";
+import { env } from "./env";
+import { type DbError, InvalidInput } from "./errors";
 import { Notifications } from "./Notifications";
+import { checkUrlHost } from "./private-address";
 
 export { WEBHOOK_EVENTS, type WebhookEvent };
 
+type WebhookFormat = (typeof WEBHOOK_FORMATS)[number];
+
 class DeliveryFailed extends Schema.TaggedError<DeliveryFailed>()(
 	"DeliveryFailed",
-	{ message: Schema.String, status: Schema.optional(Schema.Number) },
+	{
+		message: Schema.String,
+		status: Schema.optional(Schema.Number),
+		/** Refused before sending: retrying cannot help. */
+		refused: Schema.optional(Schema.Boolean),
+	},
 ) {}
+
+export const PRIVATE_WEBHOOK_REFUSED =
+	"This address is on the server's own machine or private network. To send webhooks there, set ALLOW_PRIVATE_URLS=true on the server";
+
+/** "private" unless ALLOW_PRIVATE_URLS=true: the URL must not be called. */
+const privateUrl = async (url: string) =>
+	!env.allowPrivateUrls && (await checkUrlHost(url)) === "private";
 
 /**
  * Signature header: `t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<raw body>">`,
@@ -44,6 +66,14 @@ export class Webhooks extends Context.Service<
 			event: WebhookEvent,
 			data: unknown,
 		) => Effect.Effect<void>;
+		/**
+		 * Adds an endpoint. Its URL must be http(s), and not on this machine or
+		 * a private network unless ALLOW_PRIVATE_URLS=true.
+		 */
+		readonly create: (
+			projectId: string,
+			input: { url: string; events: string[]; format: WebhookFormat },
+		) => Effect.Effect<{ id: string }, InvalidInput | DbError>;
 		/** Sends a `ping` event to one endpoint and waits for the result. */
 		readonly ping: (
 			endpointId: string,
@@ -64,6 +94,13 @@ export class Webhooks extends Context.Service<
 			) =>
 				Effect.tryPromise({
 					try: async () => {
+						// Checked before each delivery too: a name can later resolve
+						// to another address.
+						if (await privateUrl(endpoint.url))
+							throw new DeliveryFailed({
+								message: `Refused: ${PRIVATE_WEBHOOK_REFUSED}`,
+								refused: true,
+							});
 						const timestamp = Math.floor(Date.now() / 1000);
 						// Chat apps take their own JSON; only our format is signed.
 						const signed: Record<string, string> =
@@ -83,16 +120,28 @@ export class Webhooks extends Context.Service<
 							},
 							body,
 							signal: AbortSignal.timeout(10_000),
+							// A redirect could lead anywhere, a private address included.
+							redirect: "manual",
 						});
+						await response.body?.cancel().catch(() => {});
 						return response.status;
 					},
-					catch: (cause) => new DeliveryFailed({ message: String(cause) }),
+					catch: (cause) =>
+						cause instanceof DeliveryFailed
+							? cause
+							: new DeliveryFailed({ message: String(cause) }),
 				}).pipe(
 					Effect.flatMap((status) =>
 						status >= 200 && status < 300
 							? Effect.succeed(status)
 							: Effect.fail(
-									new DeliveryFailed({ message: `HTTP ${status}`, status }),
+									new DeliveryFailed({
+										message:
+											status >= 300 && status < 400
+												? `HTTP ${status}: redirects are not followed`
+												: `HTTP ${status}`,
+										status,
+									}),
 								),
 					),
 				);
@@ -130,7 +179,10 @@ export class Webhooks extends Context.Service<
 				);
 
 				const result = yield* attempt.pipe(
-					Effect.retry(retrySchedule),
+					Effect.retry({
+						schedule: retrySchedule,
+						while: (error) => !error.refused,
+					}),
 					Effect.result,
 				);
 
@@ -293,6 +345,41 @@ export class Webhooks extends Context.Service<
 				),
 			);
 
+			const create = Effect.fn("Webhooks.create")(function* (
+				projectId: string,
+				input: { url: string; events: string[]; format: WebhookFormat },
+			) {
+				let url: URL | null = null;
+				try {
+					url = new URL(input.url.trim());
+				} catch {
+					url = null;
+				}
+				if (!url || !["http:", "https:"].includes(url.protocol))
+					return yield* new InvalidInput({
+						message: "Enter the endpoint's http or https URL",
+					});
+				if (yield* Effect.promise(() => privateUrl(url.href)))
+					return yield* new InvalidInput({ message: PRIVATE_WEBHOOK_REFUSED });
+				const [row] = yield* database.query((db) =>
+					db
+						.insert(webhookEndpoint)
+						.values({
+							projectId,
+							url: input.url.trim(),
+							events: input.events,
+							format: input.format,
+							secret: `whsec_${generateToken().token.slice(4)}`,
+						})
+						.returning({ id: webhookEndpoint.id }),
+				);
+				if (!row)
+					return yield* new InvalidInput({
+						message: "Webhook could not be created",
+					});
+				return row;
+			});
+
 			const ping = Effect.fn("Webhooks.ping")(
 				function* (endpointId: string) {
 					const [endpoint] = yield* database.query((db) =>
@@ -325,7 +412,7 @@ export class Webhooks extends Context.Service<
 				),
 			);
 
-			return Webhooks.of({ emit, ping });
+			return Webhooks.of({ emit, create, ping });
 		}),
 	);
 }

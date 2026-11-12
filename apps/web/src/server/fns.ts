@@ -1049,24 +1049,8 @@ export const createWebhookFn = createServerFn({ method: "POST" })
 		run(
 			Effect.gen(function* () {
 				yield* withProject(data.projectId);
-				const database = yield* Database;
-				const [row] = yield* database.query((db) =>
-					db
-						.insert(webhookEndpoint)
-						.values({
-							projectId: data.projectId,
-							url: data.url,
-							events: data.events,
-							format: data.format,
-							secret: `whsec_${generateToken().token.slice(4)}`,
-						})
-						.returning({ id: webhookEndpoint.id }),
-				);
-				if (!row)
-					return yield* new NotFound({
-						message: "Webhook could not be created",
-					});
-				return row;
+				const { projectId, ...input } = data;
+				return yield* (yield* Webhooks).create(projectId, input);
 			}),
 		),
 	);

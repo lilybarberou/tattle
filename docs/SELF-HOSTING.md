@@ -240,7 +240,7 @@ Then create your first project. Its page shows the widget snippet.
 | **Your own server** | Project settings → *Webhooks* | Signed JSON events, retried if your server is down. See the [README](../README.md#webhooks). |
 | **GitHub** | Project settings → *GitHub* | Turn it on, then add a webhook to your repository with the address and secret shown there (Pull requests events only). Merged pull requests move their issues to Done. GitHub must be able to reach your server. |
 | **A public feature request page** | Project settings → *Public feature requests* | Turn it on and pick an address: `https://your-domain/portal/<name>`. |
-| **AI duplicate suggestions** (optional) | Agents & API → *Duplicate suggestions* | Paste an Anthropic, OpenAI or OpenAI-compatible (Mistral, OpenRouter, Ollama…) key. Off by default, and then nothing is sent anywhere. A model on this machine or your network (Ollama…) needs `AI_ALLOW_PRIVATE_URLS=true`. The [README](../README.md#duplicate-suggestions) lists what is sent when it's on. |
+| **AI duplicate suggestions** (optional) | Agents & API → *Duplicate suggestions* | Paste an Anthropic, OpenAI or OpenAI-compatible (Mistral, OpenRouter, Ollama…) key. Off by default, and then nothing is sent anywhere. A model on this machine or your network (Ollama…) needs `ALLOW_PRIVATE_URLS=true`. The [README](../README.md#duplicate-suggestions) lists what is sent when it's on. |
 
 ## 8. Optional: email and S3
 
@@ -369,7 +369,7 @@ After changing `.env`, apply it with `docker compose up -d`.
 | `GITHUB_LIMIT_PER_IP` | `300` | GitHub webhook deliveries per IP and project per 10 minutes. |
 | `REPORTER_READ_LIMIT_PER_IP` | `120` | "My reports" reads per IP per 10 minutes (widgets and reply links). |
 | `REPORTER_MESSAGE_LIMIT_PER_IP` | `20` | Reporters' messages per IP per 10 minutes. |
-| `AI_ALLOW_PRIVATE_URLS` | `false` | `true` lets an OpenAI-compatible AI base URL point at this machine or a private network (Ollama, LM Studio on your LAN). Off, such addresses are refused, so workspace admins cannot reach inside your network through it. |
+| `ALLOW_PRIVATE_URLS` | `false` | `true` lets an OpenAI-compatible AI base URL and webhook endpoints point at this machine or a private network (Ollama, LM Studio, a receiver on your LAN). Off, such addresses are refused when saved and before each call, and redirects are not followed, so workspace admins cannot reach inside your network through them. `AI_ALLOW_PRIVATE_URLS` is an older name for the same setting. |
 | `REPORT_RETENTION_DAYS` | (keep all) | Deletes screenshots and logs of reports older than this. The message and the reporter stay. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_SECURE`, `SMTP_FROM` | (no email) | Sending email. `SMTP_SECURE=true` for port 465. |
 | `TRIAGE_DIGEST_HOUR` | `8` | The hour of the daily triage digest, in UTC (0 to 23). |

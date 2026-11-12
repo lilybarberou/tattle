@@ -17,11 +17,16 @@ export const env = {
 		return process.env.STORAGE_DIR ?? "./storage";
 	},
 	/**
-	 * Lets an OpenAI-compatible AI base URL point at this machine or a private
-	 * network (Ollama, a model on the LAN). Off by default.
+	 * Lets the URLs workspace admins type (an OpenAI-compatible AI base URL,
+	 * webhook endpoints) point at this machine or a private network: Ollama,
+	 * a model or a receiver on the LAN. Off by default. AI_ALLOW_PRIVATE_URLS,
+	 * its first name, still works.
 	 */
-	get aiAllowPrivateUrls() {
-		return process.env.AI_ALLOW_PRIVATE_URLS === "true";
+	get allowPrivateUrls() {
+		return (
+			process.env.ALLOW_PRIVATE_URLS === "true" ||
+			process.env.AI_ALLOW_PRIVATE_URLS === "true"
+		);
 	},
 	/**
 	 * The running version, set when the Docker image is built: "0.2.0" for a

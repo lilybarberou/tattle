@@ -373,8 +373,9 @@ describe("AiSettings", () => {
 
 	describe("private addresses", () => {
 		const allowPrivate = (value: string | undefined) => {
-			if (value === undefined) delete process.env.AI_ALLOW_PRIVATE_URLS;
-			else process.env.AI_ALLOW_PRIVATE_URLS = value;
+			delete process.env.AI_ALLOW_PRIVATE_URLS;
+			if (value === undefined) delete process.env.ALLOW_PRIVATE_URLS;
+			else process.env.ALLOW_PRIVATE_URLS = value;
 		};
 		afterEach(() => allowPrivate(undefined));
 
@@ -409,7 +410,7 @@ describe("AiSettings", () => {
 			]) {
 				const error = await saveFailure(owner, org.id, compatible(baseUrl));
 				expect(error, baseUrl).toMatchObject({ _tag: "InvalidInput" });
-				expect(error.message).toContain("AI_ALLOW_PRIVATE_URLS=true");
+				expect(error.message).toContain("ALLOW_PRIVATE_URLS=true");
 				expect(
 					await runFailure(
 						AiSettings.use((s) => s.test(owner, org.id, compatible(baseUrl))),
@@ -419,7 +420,7 @@ describe("AiSettings", () => {
 			expect(fetchMock).not.toHaveBeenCalled();
 		});
 
-		it("allows them with AI_ALLOW_PRIVATE_URLS=true", async () => {
+		it("allows them with ALLOW_PRIVATE_URLS=true", async () => {
 			allowPrivate("true");
 			const org = await createOrganization();
 			const owner = await createPrincipal(org.id);

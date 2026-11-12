@@ -87,7 +87,7 @@ export class AiError extends Schema.TaggedError<AiError>()("AiError", {
 }) {}
 
 export const PRIVATE_URL_REFUSED =
-	"This address is on the server's own machine or private network. To use a model there (Ollama, LM Studio…), set AI_ALLOW_PRIVATE_URLS=true on the server";
+	"This address is on the server's own machine or private network. To use a model there (Ollama, LM Studio…), set ALLOW_PRIVATE_URLS=true on the server";
 
 /** Our own sentence for a failed call, for the admin testing their settings. */
 export const aiErrorMessage = (error: {
@@ -147,7 +147,7 @@ const textOf = (provider: AiProvider, body: unknown): string | null => {
  * Returns the model's text. An OpenAI-compatible base URL is checked again
  * right before the call (its name may now resolve elsewhere), and redirects
  * are refused, so the call never lands on a private address unless
- * AI_ALLOW_PRIVATE_URLS=true.
+ * ALLOW_PRIVATE_URLS=true.
  */
 export const complete = (
 	config: AiConfig,
@@ -196,7 +196,7 @@ export const complete = (
 							}
 						: { model: config.model, messages, max_tokens: prompt.maxTokens };
 			}
-			if (config.provider === "openai_compatible" && !env.aiAllowPrivateUrls) {
+			if (config.provider === "openai_compatible" && !env.allowPrivateUrls) {
 				const host = await checkUrlHost(url);
 				if (host === "private") throw new AiError({ kind: "private_address" });
 				if (host === "unresolved") throw new AiError({ kind: "unreachable" });

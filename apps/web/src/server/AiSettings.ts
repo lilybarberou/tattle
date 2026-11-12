@@ -66,7 +66,7 @@ const normalizeBaseUrl = (provider: AiProvider, baseUrl?: string | null) =>
 		}
 		// Checked again before each call, since a name can later resolve elsewhere.
 		if (
-			!env.aiAllowPrivateUrls &&
+			!env.allowPrivateUrls &&
 			(yield* Effect.promise(() => checkUrlHost(url.href))) === "private"
 		) {
 			return yield* new InvalidInput({

@@ -8,7 +8,10 @@ export type ReceivedRequest = {
 };
 
 /** A throwaway HTTP server on a random port that records what it receives. */
-export const startReceiver = async (status = 200) => {
+export const startReceiver = async (
+	status = 200,
+	headers: Record<string, string> = {},
+) => {
 	const requests: ReceivedRequest[] = [];
 	const server = createServer((req, res) => {
 		const chunks: Buffer[] = [];
@@ -19,7 +22,7 @@ export const startReceiver = async (status = 200) => {
 				headers: req.headers,
 				body: Buffer.concat(chunks).toString("utf8"),
 			});
-			res.writeHead(status, { "content-type": "text/plain" });
+			res.writeHead(status, { "content-type": "text/plain", ...headers });
 			res.end("ok");
 		});
 	});

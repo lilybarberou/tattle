@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
 import { webhookDelivery, webhookEndpoint } from "#/db/schema";
 import { Ingest } from "#/server/Ingest";
@@ -13,13 +13,18 @@ import {
 	userActor,
 } from "./helpers/factories";
 import { startReceiver } from "./helpers/http";
-import { run, setupTestDatabase, waitFor } from "./helpers/runtime";
+import { run, runFailure, setupTestDatabase, waitFor } from "./helpers/runtime";
 
 setupTestDatabase();
 
 let receiver: Awaited<ReturnType<typeof startReceiver>>;
+// The test receivers listen on 127.0.0.1.
+beforeEach(() => {
+	vi.stubEnv("ALLOW_PRIVATE_URLS", "true");
+});
 afterEach(async () => {
 	await receiver?.close();
+	vi.unstubAllEnvs();
 });
 
 const submit = (projectKey: string) =>
@@ -197,5 +202,99 @@ describe("ping", () => {
 			ok: false,
 			error: "Endpoint not found",
 		});
+	});
+});
+
+describe("private addresses", () => {
+	const create = (projectId: string, url: string) =>
+		run(
+			Webhooks.use((w) =>
+				w.create(projectId, { url, events: [], format: "json" }),
+			),
+		);
+	const createFailure = (projectId: string, url: string) =>
+		runFailure(
+			Webhooks.use((w) =>
+				w.create(projectId, { url, events: [], format: "slack" }),
+			),
+		);
+
+	it("refuses endpoints on this machine or a private network when saved", async () => {
+		vi.stubEnv("ALLOW_PRIVATE_URLS", "");
+		const { project: p } = await createWorkspace();
+		for (const url of [
+			"http://localhost:8080/hook",
+			"http://127.0.0.1:9/hook",
+			"http://169.254.169.254/latest/meta-data",
+			"http://[::ffff:10.0.0.1]/hook",
+			"http://192.168.1.20/hook",
+		]) {
+			const error = await createFailure(p.id, url);
+			expect(error, url).toMatchObject({ _tag: "InvalidInput" });
+			expect(error.message).toContain("ALLOW_PRIVATE_URLS=true");
+		}
+		expect(await createFailure(p.id, "ftp://203.0.113.10/x")).toMatchObject({
+			_tag: "InvalidInput",
+		});
+		const saved = await create(p.id, "https://203.0.113.10/hook");
+		const [row] = await db
+			.select()
+			.from(webhookEndpoint)
+			.where(eq(webhookEndpoint.id, saved.id));
+		expect(row).toMatchObject({ url: "https://203.0.113.10/hook" });
+		expect(row?.secret).toMatch(/^whsec_/);
+	});
+
+	it("accepts them with ALLOW_PRIVATE_URLS=true, or its old name", async () => {
+		const { project: p } = await createWorkspace();
+		await create(p.id, "http://localhost:8080/hook");
+		vi.stubEnv("ALLOW_PRIVATE_URLS", "");
+		vi.stubEnv("AI_ALLOW_PRIVATE_URLS", "true");
+		await create(p.id, "http://192.168.1.20/hook");
+	});
+
+	it("checks again before each delivery, and marks a refused one failed without retrying", async () => {
+		receiver = await startReceiver();
+		const { project: p } = await createWorkspace();
+		const endpoint = await create(p.id, receiver.url);
+		vi.stubEnv("ALLOW_PRIVATE_URLS", "");
+		await submit(p.publicKey);
+		const deliveries = await waitFor(async () => {
+			const rows = await deliveriesOf(endpoint.id);
+			return (
+				rows.length === 2 && rows.every((r) => r.status === "failed") && rows
+			);
+		});
+		for (const delivery of deliveries) {
+			expect(delivery.attempts).toBe(1);
+			expect(delivery.lastError).toContain("Refused");
+			expect(delivery.lastError).toContain("ALLOW_PRIVATE_URLS=true");
+		}
+		expect(await run(Webhooks.use((w) => w.ping(endpoint.id)))).toMatchObject({
+			ok: false,
+			error: expect.stringContaining("Refused"),
+		});
+		expect(receiver.requests).toEqual([]);
+	});
+
+	it("never follow redirects", async () => {
+		const target = await startReceiver();
+		receiver = await startReceiver(302, { location: target.url });
+		const { project: p } = await createWorkspace();
+		const endpoint = await createWebhookEndpoint(p.id, receiver.url, {
+			events: ["report.created"],
+		});
+		await submit(p.publicKey);
+		const [delivery] = await waitFor(async () => {
+			const rows = await deliveriesOf(endpoint.id);
+			return rows[0]?.status === "failed" && rows;
+		});
+		expect(delivery).toMatchObject({
+			responseStatus: 302,
+			lastError: "HTTP 302: redirects are not followed",
+		});
+		expect(receiver.requests.length).toBeGreaterThan(0);
+		expect(target.requests).toEqual([]);
+		await target.close();
 	});
 });

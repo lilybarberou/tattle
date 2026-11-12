@@ -42,11 +42,14 @@ const MINUTE = 60_000;
 let outbox: Mail[];
 beforeEach(() => {
 	outbox = captureMail();
+	// The test webhook receivers listen on 127.0.0.1.
+	vi.stubEnv("ALLOW_PRIVATE_URLS", "true");
 });
 afterEach(async () => {
 	await run(backgroundSettled);
 	stopCapturingMail();
 	vi.restoreAllMocks();
+	vi.unstubAllEnvs();
 	delete process.env.TRIAGE_DIGEST_HOUR;
 });
 

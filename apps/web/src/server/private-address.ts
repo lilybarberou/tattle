@@ -1,9 +1,10 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
-// The AI base URL is typed by a workspace admin, and anyone can become one on
-// a server with ALLOW_SIGNUP=true. Unless AI_ALLOW_PRIVATE_URLS=true, Tattle
-// never calls an address inside its own machine or network with it.
+// The AI base URL and webhook endpoints are typed by workspace admins, and
+// anyone can become one on a server with ALLOW_SIGNUP=true. Unless
+// ALLOW_PRIVATE_URLS=true, Tattle never calls an address inside its own
+// machine or network with them.
 
 const ipv4Number = (address: string) =>
 	address.split(".").reduce((total, part) => total * 256 + Number(part), 0);
