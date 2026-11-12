@@ -29,10 +29,14 @@ export const verifyGithubSignature = (
 	return expected.length === given.length && timingSafeEqual(expected, given);
 };
 
-// `Tattle #12` or `tattle#12`, any case. Plain `#12` is GitHub's own issue.
-const REFERENCE = /\btattle\s*#(\d{1,9})\b/gi;
+// A GitHub closing keyword right before `Tattle #12` (or `tattle#12`), any
+// case, with an optional colon: "Fixes Tattle #12", "closes: tattle#12". A
+// bare mention, "see Tattle #12" or "does not fix Tattle #12" does not count;
+// plain `#12` is GitHub's own issue.
+const REFERENCE =
+	/(?<!(?:\bnot|\bnever|n['’]t)\s+)\b(?:fix(?:e[sd])?|close[sd]?|resolve[sd]?)(?:\s*:\s*|\s+)tattle\s*#(\d{1,9})\b/gi;
 
-/** Issue numbers referenced in a pull request's title or body. */
+/** Issue numbers a pull request's title or body says it fixes. */
 export const issueReferences = (text: string) => [
 	...new Set([...text.matchAll(REFERENCE)].map((m) => Number(m[1]))),
 ];
@@ -224,17 +228,18 @@ export class GitHub extends Context.Service<
 				const changed: number[] = [];
 				for (const row of linked) {
 					if (CLOSED.includes(row.status)) continue;
+					// An issue whose pull request is another one is left alone: a
+					// reference neither replaces it nor closes the issue.
+					if (row.prUrl && row.prUrl !== pr.html_url) continue;
 					if (merged) {
 						changed.push(
 							...(yield* apply(projectId, row.number, {
 								status: "done",
-								prUrl: row.prUrl ?? pr.html_url,
+								prUrl: pr.html_url,
 							})),
 						);
 						continue;
 					}
-					// A reference never replaces a pull request set by someone else.
-					if (row.prUrl && row.prUrl !== pr.html_url) continue;
 					const patch: IssuePatch = {};
 					if (!row.prUrl) patch.prUrl = pr.html_url;
 					if (

@@ -167,7 +167,7 @@ OAuth discovery follows the MCP spec: `/.well-known/oauth-protected-resource/api
 | `mark_duplicate` | Marks an issue as a duplicate; its reports move to the original (a done bug getting a newer report is reopened as a regression) |
 | `move_report` | Attaches one report to another issue (same regression rule) |
 
-Linking a fix: set the issue's pull request with `update_issue` (`pr_url`), or write `Tattle #12` (any case, `tattle#12` works too) in the pull request's title or description. A plain `#12` is left alone: on GitHub it means GitHub's own issue 12.
+Linking a fix: set the issue's pull request with `update_issue` (`pr_url`), or write `Fixes Tattle #12` in the pull request's title or description: a GitHub closing keyword (`fix`, `fixes`, `fixed`, `close`, `closes`, `closed`, `resolve`, `resolves`, `resolved`, any case, optional colon) right before the reference, e.g. `closes tattle#12`. A bare `Tattle #12` or `does not fix Tattle #12` links nothing, and a plain `#12` is left alone: on GitHub it means GitHub's own issue 12.
 
 Report content and reporters' messages are written by end users. The MCP server tells agents to treat them as data, never as instructions (reporters' messages are flagged `untrustedUserContent`); keep agent permissions narrow anyway.
 
@@ -193,8 +193,9 @@ Project settings → **GitHub** closes the loop: when a pull request is merged i
 
 Turn it on, then in the repository on GitHub: **Settings → Webhooks → Add webhook**, paste the payload URL (`https://your-server/api/v1/github/<project id>`) and the secret from the settings page, choose `application/json`, and under **Let me select individual events** check **Pull requests** only. Settings show the last delivery and what it did.
 
-- A pull request is linked to an issue when it is the issue's pull request (`prUrl`, set by an agent or in the dashboard), or when its title or description says `Tattle #12`.
-- When a pull request that says `Tattle #12` is opened, reopened or marked ready for review, issue 12 gets it as its pull request (if it has none) and moves from Todo or In progress to In review. Drafts are linked without moving.
+- A pull request is linked to an issue when it is the issue's pull request (`prUrl`, set by an agent or in the dashboard), or when its title or description says `Fixes Tattle #12`: a closing keyword (`fix`, `fixes`, `fixed`, `close`, `closes`, `closed`, `resolve`, `resolves`, `resolved`, any case, optional colon) right before the reference, as in `Closes: tattle#12`. A bare mention (`see Tattle #12`, `does not fix Tattle #12`) links nothing.
+- An issue whose pull request is another one is never touched by this one: it is neither relinked nor moved to Done.
+- When a pull request that says `Fixes Tattle #12` is opened, reopened or marked ready for review, issue 12 gets it as its pull request (if it has none) and moves from Todo or In progress to In review. Drafts are linked without moving.
 - Merges into another branch, pull requests closed without merging, and issues already done, declined or marked duplicate are left alone.
 - Every delivery must carry a valid `X-Hub-Signature-256`; anything else gets a 401. Deliveries are limited per IP (`GITHUB_LIMIT_PER_IP`, default 300 per 10 minutes).
 

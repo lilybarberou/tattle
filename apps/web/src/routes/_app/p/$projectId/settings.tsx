@@ -699,10 +699,13 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 								A pull request is linked when it is the issue's PR (agents set
 								it with <code className="font-mono text-xs">update_issue</code>
 								), or when its title or description says{" "}
-								<code className="font-mono text-xs">Tattle #12</code> (or{" "}
-								<code className="font-mono text-xs">tattle#12</code>; a plain
-								#12 is GitHub's own issue). Opening such a pull request links it
-								and moves the issue from Todo or In progress to In review.
+								<code className="font-mono text-xs">Fixes Tattle #12</code> (or{" "}
+								<code className="font-mono text-xs">closes tattle#12</code>:
+								fix, close or resolve in any form, right before the reference; a
+								bare mention links nothing, and a plain #12 is GitHub's own
+								issue). Opening such a pull request links it and moves the issue
+								from Todo or In progress to In review. An issue whose pull
+								request is another one is left alone.
 							</p>
 						</>
 					}

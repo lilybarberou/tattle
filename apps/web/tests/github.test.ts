@@ -272,6 +272,27 @@ describe("merged pull requests", () => {
 		info.mockRestore();
 	});
 
+	it("leave an issue whose pull request is another one", async () => {
+		const { project: p, secret } = await setup();
+		const other = "https://github.com/acme/shop/pull/1";
+		await createIssue(p.id, { prUrl: other });
+		await createIssue(p.id);
+		const result = await deliver(
+			p.id,
+			secret,
+			pullRequest({ body: "Fixes Tattle #1 and fixes Tattle #2" }),
+		);
+		expect(result.body.issues).toEqual([2]);
+		expect(await issueOf(p.id, 1)).toMatchObject({
+			status: "in_progress",
+			prUrl: other,
+		});
+		expect(await issueOf(p.id, 2)).toMatchObject({
+			status: "done",
+			prUrl: PR_URL,
+		});
+	});
+
 	it("skip issues already done, declined or duplicate", async () => {
 		const { project: p, secret } = await setup();
 		await createIssue(p.id, { prUrl: PR_URL, status: "done" });
@@ -332,14 +353,23 @@ describe("merged pull requests", () => {
 });
 
 describe("references", () => {
-	it("read `Tattle #12` in any case, never a plain #12", () => {
+	it("read a closing keyword right before `Tattle #12`, in any case", () => {
 		expect(
 			issueReferences(
-				"Fixes Tattle #12, tattle#7 and TATTLE  #3.\nAlso closes #40 and mytattle#5",
+				"Fixes Tattle #12, closes tattle#7, RESOLVED:  TATTLE  #3 and fix: tattle #4.\nfixed Tattle #5, close tattle #6, closed tattle #8, resolve tattle #9, resolves Tattle #10",
 			),
-		).toEqual([12, 7, 3]);
-		expect(issueReferences("Fixes #12")).toEqual([]);
-		expect(issueReferences("Tattle #2 and tattle #2")).toEqual([2]);
+		).toEqual([12, 7, 3, 4, 5, 6, 8, 9, 10]);
+		expect(issueReferences("Fixes Tattle #2 and closes tattle #2")).toEqual([
+			2,
+		]);
+	});
+
+	it("ignore bare mentions, negations, other words and plain #12", () => {
+		expect(
+			issueReferences(
+				"See Tattle #1. Related to tattle#2. Does not fix tattle #7. Doesn't close Tattle #8. Never resolves tattle #9. prefixes tattle #10. Fixes #12 and mytattle#5. Fixes the Tattle #11 bug",
+			),
+		).toEqual([]);
 	});
 
 	it("link issues from the title or body when the pull request is merged", async () => {
@@ -347,15 +377,17 @@ describe("references", () => {
 		await createIssue(p.id);
 		await createIssue(p.id);
 		await createIssue(p.id);
+		await createIssue(p.id);
 		const result = await deliver(
 			p.id,
 			secret,
 			pullRequest({
-				title: "Fix checkout (tattle#1)",
-				body: "Also Tattle #2, not #3",
+				title: "Checkout (fixes tattle#1)",
+				body: "Also resolves Tattle #2, not #3. See Tattle #4",
 			}),
 		);
 		expect(result.body.issues).toEqual([1, 2]);
+		expect((await issueOf(p.id, 4)).status).toBe("in_progress");
 		expect((await issueOf(p.id, 1)).prUrl).toBe(PR_URL);
 		expect((await issueOf(p.id, 2)).status).toBe("done");
 		expect((await issueOf(p.id, 3)).status).toBe("in_progress");
@@ -373,7 +405,7 @@ describe("opened pull requests", () => {
 			pullRequest({
 				action: "opened",
 				merged: false,
-				body: "Tattle #1 Tattle #2",
+				body: "Fixes Tattle #1 Closes Tattle #2",
 			}),
 		);
 		expect(result.body.issues).toEqual([1, 2]);
@@ -387,7 +419,7 @@ describe("opened pull requests", () => {
 	it("link a draft without moving it, until it is ready for review", async () => {
 		const { project: p, secret } = await setup();
 		await createIssue(p.id, { status: "in_progress" });
-		const draft = { merged: false, draft: true, body: "WIP for Tattle #1" };
+		const draft = { merged: false, draft: true, body: "WIP, fixes Tattle #1" };
 		await deliver(p.id, secret, pullRequest({ ...draft, action: "opened" }));
 		expect(await issueOf(p.id, 1)).toMatchObject({
 			status: "in_progress",
@@ -408,12 +440,31 @@ describe("opened pull requests", () => {
 		const result = await deliver(
 			p.id,
 			secret,
-			pullRequest({ action: "opened", merged: false, body: "Tattle #1" }),
+			pullRequest({ action: "opened", merged: false, body: "Fixes Tattle #1" }),
 		);
 		expect(result.body.issues).toEqual([]);
 		expect(await issueOf(p.id, 1)).toMatchObject({
 			status: "todo",
 			prUrl: other,
+		});
+	});
+
+	it("do not link a pull request that only mentions the issue", async () => {
+		const { project: p, secret } = await setup();
+		await createIssue(p.id, { status: "todo" });
+		const result = await deliver(
+			p.id,
+			secret,
+			pullRequest({
+				action: "opened",
+				merged: false,
+				body: "Does not fix tattle #1, see Tattle #1",
+			}),
+		);
+		expect(result.body.issues).toEqual([]);
+		expect(await issueOf(p.id, 1)).toMatchObject({
+			status: "todo",
+			prUrl: null,
 		});
 	});
 });

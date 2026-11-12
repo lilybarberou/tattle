@@ -29,8 +29,10 @@ Typical triage loop for a new issue in "triage":
 4. add_comment to explain your decision.
 
 When you open a pull request for an issue, set its URL with update_issue (pr_url), or write
-"Tattle #12" (or "tattle#12") in the pull request's title or description. If the project's GitHub
-sync is on, merging it into the default branch moves the issue to Done.
+"Fixes Tattle #12" (or "closes tattle#12": fix, fixes, fixed, close, closes, closed, resolve,
+resolves or resolved, right before the reference) in the pull request's title or description.
+A bare "Tattle #12" links nothing. If the project's GitHub sync is on, merging it into the
+default branch moves the issue to Done, unless the issue's pull request is another one.
 
 Comments are internal: reporters never see them. Each report also has a "thread",
 the conversation with the person who sent it. reply_to_reporter adds a message
@@ -377,7 +379,7 @@ const buildServer = (principal: Principal) => {
 				.nullable()
 				.optional()
 				.describe(
-					'The pull request\'s GitHub URL. With GitHub sync on, merging it moves the issue to Done. Writing "Tattle #12" in the PR title or description links it too.',
+					'The pull request\'s GitHub URL. With GitHub sync on, merging it moves the issue to Done. Writing "Fixes Tattle #12" (or closes/resolves) in the PR title or description links it too.',
 				),
 		}),
 		async (input) =>
