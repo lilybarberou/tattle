@@ -407,6 +407,39 @@ describe("Daily triage digest", () => {
 		]);
 	});
 
+	it("selects only the people who want it, with one query for everyone's issues", async () => {
+		process.env.TRIAGE_DIGEST_HOUR = "0";
+		const { org, p, owner, admin, member } = await team();
+		const quiet = await createUser({ name: "Quinn Quiet" });
+		await addMember(org.id, quiet.id, "member");
+		await setting(admin.id, "triage_digest", false);
+		await setting(member.id, "triage_digest", true);
+		await submit(p.publicKey, "Export is broken");
+		// The duplicate check and emails that follow the report.
+		await run(backgroundSettled);
+		const selects = vi.spyOn(db, "select");
+		const claims = vi.spyOn(db, "transaction");
+
+		// The owner by default, the member who asked; not the admin who turned
+		// it off, nor the member who never asked.
+		expect(await digest()).toBe(2);
+		expect(claims).toHaveBeenCalledTimes(2);
+		// The people, then the new issues of every recipient at once.
+		expect(selects).toHaveBeenCalledTimes(2);
+		expect((await digests()).map((m) => m.to).sort()).toEqual(
+			[owner.email, member.email].sort(),
+		);
+
+		// The check every minute afterwards: one query that finds nobody.
+		selects.mockClear();
+		claims.mockClear();
+		expect(await digest()).toBe(0);
+		expect(selects).toHaveBeenCalledTimes(1);
+		expect(claims).not.toHaveBeenCalled();
+		expect(await to(admin.email)).toEqual([]);
+		expect(await to(quiet.email)).toEqual([]);
+	});
+
 	it("waits for the hour, and follows each person's choice", async () => {
 		const { p, owner, member } = await team();
 		await submit(p.publicKey);

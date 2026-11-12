@@ -538,12 +538,16 @@ export class Notifications extends Context.Service<
 			) {
 				if (!mailEnabled() || now.getUTCHours() < digestHour()) return 0;
 				const today = now.toISOString().slice(0, 10);
+				const isAdmin = sql<boolean>`bool_or(${member.role} in ('owner', 'admin'))`;
+				// Only people who want the digest (their choice, or on for owners and
+				// admins) and have not had today's: after the first run of the day,
+				// the check every minute selects nobody.
 				const people = yield* database.query((db) =>
 					db
 						.select({
 							userId: user.id,
 							email: user.email,
-							isAdmin: sql<boolean>`bool_or(${member.role} in ('owner', 'admin'))`,
+							isAdmin,
 							setting: notificationSetting,
 						})
 						.from(member)
@@ -555,11 +559,16 @@ export class Notifications extends Context.Service<
 						.where(
 							sql`${notificationSetting.digestDay} is distinct from ${today}`,
 						)
-						.groupBy(user.id, notificationSetting.userId),
+						.groupBy(user.id, notificationSetting.userId)
+						.having(
+							sql`coalesce(${notificationSetting.triageDigest}, ${isAdmin})`,
+						),
 				);
-				let sent = 0;
+				const recipients: Array<{
+					person: (typeof people)[number];
+					since: Date;
+				}> = [];
 				for (const person of people) {
-					if (!wants(person.setting, "triage_digest", person.isAdmin)) continue;
 					// Claimed in a transaction: once per day, even across restarts.
 					const since = yield* database.transaction(async (tx) => {
 						await tx
@@ -578,32 +587,49 @@ export class Notifications extends Context.Service<
 							.where(eq(notificationSetting.userId, person.userId));
 						return row.digestCoveredUntil ?? new Date(now.getTime() - DAY_MS);
 					});
-					if (!since) continue;
-					const fresh = yield* database.query((db) =>
-						db
-							.select({
-								projectId: project.id,
-								projectName: project.name,
-								number: issue.number,
-								title: issue.title,
-							})
-							.from(issue)
-							.innerJoin(project, eq(project.id, issue.projectId))
-							.innerJoin(
-								member,
-								and(
-									eq(member.organizationId, project.organizationId),
-									eq(member.userId, person.userId),
+					if (since) recipients.push({ person, since });
+				}
+				if (recipients.length === 0) return 0;
+
+				// New triage issues for every recipient at once; each person then
+				// keeps those of their workspaces created since their last digest.
+				const earliest = new Date(
+					Math.min(...recipients.map((r) => r.since.getTime())),
+				);
+				const candidates = yield* database.query((db) =>
+					db
+						.select({
+							userId: member.userId,
+							projectId: project.id,
+							projectName: project.name,
+							number: issue.number,
+							title: issue.title,
+							createdAt: issue.createdAt,
+						})
+						.from(issue)
+						.innerJoin(project, eq(project.id, issue.projectId))
+						.innerJoin(
+							member,
+							eq(member.organizationId, project.organizationId),
+						)
+						.where(
+							and(
+								inArray(
+									member.userId,
+									recipients.map((r) => r.person.userId),
 								),
-							)
-							.where(
-								and(
-									eq(issue.status, "triage"),
-									gt(issue.createdAt, since),
-									lte(issue.createdAt, now),
-								),
-							)
-							.orderBy(project.createdAt, desc(issue.createdAt)),
+								eq(issue.status, "triage"),
+								gt(issue.createdAt, earliest),
+								lte(issue.createdAt, now),
+							),
+						)
+						.orderBy(project.createdAt, desc(issue.createdAt)),
+				);
+
+				let sent = 0;
+				for (const { person, since } of recipients) {
+					const fresh = candidates.filter(
+						(row) => row.userId === person.userId && row.createdAt > since,
 					);
 					if (fresh.length === 0) continue;
 					const byProject = new Map<
