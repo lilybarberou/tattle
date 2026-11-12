@@ -32,6 +32,7 @@ import {
 	TEXT_SUGGESTION_THRESHOLD,
 	wordSimilarity,
 } from "./ai";
+import { causeKinds, inBackground } from "./background";
 import { Database } from "./Database";
 import { type DbError, NotFound } from "./errors";
 
@@ -319,6 +320,14 @@ export class Duplicates extends Context.Service<
 						maxTokens: 2048,
 						json: true,
 					}).pipe(Effect.result);
+					yield* ai
+						.recordCall(
+							target.organizationId,
+							answer._tag === "Failure"
+								? { ok: false, status: answer.failure.status }
+								: { ok: true },
+						)
+						.pipe(Effect.ignore);
 					// Only the status and our own wording are logged: never the key,
 					// the report or what the provider said about them.
 					if (answer._tag === "Failure") {
@@ -373,19 +382,10 @@ export class Duplicates extends Context.Service<
 					Effect.catchCause((cause) =>
 						// The cause may hold SQL parameters (report text): log its kind only.
 						Effect.logWarning(
-							`Duplicate check of issue ${issueId} failed: ${
-								cause.reasons
-									.map((reason) =>
-										reason._tag === "Fail"
-											? (reason.error as { _tag?: string })._tag
-											: reason._tag,
-									)
-									.join(", ") || "unknown"
-							}`,
+							`Duplicate check of issue ${issueId} failed: ${causeKinds(cause)}`,
 						),
 					),
-					Effect.forkDetach,
-					Effect.asVoid,
+					(check) => inBackground("Duplicate check", check),
 				);
 
 			const findIssueId = Effect.fn("Duplicates.findIssueId")(function* (

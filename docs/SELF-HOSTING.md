@@ -246,8 +246,8 @@ Then create your first project. Its page shows the widget snippet.
 
 **Email.** Without email, invitations are links you copy and send yourself, and there's no
 "Forgot your password?". With an SMTP server (your email host, Brevo, Resend, Postmark, Amazon
-SES…), invitations and password resets are emailed, and voters hear when their idea ships. Set in
-`.env`:
+SES…), invitations and password resets are emailed, voters hear when their idea ships, reporters
+get the team's replies, and the team gets its notifications. Set in `.env`:
 
 ```sh
 SMTP_HOST=smtp.example.org
@@ -256,6 +256,14 @@ SMTP_USER=…
 SMTP_PASSWORD=…
 SMTP_FROM="Tattle <tattle@example.org>"
 ```
+
+Team members are emailed only about what they need to act on: a reporter answered, an issue was
+assigned to them, a fixed bug came back, and, for owners and admins, the workspace's AI key or a
+webhook stopped working. A daily triage digest lists the new issues waiting in Triage, at 08:00 UTC
+(set `TRIAGE_DIGEST_HOUR` to another hour, in UTC), only on days with something new; it is on by
+default for owners and admins. Each person changes theirs under their name → **Notifications**, and
+every email has a one-click unsubscribe link. The [README](../README.md#self-host) lists who gets
+what.
 
 **S3.** Screenshots are stored in the `storage` volume by default. To keep them in a bucket
 instead (AWS S3, Cloudflare R2, Scaleway, OVH, Backblaze…), set `STORAGE_DRIVER=s3` and the
@@ -335,6 +343,7 @@ Start with the logs: `docker compose logs --tail=100 app`.
 | The address shows nothing, or the panel keeps restarting the app; the logs say `Listening on: http://localhost/` | The panel set `PORT` (to 80). Add `PORT=3000` to the environment, or point the domain at port 80. |
 | Screenshots disappear after a redeploy | Nothing is mounted at `/data`. Add the volume (or use S3). |
 | Invitations aren't emailed | Expected without SMTP: copy the invitation link from **Members**. With SMTP, the logs show the error. |
+| A notification email doesn't come | Check **Notifications** under your name. A reporter's answer is emailed about 10 minutes after their first message, and not at all once someone on the team has answered. The digest skips days with nothing new. Failed sends are in the logs. |
 
 ## 12. All settings
 
@@ -362,6 +371,7 @@ After changing `.env`, apply it with `docker compose up -d`.
 | `REPORTER_MESSAGE_LIMIT_PER_IP` | `20` | Reporters' messages per IP per 10 minutes. |
 | `REPORT_RETENTION_DAYS` | (keep all) | Deletes screenshots and logs of reports older than this. The message and the reporter stay. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_SECURE`, `SMTP_FROM` | (no email) | Sending email. `SMTP_SECURE=true` for port 465. |
+| `TRIAGE_DIGEST_HOUR` | `8` | The hour of the daily triage digest, in UTC (0 to 23). |
 | `STORAGE_DRIVER` | `local` | `s3` to store screenshots in a bucket. |
 | `S3_BUCKET`, `S3_REGION`, `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_FORCE_PATH_STYLE`, `S3_PREFIX` | | The bucket. `S3_ENDPOINT` for every provider except AWS; `S3_FORCE_PATH_STYLE=true` for MinIO, Garage and similar. |
 

@@ -62,6 +62,14 @@ if (process.env.REPORT_RETENTION_DAYS) {
 		);
 	}
 }
+if (process.env.TRIAGE_DIGEST_HOUR?.trim()) {
+	const hour = Number(process.env.TRIAGE_DIGEST_HOUR);
+	if (!Number.isInteger(hour) || hour < 0 || hour > 23) {
+		problems.push(
+			`TRIAGE_DIGEST_HOUR must be an hour from 0 to 23 (UTC), not "${process.env.TRIAGE_DIGEST_HOUR}".`,
+		);
+	}
+}
 if (process.env.SMTP_HOST) {
 	const port = Number(process.env.SMTP_PORT ?? 587);
 	if (!Number.isInteger(port) || port <= 0)
@@ -75,7 +83,7 @@ if (process.env.SMTP_HOST) {
 	}
 } else {
 	console.log(
-		"SMTP is not configured: invitations are links to send yourself, and password reset is off.",
+		"SMTP is not configured: invitations are links to send yourself, password reset is off and no notification is emailed.",
 	);
 }
 if (problems.length > 0) {

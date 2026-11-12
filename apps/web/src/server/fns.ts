@@ -32,6 +32,7 @@ import {
 	WEBHOOK_EVENTS,
 	WEBHOOK_FORMATS,
 } from "#/shared/issues";
+import { NOTIFICATION_TYPES } from "#/shared/notifications";
 import {
 	Access,
 	actorOf,
@@ -49,6 +50,7 @@ import { type DbError, InvalidInput, NotFound } from "./errors";
 import { GitHub } from "./GitHub";
 import { Issues } from "./Issues";
 import { mailEnabled, sendMail } from "./mailer";
+import { Notifications } from "./Notifications";
 import { Overview } from "./Overview";
 import { Portal } from "./Portal";
 import { clientIp, limitPortal, limitReporter } from "./rate-limit";
@@ -1415,6 +1417,76 @@ export const replyThreadLinkFn = createServerFn({ method: "POST" })
 				yield* reporterLimit(true);
 				const conversations = yield* Conversations;
 				return yield* conversations.postFromLink(data.token, data.body);
+			}),
+		),
+	);
+
+// ---------- Email notifications ----------
+
+const signedInPerson = () =>
+	principal().pipe(
+		Effect.flatMap((p) =>
+			p.kind === "user"
+				? Effect.succeed(p)
+				: Effect.fail(
+						new InvalidInput({
+							message: "Only people have notification settings",
+						}),
+					),
+		),
+	);
+
+export const getNotificationSettingsFn = createServerFn({
+	method: "GET",
+}).handler(() =>
+	run(
+		Effect.gen(function* () {
+			const p = yield* signedInPerson();
+			return yield* (yield* Notifications).settings(p.userId);
+		}),
+	),
+);
+
+export const updateNotificationSettingFn = createServerFn({ method: "POST" })
+	.validator(z.object({ type: z.enum(NOTIFICATION_TYPES), on: z.boolean() }))
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				const p = yield* signedInPerson();
+				return yield* (yield* Notifications).updateSetting(
+					p.userId,
+					data.type,
+					data.on,
+				);
+			}),
+		),
+	);
+
+/** What an unsubscribe link stops, for its confirmation page. No account needed. */
+export const getUnsubscribeFn = createServerFn({ method: "GET" })
+	.validator(z.object({ token: tokenSchema }))
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				yield* reporterLimit(false);
+				const found = yield* (yield* Notifications).describeUnsubscribe(
+					data.token,
+				);
+				if (!found) return yield* new NotFound({ message: "Unknown link" });
+				return found;
+			}),
+		),
+	);
+
+export const unsubscribeFn = createServerFn({ method: "POST" })
+	.validator(z.object({ token: tokenSchema }))
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				yield* reporterLimit(true);
+				const done = yield* (yield* Notifications).unsubscribe(data.token);
+				if (!done) return yield* new NotFound({ message: "Unknown link" });
+				return { ok: true };
 			}),
 		),
 	);

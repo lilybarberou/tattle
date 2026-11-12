@@ -7,6 +7,7 @@ import {
 	useRouterState,
 } from "@tanstack/react-router";
 import {
+	BellIcon,
 	BotIcon,
 	ChartColumnIcon,
 	CheckIcon,
@@ -246,6 +247,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 						</span>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="start" className="w-56">
+						<DropdownMenuItem asChild>
+							<Link to="/notifications" onClick={onNavigate}>
+								<BellIcon className="size-4" />
+								Notifications
+							</Link>
+						</DropdownMenuItem>
 						<DropdownMenuItem
 							onSelect={async () => {
 								await authClient.signOut();

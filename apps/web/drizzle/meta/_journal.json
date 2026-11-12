@@ -50,6 +50,13 @@
       "when": 1794498555137,
       "tag": "0006_reporter_threads",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794499757049,
+      "tag": "0007_email_notifications",
+      "breakpoints": true
     }
   ]
 }

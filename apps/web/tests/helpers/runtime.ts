@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { Effect, type Layer } from "effect";
 import { afterAll, beforeEach } from "vitest";
 import { db } from "#/db";
+import { backgroundSettled } from "#/server/background";
 import { type AppLayer, runtime } from "#/server/runtime";
 
 type Services = Layer.Success<typeof AppLayer>;
@@ -20,6 +21,8 @@ export const resetDatabase = async () => {
 		sql`select tablename from pg_tables where schemaname = 'public'`,
 	);
 	if (rows.length === 0) return;
+	// Emails and duplicate checks the previous test started in the background.
+	await runtime.runPromise(backgroundSettled);
 	const tables = rows.map((r) => `"public"."${r.tablename}"`).join(", ");
 	// A background job of the previous test (the duplicate check that follows
 	// each report) may still hold locks: Postgres then picks the truncate as a

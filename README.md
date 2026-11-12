@@ -38,7 +38,20 @@ What runs:
 
 **Passwords**: at least 8 characters (`MIN_PASSWORD_LENGTH`), and passwords that appear in known data breaches are refused when an account is created or a password changed. That check asks Have I Been Pwned with only the first 5 characters of the password's SHA-1 hash; set `PASSWORD_BREACH_CHECK=false` on a server without internet access.
 
-**Email** (optional): set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` and `SMTP_FROM` in `.env` (any provider: your host's SMTP, Brevo, Postmark, Amazon SES, a Gmail app password…). Invitations are then emailed and the sign-in page offers "Forgot your password?". Without SMTP, invitations are links you send yourself and password reset is off. Port 587 uses STARTTLS; for 465 set `SMTP_SECURE=true`.
+**Email** (optional): set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` and `SMTP_FROM` in `.env` (any provider: your host's SMTP, Brevo, Postmark, Amazon SES, a Gmail app password…). Invitations are then emailed and the sign-in page offers "Forgot your password?". Without SMTP, invitations are links you send yourself, password reset is off and no notification is emailed. Port 587 uses STARTTLS; for 465 set `SMTP_SECURE=true`.
+
+The team is emailed only about what someone has to act on; Discord, Slack and webhooks carry everything else. Each person picks theirs under their name → **Notifications**, and every email has a one-click unsubscribe for its kind (also as `List-Unsubscribe` headers). Nobody is emailed about what they did themselves, nor after leaving the workspace.
+
+| Email | Who gets it | Default |
+|---|---|---|
+| A reporter answered | The issue's assignee; if nobody is assigned, the team members who replied in that conversation; if none, owners and admins. Messages within 10 minutes come as one email, about 10 minutes after the first one, and none once the team has answered. | On |
+| Assigned to you | The new assignee, when someone else or an agent assigns them | On |
+| A fixed bug came back | The assignee, or owners and admins if nobody is assigned, when a done bug is reopened as a regression | On |
+| Daily triage digest | Each person who wants it: new issues waiting in Triage per project, at 08:00 UTC (`TRIAGE_DIGEST_HOUR`), only on days with something new | On for owners and admins, off for members |
+| The AI key stopped working | Owners and admins, after 3 refusals in a row (HTTP 401, 402, 403 or 429), at most once a day | On |
+| A webhook keeps failing | Owners and admins, when a delivery gives up after its retries; once, until a delivery to that endpoint works again | On |
+
+Reporters get the team's replies and the "shipped" notice, each with a **Stop emails about this report** link.
 
 **Screenshots on S3** (optional): set `STORAGE_DRIVER=s3` with `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, and `S3_ENDPOINT` for any provider other than AWS (Cloudflare R2, Scaleway, OVH, Backblaze, RustFS, Garage…; add `S3_FORCE_PATH_STYLE=true` for the self-hosted ones). The bucket stays private: the app serves screenshots through short-lived signed links. Switching drivers does not move existing files.
 
@@ -52,7 +65,7 @@ On start, the app checks its configuration, waits for Postgres and applies pendi
 
 **Limits**: the widget's public key is visible in your app, so reports are limited per IP (`INGEST_LIMIT_PER_IP`, default 20 per 10 minutes) and per project (`INGEST_LIMIT_PER_PROJECT`, default 300 per hour). Behind a proxy, set `TRUST_PROXY=true` so the limits see real client IPs; without it, `X-Forwarded-For` is ignored, so nobody can fake their IP. Sign-in attempts are limited per IP with the same rule. "My reports" allows 120 reads and 20 messages per IP per 10 minutes (`REPORTER_READ_LIMIT_PER_IP`, `REPORTER_MESSAGE_LIMIT_PER_IP`).
 
-Run a single `app` container: rate limits, webhook retries and the background jobs (webhook recovery, retention purge) live in its memory.
+Run a single `app` container: rate limits, webhook retries and the background jobs (webhook recovery, retention purge, notification emails and the daily digest) live in its memory.
 
 ## Develop
 
@@ -93,7 +106,7 @@ See [packages/widget/README.md](packages/widget/README.md) for the options, the 
 
 ## Talk with the people who report
 
-A report is its sender's ticket. In the widget, **My reports** lists what they sent with a status in their words (Received, Planned, In progress, Fixed, Won't fix), and the conversation with your team. On the issue page, each report has its conversation: **Reply to reporter** writes to them, while comments under Activity stay internal. Issues where a reporter waits for an answer carry a speech-bubble mark in Triage and Issues. Replies are also emailed when the reporter's email is known and SMTP is set, with a link to read and answer without an account (valid 30 days).
+A report is its sender's ticket. In the widget, **My reports** lists what they sent with a status in their words (Received, Planned, In progress, Fixed, Won't fix), and the conversation with your team. On the issue page, each report has its conversation: **Reply to reporter** writes to them, while comments under Activity stay internal. Issues where a reporter waits for an answer carry a speech-bubble mark in Triage and Issues. Replies are also emailed when the reporter's email is known and SMTP is set, with a link to read and answer without an account (valid 30 days), and one to stop emails about that report. When a reporter answers, the team is emailed too (see [Email](#self-host)).
 
 By default each device sees the reports sent from it: the widget keeps a random key there and the server stores only its hash. To show a signed-in user their reports on every device, turn on **Verified identity** in project settings and sign their id on your server:
 
@@ -167,7 +180,7 @@ Each new report is compared with the project's most similar issues (Postgres ful
 
 When it is on, each new report sends the provider its **message, page URL, type and up to 5 console errors**, with the **number, title, shortened description, status and type of up to 8 similar issues**. No screenshot, reporter, device, network log or step is sent. When it is off, nothing is sent.
 
-The report goes to the model as data: the model is told to ignore instructions in it, its answer must name one of the candidates, and the only thing done with the answer is storing the suggestion. The check runs after the report is saved, so a slow or failing provider never delays or loses a report; errors are logged without the key or the report. The key is encrypted at rest (AES-256-GCM, with a key derived from `BETTER_AUTH_SECRET`) and never sent back to the browser: only its last 4 characters are shown.
+The report goes to the model as data: the model is told to ignore instructions in it, its answer must name one of the candidates, and the only thing done with the answer is storing the suggestion. The check runs after the report is saved, so a slow or failing provider never delays or loses a report; errors are logged without the key or the report. When the provider refuses the key 3 times in a row (revoked, out of credit, over quota), owners and admins are emailed, at most once a day. The key is encrypted at rest (AES-256-GCM, with a key derived from `BETTER_AUTH_SECRET`) and never sent back to the browser: only its last 4 characters are shown.
 
 ## Discord and Slack
 
@@ -192,7 +205,7 @@ Project settings → **Public feature requests** publishes `https://your-server/
 
 Project settings → Webhooks. Events: `report.created`, `issue.created`, `issue.updated`, `comment.created`, `message.created` (a reporter wrote, or the team replied to one: `data.message.from` is `"reporter"` or `"team"`).
 
-Each request carries `x-tattle-event`, `x-tattle-delivery` and `x-tattle-signature: t=<unix>,v1=<hex>`, where `v1` is the HMAC-SHA256 of `"<t>.<raw body>"` with the endpoint secret. Failed deliveries are retried with exponential backoff (5 retries); deliveries interrupted by a restart are resent within a minute of the next start.
+Each request carries `x-tattle-event`, `x-tattle-delivery` and `x-tattle-signature: t=<unix>,v1=<hex>`, where `v1` is the HMAC-SHA256 of `"<t>.<raw body>"` with the endpoint secret. Failed deliveries are retried with exponential backoff (5 retries); deliveries interrupted by a restart are resent within a minute of the next start. When a delivery still fails, owners and admins are emailed once, until one to that endpoint (or Discord or Slack channel) works again.
 
 ```js
 import { createHmac, timingSafeEqual } from "node:crypto";

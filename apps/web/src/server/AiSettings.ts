@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, gt, isNull, lt, or, sql } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 import { aiSettings } from "#/db/schema";
 import {
@@ -13,8 +13,10 @@ import {
 	encryptSecret,
 	testConnection,
 } from "./ai";
+import { inBackground } from "./background";
 import { Database } from "./Database";
 import { type DbError, type Forbidden, InvalidInput } from "./errors";
+import { Notifications } from "./Notifications";
 
 export type AiSettingsInput = {
 	provider: AiProvider;
@@ -30,6 +32,11 @@ export type AiTestResult = { ok: true } | { ok: false; error: string };
 type Row = typeof aiSettings.$inferSelect;
 
 const ADMIN_ONLY = "Only owners and admins can change the AI settings";
+
+/** Answers that say the key itself is the problem, not the request. */
+const REFUSED_STATUSES = [401, 402, 403, 429];
+/** Refused calls in a row before owners and admins are told. */
+export const REFUSALS_BEFORE_EMAIL = 3;
 
 const needsKey = (provider: AiProvider) => provider !== "openai_compatible";
 
@@ -92,6 +99,15 @@ export class AiSettings extends Context.Service<
 		readonly configFor: (
 			organizationId: string,
 		) => Effect.Effect<AiConfig | null, DbError>;
+		/**
+		 * The outcome of a real call (not a test): after several refusals in a
+		 * row (401, 402, 403, 429), owners and admins are emailed, at most once
+		 * a day.
+		 */
+		readonly recordCall: (
+			organizationId: string,
+			outcome: { ok: true } | { ok: false; status?: number },
+		) => Effect.Effect<void, DbError>;
 	}
 >()("tattle/server/AiSettings") {
 	static readonly layer = Layer.effect(
@@ -99,6 +115,7 @@ export class AiSettings extends Context.Service<
 		Effect.gen(function* () {
 			const database = yield* Database;
 			const access = yield* Access;
+			const notifications = yield* Notifications;
 
 			const load = (organizationId: string) =>
 				database
@@ -193,6 +210,9 @@ export class AiSettings extends Context.Service<
 					apiKeyLast4,
 					enabled: input.enabled,
 					updatedById: principal.kind === "user" ? principal.userId : null,
+					// New settings, a fresh start for the refusal count.
+					refusedCalls: 0,
+					lastRefusedStatus: null,
 				};
 				const [row] = yield* database.query((db) =>
 					db
@@ -283,7 +303,81 @@ export class AiSettings extends Context.Service<
 				} satisfies AiConfig;
 			});
 
-			return AiSettings.of({ view, save, remove, test, configFor });
+			// The counters are bookkeeping: "saved at" stays the last real save.
+			const keepUpdatedAt = { updatedAt: sql`${aiSettings.updatedAt}` };
+
+			const recordCall = Effect.fn("AiSettings.recordCall")(function* (
+				organizationId: string,
+				outcome: { ok: true } | { ok: false; status?: number },
+			) {
+				if (outcome.ok) {
+					yield* database.query((db) =>
+						db
+							.update(aiSettings)
+							.set({
+								refusedCalls: 0,
+								lastRefusedStatus: null,
+								...keepUpdatedAt,
+							})
+							.where(
+								and(
+									eq(aiSettings.organizationId, organizationId),
+									gt(aiSettings.refusedCalls, 0),
+								),
+							),
+					);
+					return;
+				}
+				const status = outcome.status;
+				if (!status || !REFUSED_STATUSES.includes(status)) return;
+				const [row] = yield* database.query((db) =>
+					db
+						.update(aiSettings)
+						.set({
+							refusedCalls: sql`${aiSettings.refusedCalls} + 1`,
+							lastRefusedStatus: status,
+							...keepUpdatedAt,
+						})
+						.where(eq(aiSettings.organizationId, organizationId))
+						.returning(),
+				);
+				if (!row || row.refusedCalls < REFUSALS_BEFORE_EMAIL) return;
+				const [claimed] = yield* database.query((db) =>
+					db
+						.update(aiSettings)
+						.set({ refusalNotifiedAt: new Date(), ...keepUpdatedAt })
+						.where(
+							and(
+								eq(aiSettings.organizationId, organizationId),
+								or(
+									isNull(aiSettings.refusalNotifiedAt),
+									lt(
+										aiSettings.refusalNotifiedAt,
+										new Date(Date.now() - 24 * 3600 * 1000),
+									),
+								),
+							),
+						)
+						.returning(),
+				);
+				if (!claimed) return;
+				yield* Effect.logWarning(
+					`The AI provider refused ${row.refusedCalls} calls in a row for ${organizationId} (HTTP ${status}): telling owners and admins`,
+				);
+				yield* inBackground(
+					"AI key email",
+					notifications.aiKeyFailing(organizationId, claimed.provider, status),
+				);
+			});
+
+			return AiSettings.of({
+				view,
+				save,
+				remove,
+				test,
+				configFor,
+				recordCall,
+			});
 		}),
 	);
 }

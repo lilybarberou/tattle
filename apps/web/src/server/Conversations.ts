@@ -9,6 +9,7 @@ import {
 	reporterStatus,
 } from "#/shared/issues";
 import type { Actor } from "./Access";
+import { inBackground } from "./background";
 import { Database } from "./Database";
 import { env } from "./env";
 import { type DbError, InvalidInput, NotFound } from "./errors";
@@ -25,6 +26,7 @@ import {
 	identityVerified,
 	REPORTER_KEY_PATTERN,
 } from "./reporter-identity";
+import { reporterUnsubscribe } from "./unsubscribe";
 import { Webhooks } from "./Webhooks";
 
 // ---------- Who is asking ----------
@@ -513,7 +515,8 @@ export class Conversations extends Context.Service<
 					actor: Actor,
 				) {
 					const to = row.report.reporter?.email;
-					if (!to || !mailEnabled()) return;
+					// "Stop emails about this report": the widget still shows replies.
+					if (!to || row.report.emailsStoppedAt || !mailEnabled()) return;
 					const [p] = yield* database.query((db) =>
 						db
 							.select({ name: project.name })
@@ -531,6 +534,7 @@ export class Conversations extends Context.Service<
 								label: "Read and reply",
 								url: threadLinkUrl(signThreadLink(row.report.id)),
 							},
+							...reporterUnsubscribe(row.report.id),
 						}),
 					);
 				},
@@ -560,7 +564,10 @@ export class Conversations extends Context.Service<
 					authorName: actor.name,
 					body: text,
 				});
-				yield* emailReporter(row, text, actor).pipe(Effect.forkDetach);
+				yield* inBackground(
+					"Reply email to the reporter",
+					emailReporter(row, text, actor),
+				);
 				return messageDto(created);
 			});
 

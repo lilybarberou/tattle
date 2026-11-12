@@ -9,19 +9,23 @@ import { type AppError, httpStatus, publicMessage } from "./errors";
 import { GitHub } from "./GitHub";
 import { Ingest } from "./Ingest";
 import { Issues } from "./Issues";
+import { Notifications } from "./Notifications";
 import { Overview } from "./Overview";
 import { Portal } from "./Portal";
 import { Storage } from "./Storage";
 import { Webhooks } from "./Webhooks";
 
 const Infra = Layer.mergeAll(Database.layer, Storage.layer);
-const WebhooksLive = Webhooks.layer.pipe(Layer.provide(Infra));
+const NotificationsLive = Notifications.layer.pipe(Layer.provide(Infra));
+const WebhooksLive = Webhooks.layer.pipe(
+	Layer.provide(Layer.mergeAll(Infra, NotificationsLive)),
+);
 const IssuesLive = Issues.layer.pipe(
-	Layer.provide(Layer.mergeAll(Infra, WebhooksLive)),
+	Layer.provide(Layer.mergeAll(Infra, WebhooksLive, NotificationsLive)),
 );
 const AccessLive = Access.layer.pipe(Layer.provide(Infra));
 const AiSettingsLive = AiSettings.layer.pipe(
-	Layer.provide(Layer.mergeAll(Infra, AccessLive)),
+	Layer.provide(Layer.mergeAll(Infra, AccessLive, NotificationsLive)),
 );
 const DuplicatesLive = Duplicates.layer.pipe(
 	Layer.provide(Layer.mergeAll(Infra, AiSettingsLive)),
@@ -29,6 +33,7 @@ const DuplicatesLive = Duplicates.layer.pipe(
 
 export const AppLayer = Layer.mergeAll(
 	Infra,
+	NotificationsLive,
 	WebhooksLive,
 	IssuesLive,
 	AccessLive,

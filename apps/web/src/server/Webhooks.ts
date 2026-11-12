@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { and, eq, lt, sql } from "drizzle-orm";
+import { and, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { Context, Effect, Layer, Schedule, Schema } from "effect";
 import {
 	type JsonObject,
@@ -8,8 +8,10 @@ import {
 	webhookEndpoint,
 } from "#/db/schema";
 import { WEBHOOK_EVENTS, type WebhookEvent } from "#/shared/issues";
+import { inBackground } from "./background";
 import { describeEvent, toDiscord, toSlack } from "./chat-format";
 import { Database } from "./Database";
+import { Notifications } from "./Notifications";
 
 export { WEBHOOK_EVENTS, type WebhookEvent };
 
@@ -49,6 +51,7 @@ export class Webhooks extends Context.Service<
 		Webhooks,
 		Effect.gen(function* () {
 			const database = yield* Database;
+			const notifications = yield* Notifications;
 
 			const send = (
 				endpoint: { url: string; secret: string; format?: string },
@@ -146,6 +149,32 @@ export class Webhooks extends Context.Service<
 							.where(eq(webhookDelivery.id, deliveryId)),
 					)
 					.pipe(Effect.ignore);
+
+				if (result._tag === "Success") {
+					// Working again: the next outage gets its own email.
+					yield* database
+						.query((db) =>
+							db
+								.update(webhookEndpoint)
+								.set({ failureNotifiedAt: null })
+								.where(
+									and(
+										eq(webhookEndpoint.id, endpoint.id),
+										isNotNull(webhookEndpoint.failureNotifiedAt),
+									),
+								),
+						)
+						.pipe(Effect.ignore);
+				} else {
+					yield* inBackground(
+						"Webhook failure email",
+						notifications.webhookFailing(
+							endpoint.id,
+							event,
+							result.failure.message,
+						),
+					);
+				}
 			}, Effect.scoped);
 
 			// After a restart, deliveries still "pending" were interrupted mid-retry.

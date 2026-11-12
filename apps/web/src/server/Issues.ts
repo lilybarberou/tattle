@@ -30,12 +30,15 @@ import {
 	PRIORITY_LABELS,
 } from "#/shared/issues";
 import type { Actor } from "./Access";
+import { inBackground } from "./background";
 import { Database } from "./Database";
 import { openSuggestion } from "./Duplicates";
 import { env } from "./env";
 import { type DbError, InvalidInput, NotFound } from "./errors";
 import { sendMail } from "./mailer";
+import { Notifications } from "./Notifications";
 import { Storage } from "./Storage";
+import { reporterUnsubscribe } from "./unsubscribe";
 import { Webhooks } from "./Webhooks";
 
 const toJson = (value: unknown): Json =>
@@ -204,6 +207,7 @@ export class Issues extends Context.Service<
 			const database = yield* Database;
 			const storage = yield* Storage;
 			const webhooks = yield* Webhooks;
+			const notifications = yield* Notifications;
 
 			const reportDto = (
 				row: ReportRow,
@@ -299,7 +303,12 @@ export class Issues extends Context.Service<
 			// A bug that was done gets a report sent after it was marked done: it
 			// is back. Reopen it, and say in which release it came back.
 			const reopenIfRegressed = Effect.fn("Issues.reopenIfRegressed")(
-				function* (projectId: string, target: IssueRow, reportIds: string[]) {
+				function* (
+					projectId: string,
+					target: IssueRow,
+					reportIds: string[],
+					actor: Actor,
+				) {
 					if (
 						target.status !== "done" ||
 						target.type !== "bug" ||
@@ -355,6 +364,11 @@ export class Issues extends Context.Service<
 						regression,
 						actor: system,
 					});
+					// Whoever merged or moved the report knows already.
+					yield* inBackground(
+						"Regression email",
+						notifications.regressed(target.id, newest.release, actor),
+					);
 				},
 			);
 
@@ -714,16 +728,28 @@ export class Issues extends Context.Service<
 							.where(eq(issue.id, issueId)),
 					);
 					if (!row) return;
+					// A reporter's entry comes first, so their email carries the link
+					// to stop emails about their report. Someone who stopped them for
+					// any report of this issue gets nothing.
 					const people = yield* database.query((db) =>
-						db.execute<{ email: string; name: string | null }>(sql`
-							select distinct on (lower(email)) email, name from (
-								select ${report.reporter}->>'email' as email, ${report.reporter}->>'name' as name
-								from ${report} where ${report.issueId} = ${issueId}
-								union all
-								select ${issueVote.email}, null from ${issueVote}
-								where ${issueVote.issueId} = ${issueId}
-							) asked
-							where email is not null and email <> ''
+						db.execute<{
+							email: string;
+							name: string | null;
+							report_id: string | null;
+						}>(sql`
+							select * from (
+								select distinct on (lower(email)) email, name, report_id, stopped from (
+									select ${report.reporter}->>'email' as email, ${report.reporter}->>'name' as name,
+										${report.id} as report_id, ${report.emailsStoppedAt} is not null as stopped
+									from ${report} where ${report.issueId} = ${issueId}
+									union all
+									select ${issueVote.email}, null, null, false from ${issueVote}
+									where ${issueVote.issueId} = ${issueId}
+								) asked
+								where email is not null and email <> ''
+								order by lower(email), stopped desc, report_id nulls last
+							) people
+							where not stopped
 						`),
 					);
 					const link =
@@ -739,6 +765,9 @@ export class Issues extends Context.Service<
 								action: link
 									? { label: "See what else is coming", url: link }
 									: undefined,
+								...(person.report_id
+									? reporterUnsubscribe(person.report_id)
+									: {}),
 							}),
 						).pipe(Effect.ignore);
 					}
@@ -828,7 +857,18 @@ export class Issues extends Context.Service<
 					current.status !== "done" &&
 					patch.status === "done"
 				) {
-					yield* notifyShipped(current.id).pipe(Effect.forkDetach);
+					yield* inBackground("Shipped notice", notifyShipped(current.id));
+				}
+				// Assigned to someone else: they hear about it by email.
+				if (
+					changes.assigneeId &&
+					patch.assignee?.type === "user" &&
+					patch.assignee.id
+				) {
+					yield* inBackground(
+						"Assignment email",
+						notifications.assigned(current.id, patch.assignee.id, actor),
+					);
 				}
 				return dto;
 			});
@@ -917,6 +957,7 @@ export class Issues extends Context.Service<
 					projectId,
 					original,
 					moved.map((r) => r.id),
+					actor,
 				);
 				const [originalAfter] = yield* database.query((db) =>
 					db.select().from(issue).where(eq(issue.id, original.id)),
@@ -958,7 +999,7 @@ export class Issues extends Context.Service<
 					...(row.issueId ? [row.issueId] : []),
 				]);
 				yield* logActivity(target.id, actor, "report_attached", { reportId });
-				yield* reopenIfRegressed(projectId, target, [reportId]);
+				yield* reopenIfRegressed(projectId, target, [reportId], actor);
 				const [after] = yield* database.query((db) =>
 					db.select().from(issue).where(eq(issue.id, target.id)),
 				);

@@ -20,10 +20,12 @@ import { Route as DotwellKnownSplatRouteImport } from './routes/[.]well-known/$'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppAgentsRouteImport } from './routes/_app/agents'
 import { Route as AppMembersRouteImport } from './routes/_app/members'
+import { Route as AppNotificationsRouteImport } from './routes/_app/notifications'
 import { Route as AppPrivacyRouteImport } from './routes/_app/privacy'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as PortalSlugRouteImport } from './routes/portal.$slug'
 import { Route as ThreadTokenRouteImport } from './routes/thread.$token'
+import { Route as UnsubscribeTokenRouteImport } from './routes/unsubscribe.$token'
 import { Route as AppPProjectIdRouteImport } from './routes/_app/p/$projectId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiV1FilesRouteImport } from './routes/api/v1/files'
@@ -35,6 +37,7 @@ import { Route as AppPProjectIdSettingsRouteImport } from './routes/_app/p/$proj
 import { Route as AppPProjectIdTriageRouteImport } from './routes/_app/p/$projectId/triage'
 import { Route as ApiV1GithubProjectIdRouteImport } from './routes/api/v1/github.$projectId'
 import { Route as ApiV1MyReportsSplatRouteImport } from './routes/api/v1/my-reports.$'
+import { Route as ApiV1UnsubscribeTokenRouteImport } from './routes/api/v1/unsubscribe.$token'
 import { Route as AppPProjectIdIssuesIndexRouteImport } from './routes/_app/p/$projectId/issues/index'
 import { Route as AppPProjectIdIssuesNumberRouteImport } from './routes/_app/p/$projectId/issues/$number'
 
@@ -92,6 +95,11 @@ const AppMembersRoute = AppMembersRouteImport.update({
   path: '/members',
   getParentRoute: () => AppRoute,
 } as any)
+const AppNotificationsRoute = AppNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppPrivacyRoute = AppPrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
@@ -110,6 +118,11 @@ const PortalSlugRoute = PortalSlugRouteImport.update({
 const ThreadTokenRoute = ThreadTokenRouteImport.update({
   id: '/thread/$token',
   path: '/thread/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UnsubscribeTokenRoute = UnsubscribeTokenRouteImport.update({
+  id: '/unsubscribe/$token',
+  path: '/unsubscribe/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppPProjectIdRoute = AppPProjectIdRouteImport.update({
@@ -167,6 +180,11 @@ const ApiV1MyReportsSplatRoute = ApiV1MyReportsSplatRouteImport.update({
   path: '/api/v1/my-reports/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1UnsubscribeTokenRoute = ApiV1UnsubscribeTokenRouteImport.update({
+  id: '/api/v1/unsubscribe/$token',
+  path: '/api/v1/unsubscribe/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppPProjectIdIssuesIndexRoute =
   AppPProjectIdIssuesIndexRouteImport.update({
     id: '/issues/',
@@ -191,10 +209,12 @@ export interface FileRoutesByFullPath {
   '/.well-known/$': typeof DotwellKnownSplatRoute
   '/agents': typeof AppAgentsRoute
   '/members': typeof AppMembersRoute
+  '/notifications': typeof AppNotificationsRoute
   '/privacy': typeof AppPrivacyRoute
   '/api/mcp': typeof ApiMcpRoute
   '/portal/$slug': typeof PortalSlugRoute
   '/thread/$token': typeof ThreadTokenRoute
+  '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/p/$projectId': typeof AppPProjectIdRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/files': typeof ApiV1FilesRoute
@@ -205,6 +225,7 @@ export interface FileRoutesByFullPath {
   '/p/$projectId/triage': typeof AppPProjectIdTriageRoute
   '/api/v1/github/$projectId': typeof ApiV1GithubProjectIdRoute
   '/api/v1/my-reports/$': typeof ApiV1MyReportsSplatRoute
+  '/api/v1/unsubscribe/$token': typeof ApiV1UnsubscribeTokenRoute
   '/p/$projectId/': typeof AppPProjectIdIndexRoute
   '/p/$projectId/issues/$number': typeof AppPProjectIdIssuesNumberRoute
   '/p/$projectId/issues/': typeof AppPProjectIdIssuesIndexRoute
@@ -219,10 +240,12 @@ export interface FileRoutesByTo {
   '/.well-known/$': typeof DotwellKnownSplatRoute
   '/agents': typeof AppAgentsRoute
   '/members': typeof AppMembersRoute
+  '/notifications': typeof AppNotificationsRoute
   '/privacy': typeof AppPrivacyRoute
   '/api/mcp': typeof ApiMcpRoute
   '/portal/$slug': typeof PortalSlugRoute
   '/thread/$token': typeof ThreadTokenRoute
+  '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/files': typeof ApiV1FilesRoute
@@ -233,6 +256,7 @@ export interface FileRoutesByTo {
   '/p/$projectId/triage': typeof AppPProjectIdTriageRoute
   '/api/v1/github/$projectId': typeof ApiV1GithubProjectIdRoute
   '/api/v1/my-reports/$': typeof ApiV1MyReportsSplatRoute
+  '/api/v1/unsubscribe/$token': typeof ApiV1UnsubscribeTokenRoute
   '/p/$projectId': typeof AppPProjectIdIndexRoute
   '/p/$projectId/issues/$number': typeof AppPProjectIdIssuesNumberRoute
   '/p/$projectId/issues': typeof AppPProjectIdIssuesIndexRoute
@@ -249,10 +273,12 @@ export interface FileRoutesById {
   '/.well-known/$': typeof DotwellKnownSplatRoute
   '/_app/agents': typeof AppAgentsRoute
   '/_app/members': typeof AppMembersRoute
+  '/_app/notifications': typeof AppNotificationsRoute
   '/_app/privacy': typeof AppPrivacyRoute
   '/api/mcp': typeof ApiMcpRoute
   '/portal/$slug': typeof PortalSlugRoute
   '/thread/$token': typeof ThreadTokenRoute
+  '/unsubscribe/$token': typeof UnsubscribeTokenRoute
   '/_app/': typeof AppIndexRoute
   '/_app/p/$projectId': typeof AppPProjectIdRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -264,6 +290,7 @@ export interface FileRoutesById {
   '/_app/p/$projectId/triage': typeof AppPProjectIdTriageRoute
   '/api/v1/github/$projectId': typeof ApiV1GithubProjectIdRoute
   '/api/v1/my-reports/$': typeof ApiV1MyReportsSplatRoute
+  '/api/v1/unsubscribe/$token': typeof ApiV1UnsubscribeTokenRoute
   '/_app/p/$projectId/': typeof AppPProjectIdIndexRoute
   '/_app/p/$projectId/issues/$number': typeof AppPProjectIdIssuesNumberRoute
   '/_app/p/$projectId/issues/': typeof AppPProjectIdIssuesIndexRoute
@@ -281,10 +308,12 @@ export interface FileRouteTypes {
     | '/.well-known/$'
     | '/agents'
     | '/members'
+    | '/notifications'
     | '/privacy'
     | '/api/mcp'
     | '/portal/$slug'
     | '/thread/$token'
+    | '/unsubscribe/$token'
     | '/p/$projectId'
     | '/api/auth/$'
     | '/api/v1/files'
@@ -295,6 +324,7 @@ export interface FileRouteTypes {
     | '/p/$projectId/triage'
     | '/api/v1/github/$projectId'
     | '/api/v1/my-reports/$'
+    | '/api/v1/unsubscribe/$token'
     | '/p/$projectId/'
     | '/p/$projectId/issues/$number'
     | '/p/$projectId/issues/'
@@ -309,10 +339,12 @@ export interface FileRouteTypes {
     | '/.well-known/$'
     | '/agents'
     | '/members'
+    | '/notifications'
     | '/privacy'
     | '/api/mcp'
     | '/portal/$slug'
     | '/thread/$token'
+    | '/unsubscribe/$token'
     | '/'
     | '/api/auth/$'
     | '/api/v1/files'
@@ -323,6 +355,7 @@ export interface FileRouteTypes {
     | '/p/$projectId/triage'
     | '/api/v1/github/$projectId'
     | '/api/v1/my-reports/$'
+    | '/api/v1/unsubscribe/$token'
     | '/p/$projectId'
     | '/p/$projectId/issues/$number'
     | '/p/$projectId/issues'
@@ -338,10 +371,12 @@ export interface FileRouteTypes {
     | '/.well-known/$'
     | '/_app/agents'
     | '/_app/members'
+    | '/_app/notifications'
     | '/_app/privacy'
     | '/api/mcp'
     | '/portal/$slug'
     | '/thread/$token'
+    | '/unsubscribe/$token'
     | '/_app/'
     | '/_app/p/$projectId'
     | '/api/auth/$'
@@ -353,6 +388,7 @@ export interface FileRouteTypes {
     | '/_app/p/$projectId/triage'
     | '/api/v1/github/$projectId'
     | '/api/v1/my-reports/$'
+    | '/api/v1/unsubscribe/$token'
     | '/_app/p/$projectId/'
     | '/_app/p/$projectId/issues/$number'
     | '/_app/p/$projectId/issues/'
@@ -370,11 +406,13 @@ export interface RootRouteChildren {
   ApiMcpRoute: typeof ApiMcpRoute
   PortalSlugRoute: typeof PortalSlugRoute
   ThreadTokenRoute: typeof ThreadTokenRoute
+  UnsubscribeTokenRoute: typeof UnsubscribeTokenRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiV1FilesRoute: typeof ApiV1FilesRoute
   ApiV1IngestRoute: typeof ApiV1IngestRoute
   ApiV1GithubProjectIdRoute: typeof ApiV1GithubProjectIdRoute
   ApiV1MyReportsSplatRoute: typeof ApiV1MyReportsSplatRoute
+  ApiV1UnsubscribeTokenRoute: typeof ApiV1UnsubscribeTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -456,6 +494,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppMembersRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/notifications': {
+      id: '/_app/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof AppNotificationsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/privacy': {
       id: '/_app/privacy'
       path: '/privacy'
@@ -482,6 +527,13 @@ declare module '@tanstack/react-router' {
       path: '/thread/$token'
       fullPath: '/thread/$token'
       preLoaderRoute: typeof ThreadTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/unsubscribe/$token': {
+      id: '/unsubscribe/$token'
+      path: '/unsubscribe/$token'
+      fullPath: '/unsubscribe/$token'
+      preLoaderRoute: typeof UnsubscribeTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/p/$projectId': {
@@ -561,6 +613,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1MyReportsSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/unsubscribe/$token': {
+      id: '/api/v1/unsubscribe/$token'
+      path: '/api/v1/unsubscribe/$token'
+      fullPath: '/api/v1/unsubscribe/$token'
+      preLoaderRoute: typeof ApiV1UnsubscribeTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/p/$projectId/issues/': {
       id: '/_app/p/$projectId/issues/'
       path: '/issues'
@@ -605,6 +664,7 @@ const AppPProjectIdRouteWithChildren = AppPProjectIdRoute._addFileChildren(
 interface AppRouteChildren {
   AppAgentsRoute: typeof AppAgentsRoute
   AppMembersRoute: typeof AppMembersRoute
+  AppNotificationsRoute: typeof AppNotificationsRoute
   AppPrivacyRoute: typeof AppPrivacyRoute
   AppIndexRoute: typeof AppIndexRoute
   AppPProjectIdRoute: typeof AppPProjectIdRouteWithChildren
@@ -613,6 +673,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAgentsRoute: AppAgentsRoute,
   AppMembersRoute: AppMembersRoute,
+  AppNotificationsRoute: AppNotificationsRoute,
   AppPrivacyRoute: AppPrivacyRoute,
   AppIndexRoute: AppIndexRoute,
   AppPProjectIdRoute: AppPProjectIdRouteWithChildren,
@@ -632,11 +693,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpRoute: ApiMcpRoute,
   PortalSlugRoute: PortalSlugRoute,
   ThreadTokenRoute: ThreadTokenRoute,
+  UnsubscribeTokenRoute: UnsubscribeTokenRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiV1FilesRoute: ApiV1FilesRoute,
   ApiV1IngestRoute: ApiV1IngestRoute,
   ApiV1GithubProjectIdRoute: ApiV1GithubProjectIdRoute,
   ApiV1MyReportsSplatRoute: ApiV1MyReportsSplatRoute,
+  ApiV1UnsubscribeTokenRoute: ApiV1UnsubscribeTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

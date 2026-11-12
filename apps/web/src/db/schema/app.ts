@@ -216,6 +216,12 @@ export const report = pgTable(
 		// `reporter.id` when the app proved it with the identity verification
 		// hash. Only then does the id give access, on any device.
 		verifiedUserId: text("verified_user_id"),
+		// The reporter's messages up to this time were emailed to the team (or
+		// the team answered them): later ones are still to tell.
+		teamNotifiedAt: timestamp("team_notified_at"),
+		// The reporter used "Stop emails about this report": no more replies
+		// or "shipped" notice by email. The widget still shows everything.
+		emailsStoppedAt: timestamp("emails_stopped_at"),
 		createdAt: createdAt(),
 	},
 	(t) => [
@@ -316,6 +322,11 @@ export const aiSettings = pgTable("ai_settings", {
 	apiKeyEncrypted: text("api_key_encrypted"),
 	apiKeyLast4: text("api_key_last4"),
 	enabled: boolean("enabled").notNull().default(false),
+	// Calls the provider refused in a row (401, 402, 403, 429), the last
+	// status, and when owners and admins were last told the key stopped working.
+	refusedCalls: integer("refused_calls").notNull().default(0),
+	lastRefusedStatus: integer("last_refused_status"),
+	refusalNotifiedAt: timestamp("refusal_notified_at"),
 	updatedById: text("updated_by_id").references(() => user.id, {
 		onDelete: "set null",
 	}),
@@ -371,6 +382,9 @@ export const webhookEndpoint = pgTable(
 		// Empty array means every event.
 		events: text("events").array().notNull().default(sql`'{}'::text[]`),
 		active: boolean("active").notNull().default(true),
+		// When owners and admins were told a delivery gave up after its retries;
+		// cleared by the next successful delivery, so they hear once per outage.
+		failureNotifiedAt: timestamp("failure_notified_at"),
 		createdAt: createdAt(),
 	},
 	(t) => [index("webhook_project_idx").on(t.projectId)],
@@ -396,6 +410,29 @@ export const webhookDelivery = pgTable(
 	},
 	(t) => [index("delivery_endpoint_idx").on(t.endpointId, t.createdAt)],
 );
+
+// What each person wants by email (see shared/notifications.ts), and where
+// their daily triage digest is. No row: the defaults.
+export const notificationSetting = pgTable("notification_setting", {
+	userId: text("user_id")
+		.primaryKey()
+		.references(() => user.id, { onDelete: "cascade" }),
+	reporterReplied: boolean("reporter_replied").notNull().default(true),
+	assigned: boolean("assigned").notNull().default(true),
+	regression: boolean("regression").notNull().default(true),
+	// Null: on for owners and admins, off for members.
+	triageDigest: boolean("triage_digest"),
+	aiKeyFailing: boolean("ai_key_failing").notNull().default(true),
+	webhookFailing: boolean("webhook_failing").notNull().default(true),
+	// The UTC day ("2026-11-12") the digest was last prepared, and the time
+	// it covered up to: the next one lists issues created after it.
+	digestDay: text("digest_day"),
+	digestCoveredUntil: timestamp("digest_covered_until"),
+	updatedAt: timestamp("updated_at")
+		.defaultNow()
+		.notNull()
+		.$onUpdate(() => new Date()),
+});
 
 export const projectRelations = relations(project, ({ one, many }) => ({
 	organization: one(organization, {
