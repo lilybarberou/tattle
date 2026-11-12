@@ -21,6 +21,7 @@ import {
 	project,
 	report,
 } from "#/db/schema";
+import type { DuplicateSuggestionView } from "#/shared/ai";
 import {
 	ISSUE_STATUSES,
 	type IssueStatus,
@@ -29,6 +30,7 @@ import {
 } from "#/shared/issues";
 import type { Actor } from "./Access";
 import { Database } from "./Database";
+import { openSuggestion } from "./Duplicates";
 import { env } from "./env";
 import { type DbError, InvalidInput, NotFound } from "./errors";
 import { sendMail } from "./mailer";
@@ -514,9 +516,11 @@ export class Issues extends Context.Service<
 					);
 					duplicateOf = dup ? issueDto(dup) : null;
 				}
+				const duplicateSuggestion = yield* openSuggestion(database, row.id);
 				return {
 					issue: issueDto(row),
 					duplicateOf,
+					duplicateSuggestion,
 					reports: reports.map(reportDto),
 					comments: comments.map(commentDto),
 					releases: seenIn.map((r) => ({
@@ -952,6 +956,8 @@ export type SeenInRelease = {
 export type IssueDetail = {
 	issue: IssueDto;
 	duplicateOf: IssueDto | null;
+	/** "Looks like #12": found by the workspace's AI or by matching words. */
+	duplicateSuggestion: DuplicateSuggestionView | null;
 	reports: ReportDto[];
 	comments: CommentDto[];
 	/** Oldest first. */

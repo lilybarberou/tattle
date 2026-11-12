@@ -9,10 +9,12 @@ import {
 	ChevronRightIcon,
 	GitPullRequestIcon,
 	PencilIcon,
+	SearchIcon,
 	Trash2Icon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { DuplicateSuggestion } from "#/components/duplicate-suggestion";
 import {
 	Face,
 	IssueNumber,
@@ -44,6 +46,8 @@ import {
 	addCommentFn,
 	deleteIssueFn,
 	deleteReportFn,
+	dismissDuplicateFn,
+	findDuplicatesFn,
 	getIssueFn,
 	markDuplicateFn,
 	updateIssueFn,
@@ -79,6 +83,8 @@ const describeActivity = (
 			return `merged #${data?.from} into this issue`;
 		case "report_attached":
 			return "attached a report";
+		case "dismissed_duplicate":
+			return `said it is not a duplicate of #${data?.suggested}`;
 		case "regressed":
 			return data?.release
 				? `reopened it: regressed in ${data.release}`
@@ -332,6 +338,7 @@ function IssuePage() {
 	const [comment, setComment] = useState("");
 	const [merging, setMerging] = useState(false);
 	const [deleting, setDeleting] = useState(false);
+	const [checking, setChecking] = useState(false);
 	const navigate = useNavigate();
 	const [prUrl, setPrUrl] = useState(issue.prUrl ?? "");
 
@@ -352,6 +359,34 @@ function IssuePage() {
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : "Update failed");
 			return false;
+		}
+	};
+
+	const merge = async (original: number) => {
+		try {
+			await markDuplicateFn({
+				data: { projectId, number: issue.number, duplicateOf: original },
+			});
+			toast.success(`#${issue.number} merged into #${original}`);
+			await router.invalidate();
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Merge failed");
+		}
+	};
+
+	const findDuplicates = async () => {
+		if (checking) return;
+		setChecking(true);
+		try {
+			const found = await findDuplicatesFn({
+				data: { projectId, number: issue.number },
+			});
+			if (!found) toast.success("No likely duplicate found");
+			await router.invalidate();
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Search failed");
+		} finally {
+			setChecking(false);
 		}
 	};
 
@@ -419,6 +454,31 @@ function IssuePage() {
 						</Link>
 						. Its reports live there now.
 					</p>
+				)}
+
+				{detail.duplicateSuggestion && (
+					<DuplicateSuggestion
+						className="mt-4"
+						projectId={projectId}
+						suggestion={detail.duplicateSuggestion}
+						busy={checking}
+						onMerge={() => {
+							const original = detail.duplicateSuggestion?.issue.number;
+							if (original !== undefined) void merge(original);
+						}}
+						onDismiss={async () => {
+							try {
+								await dismissDuplicateFn({
+									data: { projectId, number: issue.number },
+								});
+								await router.invalidate();
+							} catch (error) {
+								toast.error(
+									error instanceof Error ? error.message : "Not saved",
+								);
+							}
+						}}
+					/>
 				)}
 
 				<div className="mt-4 flex items-start gap-2">
@@ -683,7 +743,16 @@ function IssuePage() {
 					</dl>
 
 					{issue.status !== "duplicate" && (
-						<div className="mt-4 border-t pt-4">
+						<div className="mt-4 flex flex-col items-start border-t pt-4">
+							<Button
+								variant="ghost"
+								className="-ml-2 text-muted-foreground"
+								onClick={findDuplicates}
+								disabled={checking}
+							>
+								<SearchIcon className="size-4" />
+								{checking ? "Looking for duplicates…" : "Find duplicates"}
+							</Button>
 							<Button
 								variant="ghost"
 								className={cn("-ml-2 text-muted-foreground")}
@@ -754,19 +823,9 @@ function IssuePage() {
 				projectId={projectId}
 				issue={merging ? issue : null}
 				onClose={() => setMerging(false)}
-				onMerge={async (original) => {
+				onMerge={(original) => {
 					setMerging(false);
-					try {
-						await markDuplicateFn({
-							data: { projectId, number: issue.number, duplicateOf: original },
-						});
-						toast.success(`#${issue.number} merged into #${original}`);
-						await router.invalidate();
-					} catch (error) {
-						toast.error(
-							error instanceof Error ? error.message : "Merge failed",
-						);
-					}
+					void merge(original);
 				}}
 			/>
 		</div>

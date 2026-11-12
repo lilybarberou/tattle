@@ -8,7 +8,12 @@ import {
 	user,
 	webhookEndpoint,
 } from "#/db/schema";
-import { type Actor, generatePublicKey, generateToken } from "#/server/Access";
+import {
+	type Actor,
+	generatePublicKey,
+	generateToken,
+	type Principal,
+} from "#/server/Access";
 import type { IngestPayload } from "#/server/Ingest";
 
 let sequence = 0;
@@ -55,7 +60,11 @@ export const createUser = async (
 			.returning(),
 	);
 
-export const addMember = async (organizationId: string, userId: string) =>
+export const addMember = async (
+	organizationId: string,
+	userId: string,
+	role: "owner" | "admin" | "member" = "owner",
+) =>
 	first(
 		await db
 			.insert(member)
@@ -63,11 +72,26 @@ export const addMember = async (organizationId: string, userId: string) =>
 				id: randomUUID(),
 				organizationId,
 				userId,
-				role: "owner",
+				role,
 				createdAt: new Date(),
 			})
 			.returning(),
 	);
+
+/** A signed-in person with this role in the organization, as the services see them. */
+export const createPrincipal = async (
+	organizationId: string,
+	role: "owner" | "admin" | "member" = "owner",
+): Promise<Principal> => {
+	const person = await createUser();
+	await addMember(organizationId, person.id, role);
+	return {
+		kind: "user",
+		userId: person.id,
+		name: person.name,
+		organizationIds: [organizationId],
+	};
+};
 
 export const createProject = async (
 	organizationId: string,

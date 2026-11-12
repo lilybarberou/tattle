@@ -26,6 +26,7 @@ import {
 	announceSetupCode,
 	signupPolicy,
 } from "#/lib/signup";
+import { AI_PROVIDERS } from "#/shared/ai";
 import {
 	ISSUE_STATUSES,
 	WEBHOOK_EVENTS,
@@ -38,8 +39,10 @@ import {
 	generateToken,
 	type Principal,
 } from "./Access";
+import { AiSettings } from "./AiSettings";
 import { Database } from "./Database";
 import { DataLifecycle } from "./DataLifecycle";
+import { Duplicates } from "./Duplicates";
 import { env } from "./env";
 import { type DbError, InvalidInput, NotFound } from "./errors";
 import { GitHub } from "./GitHub";
@@ -578,6 +581,92 @@ export const listAssigneesFn = createServerFn({ method: "GET" })
 					members,
 					agents,
 				};
+			}),
+		),
+	);
+
+// ---------- Duplicate suggestions ----------
+
+const issueRef = z.object({ projectId: z.string(), number: z.number().int() });
+
+/** Looks again for a duplicate of one issue, with the AI when it is on. */
+export const findDuplicatesFn = createServerFn({ method: "POST" })
+	.validator(issueRef)
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				yield* withProject(data.projectId);
+				const duplicates = yield* Duplicates;
+				return yield* duplicates.find(data.projectId, data.number);
+			}),
+		),
+	);
+
+export const dismissDuplicateFn = createServerFn({ method: "POST" })
+	.validator(issueRef)
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				const { principal: p } = yield* withProject(data.projectId);
+				const duplicates = yield* Duplicates;
+				yield* duplicates.dismiss(data.projectId, data.number, actorOf(p));
+			}),
+		),
+	);
+
+// ---------- Workspace AI ----------
+
+const aiSettingsInput = z.object({
+	organizationId: z.string(),
+	provider: z.enum(AI_PROVIDERS),
+	baseUrl: z.string().max(500).optional(),
+	model: z.string().max(200).optional(),
+	apiKey: z.string().max(500).optional(),
+});
+
+// None of these return the key: AiSettings builds its view field by field.
+export const getAiSettingsFn = createServerFn({ method: "GET" })
+	.validator(z.object({ organizationId: z.string() }))
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				const p = yield* principal();
+				return yield* (yield* AiSettings).view(p, data.organizationId);
+			}),
+		),
+	);
+
+export const saveAiSettingsFn = createServerFn({ method: "POST" })
+	.validator(aiSettingsInput.extend({ enabled: z.boolean() }))
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				const p = yield* principal();
+				const { organizationId, ...input } = data;
+				return yield* (yield* AiSettings).save(p, organizationId, input);
+			}),
+		),
+	);
+
+export const testAiSettingsFn = createServerFn({ method: "POST" })
+	.validator(aiSettingsInput)
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				const p = yield* principal();
+				const { organizationId, ...input } = data;
+				return yield* (yield* AiSettings).test(p, organizationId, input);
+			}),
+		),
+	);
+
+export const removeAiSettingsFn = createServerFn({ method: "POST" })
+	.validator(z.object({ organizationId: z.string() }))
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				const p = yield* principal();
+				yield* (yield* AiSettings).remove(p, data.organizationId);
 			}),
 		),
 	);

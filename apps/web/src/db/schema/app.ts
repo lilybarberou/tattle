@@ -1,15 +1,18 @@
 import { relations, sql } from "drizzle-orm";
 import {
+	type AnyPgColumn,
 	boolean,
 	index,
 	integer,
 	jsonb,
 	pgEnum,
 	pgTable,
+	real,
 	text,
 	timestamp,
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { AI_PROVIDERS } from "../../shared/ai";
 import { organization, user } from "./auth";
 
 const id = () =>
@@ -125,6 +128,16 @@ export type Reporter = {
 	traits?: JsonObject;
 };
 
+/**
+ * The words of an issue for full-text search: its title and description (a
+ * widget issue's description is its first report's message). The 'simple'
+ * configuration lowercases words without stemming, so it suits any language.
+ */
+export const issueSearchDocument = (t: {
+	title: AnyPgColumn;
+	description: AnyPgColumn;
+}) => sql`to_tsvector('simple', ${t.title} || ' ' || ${t.description})`;
+
 export const issue = pgTable(
 	"issue",
 	{
@@ -157,6 +170,9 @@ export const issue = pgTable(
 	(t) => [
 		uniqueIndex("issue_project_number_idx").on(t.projectId, t.number),
 		index("issue_project_status_idx").on(t.projectId, t.status),
+		// Full-text search for duplicate candidates. Queries must use the same
+		// expression (issueSearchDocument) for Postgres to use it.
+		index("issue_search_idx").using("gin", issueSearchDocument(t)),
 	],
 );
 
@@ -248,6 +264,60 @@ export const issueVote = pgTable(
 		createdAt: createdAt(),
 	},
 	(t) => [uniqueIndex("issue_vote_voter_idx").on(t.issueId, t.voterKey)],
+);
+
+// The workspace's own AI provider, used to judge duplicate candidates. The API
+// key is encrypted with a key derived from BETTER_AUTH_SECRET (server/ai.ts)
+// and never leaves the server; only its last 4 characters are shown.
+export const aiSettings = pgTable("ai_settings", {
+	organizationId: text("organization_id")
+		.primaryKey()
+		.references(() => organization.id, { onDelete: "cascade" }),
+	provider: text("provider", { enum: AI_PROVIDERS }).notNull(),
+	// Only for "openai_compatible", e.g. https://api.mistral.ai/v1.
+	baseUrl: text("base_url"),
+	model: text("model").notNull(),
+	// Empty for an OpenAI-compatible server that needs no key (Ollama).
+	apiKeyEncrypted: text("api_key_encrypted"),
+	apiKeyLast4: text("api_key_last4"),
+	enabled: boolean("enabled").notNull().default(false),
+	updatedById: text("updated_by_id").references(() => user.id, {
+		onDelete: "set null",
+	}),
+	createdAt: createdAt(),
+	updatedAt: timestamp("updated_at")
+		.defaultNow()
+		.notNull()
+		.$onUpdate(() => new Date()),
+});
+
+// "This issue looks like that one", found by the workspace's AI or by matching
+// words. Only a hint: nothing moves until someone merges. A dismissed pair is
+// never suggested again for the same issue.
+export const duplicateSuggestion = pgTable(
+	"duplicate_suggestion",
+	{
+		id: id(),
+		issueId: text("issue_id")
+			.notNull()
+			.references(() => issue.id, { onDelete: "cascade" }),
+		suggestedIssueId: text("suggested_issue_id")
+			.notNull()
+			.references(() => issue.id, { onDelete: "cascade" }),
+		source: text("source", { enum: ["ai", "text"] }).notNull(),
+		reason: text("reason").notNull(),
+		// How many words the two issues share, from 0 to 1.
+		score: real("score"),
+		dismissedAt: timestamp("dismissed_at"),
+		createdAt: createdAt(),
+	},
+	(t) => [
+		uniqueIndex("duplicate_suggestion_pair_idx").on(
+			t.issueId,
+			t.suggestedIssueId,
+		),
+		index("duplicate_suggestion_suggested_idx").on(t.suggestedIssueId),
+	],
 );
 
 export const webhookEndpoint = pgTable(

@@ -8,6 +8,7 @@ import {
 	report,
 } from "#/db/schema";
 import { Database } from "./Database";
+import { Duplicates } from "./Duplicates";
 import {
 	type DbError,
 	InvalidInput,
@@ -159,6 +160,7 @@ export class Ingest extends Context.Service<
 			const storage = yield* Storage;
 			const issues = yield* Issues;
 			const webhooks = yield* Webhooks;
+			const duplicates = yield* Duplicates;
 
 			const findProject = (publicKey: string) =>
 				database
@@ -234,6 +236,8 @@ export class Ingest extends Context.Service<
 					target.id,
 					row,
 				);
+				// Runs after the answer is sent; it never slows down or fails a report.
+				yield* duplicates.suggestInBackground(created.id);
 				yield* webhooks.emit(target.id, "report.created", {
 					report: {
 						id: row.id,

@@ -3,7 +3,7 @@
 Self-hosted bug reports and feature requests for your web and mobile apps, built to be triaged by AI agents.
 
 - **Widget** (`packages/widget`, and `packages/react-native` for React Native and Expo apps): a button in your app. Users report a bug with an annotated screenshot, or suggest an idea. The steps the user took before reporting (pages, clicks, field changes), console logs, JS errors, network requests, device info and the signed-in account are attached automatically.
-- **Tracker** (`apps/web`): projects, a Triage inbox, issues with status, priority, labels and assignee, duplicates merged with their reports, the releases each issue was seen in, and regressions flagged when a fixed bug comes back.
+- **Tracker** (`apps/web`): projects, a Triage inbox, issues with status, priority, labels and assignee, duplicates suggested (by your own AI key, or by near-identical wording) and merged with their reports, the releases each issue was seen in, and regressions flagged when a fixed bug comes back.
 - **For agents**: an MCP server, signed webhooks and API tokens, so an agent can triage new reports, merge duplicates and work on fixes. Merged GitHub pull requests move their issues to Done.
 
 ## Self-host
@@ -134,7 +134,7 @@ OAuth discovery follows the MCP spec: `/.well-known/oauth-protected-resource/api
 | `list_projects` | Projects the token can access |
 | `list_issues` | Filter by status (`["triage"]` for the inbox), type, keyword, release |
 | `search_issues` | Similar issues by keywords, to spot duplicates, optionally from one release |
-| `get_issue` | Issue, comments, activity (including regressions), the releases it was seen in, report summaries |
+| `get_issue` | Issue, comments, activity (including regressions), the releases it was seen in, report summaries, the open duplicate suggestion |
 | `get_report` | Full report: logs, device, account, a timeline of what the user did with errors and failed requests in between, and the screenshot as an image |
 | `create_issue`, `update_issue`, `add_comment` | Write access (tokens can be read-only) |
 | `mark_duplicate` | Marks an issue as a duplicate; its reports move to the original (a done bug getting a newer report is reopened as a regression) |
@@ -143,6 +143,17 @@ OAuth discovery follows the MCP spec: `/.well-known/oauth-protected-resource/api
 Linking a fix: set the issue's pull request with `update_issue` (`pr_url`), or write `Tattle #12` (any case, `tattle#12` works too) in the pull request's title or description. A plain `#12` is left alone: on GitHub it means GitHub's own issue 12.
 
 Report content is written by end users. The MCP server tells agents to treat it as data, never as instructions; keep agent permissions narrow anyway.
+
+## Duplicate suggestions
+
+Each new report is compared with the project's most similar issues (Postgres full-text search over titles and descriptions; done issues included, so a fixed bug coming back is caught). The issue then shows **Looks like #12 Checkout fails**, in Triage and on the issue page, with **Merge into #12** and **Not a duplicate**. Nothing moves until someone merges, and a dismissed pair is never suggested again. **Find duplicates** on the issue page looks again; agents see the suggestion in `get_issue`.
+
+- **Without AI** (the default): only a near-identical wording is suggested. Nothing leaves your server.
+- **With your own AI key**: **Agents & API → Duplicate suggestions**, owners and admins only. Pick Anthropic, OpenAI, or any OpenAI-compatible server (Mistral, OpenRouter, Ollama…), paste a key, **Test**, turn it on. The default models are cheap and fast (`claude-haiku-5-5`, `gpt-5-mini`). The model judges whether the report describes the same problem as one of the candidates.
+
+When it is on, each new report sends the provider its **message, page URL, type and up to 5 console errors**, with the **number, title, shortened description, status and type of up to 8 similar issues**. No screenshot, reporter, device, network log or step is sent. When it is off, nothing is sent.
+
+The report goes to the model as data: the model is told to ignore instructions in it, its answer must name one of the candidates, and the only thing done with the answer is storing the suggestion. The check runs after the report is saved, so a slow or failing provider never delays or loses a report; errors are logged without the key or the report. The key is encrypted at rest (AES-256-GCM, with a key derived from `BETTER_AUTH_SECRET`) and never sent back to the browser: only its last 4 characters are shown.
 
 ## Discord and Slack
 
@@ -186,7 +197,8 @@ function verify(secret, header, rawBody) {
 apps/web            TanStack Start app (dashboard + API), Drizzle + Postgres, Better Auth
   src/server/       Effect services: Database, Storage (disk or S3), Access, Issues, Ingest,
                     Webhooks (+ Discord/Slack), Portal, GitHub (merged pull requests),
-                    DataLifecycle (deletion, GDPR, retention)
+                    DataLifecycle (deletion, GDPR, retention),
+                    Duplicates and AiSettings (duplicate suggestions, the workspace's AI key)
   src/server/mcp.ts MCP server (@modelcontextprotocol/server)
   src/routes/api/   /api/v1/ingest (widget), /api/v1/files (signed screenshots),
                     /api/v1/github/<project> (GitHub webhook), /api/mcp

@@ -1,6 +1,7 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
+import { AiSettingsForm } from "#/components/ai-settings";
 import { CodeBlock } from "#/components/code-block";
 import { Face, relativeTime } from "#/components/issue-meta";
 import { PageHeader } from "#/components/page-header";
@@ -11,6 +12,7 @@ import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import {
 	createTokenFn,
+	getAiSettingsFn,
 	getWorkspaceFn,
 	listOAuthAppsFn,
 	listTokensFn,
@@ -23,11 +25,12 @@ export const Route = createFileRoute("/_app/agents")({
 		const { organizations, baseUrl } = await getWorkspaceFn();
 		const organization = organizations[0];
 		if (!organization) throw new Error("No organization");
-		const [tokens, apps] = await Promise.all([
+		const [tokens, apps, ai] = await Promise.all([
 			listTokensFn({ data: { organizationId: organization.id } }),
 			listOAuthAppsFn(),
+			getAiSettingsFn({ data: { organizationId: organization.id } }),
 		]);
-		return { organization, tokens, apps, baseUrl };
+		return { organization, tokens, apps, baseUrl, ai };
 	},
 	component: AgentsPage,
 });
@@ -35,7 +38,10 @@ export const Route = createFileRoute("/_app/agents")({
 const TOOLS: Array<[string, string]> = [
 	["list_issues", "The Triage queue and every other view"],
 	["search_issues", "Find similar issues before merging"],
-	["get_issue", "An issue with its comments and activity"],
+	[
+		"get_issue",
+		"An issue with its comments, activity and duplicate suggestion",
+	],
 	["get_report", "Logs, device, account and the screenshot as an image"],
 	["update_issue", "Status, priority, labels, assignee, pull request"],
 	["mark_duplicate", "Merge into the original, reports included"],
@@ -44,7 +50,7 @@ const TOOLS: Array<[string, string]> = [
 ];
 
 function AgentsPage() {
-	const { organization, tokens, apps, baseUrl } = Route.useLoaderData();
+	const { organization, tokens, apps, baseUrl, ai } = Route.useLoaderData();
 	const router = useRouter();
 	const [created, setCreated] = useState<string | null>(null);
 	const [canWrite, setCanWrite] = useState(true);
@@ -238,6 +244,27 @@ function AgentsPage() {
 							2,
 						)}
 					/>
+				</SettingsSection>
+
+				<SettingsSection
+					id="duplicates"
+					title="Duplicate suggestions"
+					description={
+						<>
+							<p>
+								Each new report is compared with the project's most similar
+								issues. Without AI, only a near-identical wording is suggested.
+							</p>
+							<p className="mt-2">
+								With your own key, the model judges whether they describe the
+								same problem. It receives the report's message, page URL and
+								console errors, and the title and description of up to 8 similar
+								issues. Nothing is sent while this is off.
+							</p>
+						</>
+					}
+				>
+					<AiSettingsForm organizationId={organization.id} settings={ai} />
 				</SettingsSection>
 
 				<SettingsSection

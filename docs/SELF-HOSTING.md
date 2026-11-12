@@ -68,7 +68,8 @@ values:
 
 > [!IMPORTANT]
 > **Never change `BETTER_AUTH_SECRET` afterwards, and keep a copy of `.env` somewhere safe.**
-> Sessions and the setup code depend on it: changing it signs everyone out.
+> Sessions and the setup code depend on it: changing it signs everyone out, and the AI key of
+> duplicate suggestions, stored encrypted with it, has to be pasted again.
 >
 > `POSTGRES_PASSWORD` is applied only the very first time the database is created. Changing it in
 > `.env` later does not change the database's password, and Tattle will no longer connect.
@@ -239,6 +240,7 @@ Then create your first project. Its page shows the widget snippet.
 | **Your own server** | Project settings → *Webhooks* | Signed JSON events, retried if your server is down. See the [README](../README.md#webhooks). |
 | **GitHub** | Project settings → *GitHub* | Turn it on, then add a webhook to your repository with the address and secret shown there (Pull requests events only). Merged pull requests move their issues to Done. GitHub must be able to reach your server. |
 | **A public feature request page** | Project settings → *Public feature requests* | Turn it on and pick an address: `https://your-domain/portal/<name>`. |
+| **AI duplicate suggestions** (optional) | Agents & API → *Duplicate suggestions* | Paste an Anthropic, OpenAI or OpenAI-compatible (Mistral, OpenRouter, Ollama…) key. Off by default, and then nothing is sent anywhere. The [README](../README.md#duplicate-suggestions) lists what is sent when it's on. |
 
 ## 8. Optional: email and S3
 
@@ -341,7 +343,7 @@ After changing `.env`, apply it with `docker compose up -d`.
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `BETTER_AUTH_URL` | (required) | The public address of Tattle. |
-| `BETTER_AUTH_SECRET` | (required) | Signs sessions and derives the setup code. 32 characters or more. |
+| `BETTER_AUTH_SECRET` | (required) | Signs sessions, derives the setup code and encrypts the AI key of duplicate suggestions. 32 characters or more. |
 | `POSTGRES_PASSWORD` | (required with Compose) | The bundled database's password. |
 | `DATABASE_URL` | set by Compose | Your own Postgres instead: `postgres://user:password@host:5432/db`. |
 | `TRUST_PROXY` | `false` | `true` behind a reverse proxy, to see visitors' real IPs. |

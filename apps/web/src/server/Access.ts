@@ -87,6 +87,12 @@ export class Access extends Context.Service<
 			principal: Principal,
 			organizationId: string,
 		) => Effect.Effect<void, Forbidden>;
+		/** A signed-in owner or admin of the organization; never an API token. */
+		readonly requireAdmin: (
+			principal: Principal,
+			organizationId: string,
+			message?: string,
+		) => Effect.Effect<void, Forbidden | DbError>;
 	}
 >()("tattle/server/Access") {
 	static readonly layer = Layer.effect(
@@ -246,6 +252,27 @@ export class Access extends Context.Service<
 							new Forbidden({ message: "Not a member of this organization" }),
 						);
 
+			const requireAdmin = Effect.fn("Access.requireAdmin")(function* (
+				principal: Principal,
+				organizationId: string,
+				message = "Only owners and admins can do this",
+			) {
+				if (principal.kind !== "user") return yield* new Forbidden({ message });
+				const [row] = yield* database.query((db) =>
+					db
+						.select({ role: member.role })
+						.from(member)
+						.where(
+							and(
+								eq(member.organizationId, organizationId),
+								eq(member.userId, principal.userId),
+							),
+						),
+				);
+				if (!row || !["owner", "admin"].includes(row.role))
+					return yield* new Forbidden({ message });
+			});
+
 			return Access.of({
 				fromHeaders,
 				fromToken,
@@ -254,6 +281,7 @@ export class Access extends Context.Service<
 				requireProject,
 				requireWrite,
 				requireOrganization,
+				requireAdmin,
 			});
 		}),
 	);

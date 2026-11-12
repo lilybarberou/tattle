@@ -1,7 +1,9 @@
 import { Cause, Effect, Exit, Layer, ManagedRuntime } from "effect";
 import { Access } from "./Access";
+import { AiSettings } from "./AiSettings";
 import { Database } from "./Database";
 import { DataLifecycle } from "./DataLifecycle";
+import { Duplicates } from "./Duplicates";
 import { type AppError, httpStatus, publicMessage } from "./errors";
 import { GitHub } from "./GitHub";
 import { Ingest } from "./Ingest";
@@ -17,18 +19,28 @@ const IssuesLive = Issues.layer.pipe(
 	Layer.provide(Layer.mergeAll(Infra, WebhooksLive)),
 );
 const AccessLive = Access.layer.pipe(Layer.provide(Infra));
+const AiSettingsLive = AiSettings.layer.pipe(
+	Layer.provide(Layer.mergeAll(Infra, AccessLive)),
+);
+const DuplicatesLive = Duplicates.layer.pipe(
+	Layer.provide(Layer.mergeAll(Infra, AiSettingsLive)),
+);
 
 export const AppLayer = Layer.mergeAll(
 	Infra,
 	WebhooksLive,
 	IssuesLive,
 	AccessLive,
+	AiSettingsLive,
+	DuplicatesLive,
 	DataLifecycle.layer.pipe(Layer.provide(Infra)),
 	Overview.layer.pipe(Layer.provide(Layer.mergeAll(Infra, AccessLive))),
 	Portal.layer.pipe(Layer.provide(Layer.mergeAll(Infra, IssuesLive))),
 	GitHub.layer.pipe(Layer.provide(Layer.mergeAll(Infra, IssuesLive))),
 	Ingest.layer.pipe(
-		Layer.provide(Layer.mergeAll(Infra, WebhooksLive, IssuesLive)),
+		Layer.provide(
+			Layer.mergeAll(Infra, WebhooksLive, IssuesLive, DuplicatesLive),
+		),
 	),
 );
 

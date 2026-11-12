@@ -17,6 +17,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import * as z from "zod";
+import { DuplicateSuggestion } from "#/components/duplicate-suggestion";
 import {
 	Face,
 	IssueNumber,
@@ -36,6 +37,7 @@ import {
 import { Button } from "#/components/ui/button";
 import { cn } from "#/lib/utils";
 import {
+	dismissDuplicateFn,
 	getIssueFn,
 	listIssuesFn,
 	markDuplicateFn,
@@ -220,6 +222,24 @@ function TriagePage() {
 			),
 		[decide, projectId, selected],
 	);
+
+	// "Not a duplicate" keeps the report in the queue: only the hint goes away.
+	const dismissSuggestion = useCallback(async () => {
+		if (!selected || busy) return;
+		setBusy(true);
+		try {
+			await dismissDuplicateFn({
+				data: { projectId, number: selected.number },
+			});
+			await router.invalidate();
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : "Something went wrong",
+			);
+		} finally {
+			setBusy(false);
+		}
+	}, [busy, projectId, router, selected]);
 
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
@@ -437,6 +457,29 @@ function TriagePage() {
 
 						<div className="grid gap-6 px-6 py-6 xl:grid-cols-[minmax(0,1fr)_300px]">
 							<div className="min-w-0 space-y-5">
+								{detail.duplicateSuggestion && (
+									<DuplicateSuggestion
+										projectId={projectId}
+										suggestion={detail.duplicateSuggestion}
+										busy={busy}
+										onMerge={() => {
+											const original = detail.duplicateSuggestion?.issue.number;
+											if (original === undefined) return;
+											void decide(
+												`#${selected.number} merged into #${original}`,
+												() =>
+													markDuplicateFn({
+														data: {
+															projectId,
+															number: selected.number,
+															duplicateOf: original,
+														},
+													}),
+											);
+										}}
+										onDismiss={dismissSuggestion}
+									/>
+								)}
 								<div>
 									<h2 className="text-xl leading-7 font-semibold text-balance">
 										{selected.title}
