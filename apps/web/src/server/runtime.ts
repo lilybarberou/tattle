@@ -1,6 +1,7 @@
 import { Cause, Effect, Exit, Layer, ManagedRuntime } from "effect";
 import { Access } from "./Access";
 import { AiSettings } from "./AiSettings";
+import { causeKinds } from "./background";
 import { Conversations } from "./Conversations";
 import { Database } from "./Database";
 import { DataLifecycle } from "./DataLifecycle";
@@ -95,7 +96,11 @@ export const run = async <A>(
 			failure.value._tag === "DbError" ||
 			failure.value._tag === "StorageError"
 		) {
-			await runtime.runPromise(Effect.logError(Cause.pretty(exit.cause)));
+			// The kind and code only: a database error carries the SQL parameters,
+			// which can hold what a reporter wrote or someone's email.
+			await runtime.runPromise(
+				Effect.logError(`Request failed: ${causeKinds(exit.cause)}`),
+			);
 		}
 		throw new HttpError(
 			httpStatus(failure.value),

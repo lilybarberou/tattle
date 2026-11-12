@@ -1,10 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
-import { describe, expect, it } from "vitest";
+import { Effect } from "effect";
+import { describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
 import { activity, issue, report, webhookDelivery } from "#/db/schema";
+import { DbError } from "#/server/errors";
 import { Ingest } from "#/server/Ingest";
+import { HttpError, run as runRequest } from "#/server/runtime";
 import {
 	createWebhookEndpoint,
 	createWorkspace,
@@ -351,5 +354,27 @@ describe("Ingest.allowedOrigins", () => {
 		expect(
 			await run(Ingest.use((i) => i.allowedOrigins("pk_nope"))),
 		).toBeNull();
+	});
+});
+
+describe("a request that fails on the database", () => {
+	it("logs the kind and code only, never the SQL parameters", async () => {
+		const logged: string[] = [];
+		for (const method of ["log", "info", "warn", "error"] as const)
+			vi.spyOn(console, method).mockImplementation((...args) => {
+				logged.push(args.map(String).join(" "));
+			});
+		const cause = Object.assign(
+			new Error('insert into "report" … params: jo@example.com,Card declined'),
+			{ cause: { code: "23505", detail: "Key (email)=(jo@example.com)" } },
+		);
+		const error = await runRequest(Effect.fail(new DbError({ cause }))).catch(
+			(e) => e,
+		);
+		vi.restoreAllMocks();
+		expect(error).toBeInstanceOf(HttpError);
+		expect(error.message).toBe("Internal server error");
+		expect(logged.join("\n")).toContain("DbError 23505");
+		expect(logged.join("\n")).not.toContain("jo@example.com");
 	});
 });
