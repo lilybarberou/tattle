@@ -149,11 +149,39 @@ describe("Ingest.submit", () => {
 		expect(
 			(await submitFailure(payload, "https://evil.example.com"))._tag,
 		).toBe("InvalidInput");
-		expect((await submitFailure(payload, null))._tag).toBe("InvalidInput");
+		// Sandboxed frames and file:// pages send the literal "null".
+		expect((await submitFailure(payload, "null"))._tag).toBe("InvalidInput");
 		await expect(
 			submit(payload, "https://shop.example.com"),
 		).resolves.toMatchObject({
 			issueNumber: 1,
+		});
+	});
+
+	it("accepts reports without an Origin header, as mobile apps send them", async () => {
+		const { project: p } = await createWorkspace({
+			allowedOrigins: ["https://shop.example.com"],
+		});
+		const result = await submit(
+			reportPayload(p.publicKey, {
+				pageUrl: "Settings/Profile",
+				device: {
+					platform: "ios",
+					os: { name: "iOS", version: "18.2" },
+					app: { name: "Shop", version: "1.4.2", build: "87" },
+				},
+				sdk: { name: "@tattle/react-native", version: "0.1.0" },
+			}),
+			null,
+		);
+		const [saved] = await db
+			.select()
+			.from(report)
+			.where(eq(report.id, result.id));
+		expect(saved).toMatchObject({
+			origin: null,
+			pageUrl: "Settings/Profile",
+			sdk: { name: "@tattle/react-native" },
 		});
 	});
 

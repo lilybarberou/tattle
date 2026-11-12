@@ -44,6 +44,12 @@ const EVENT_HELP: Record<WebhookEvent, string> = {
 	"comment.created": "Someone, or an agent, commented",
 };
 
+type InstallTab = "web" | "api";
+const INSTALL_TABS: Array<{ id: InstallTab; label: string }> = [
+	{ id: "web", label: "Website" },
+	{ id: "api", label: "Mobile and other apps (API)" },
+];
+
 function SettingsPage() {
 	const project = projectRoute.useLoaderData();
 	const { baseUrl } = appRoute.useLoaderData();
@@ -51,6 +57,7 @@ function SettingsPage() {
 	const router = useRouter();
 	const [name, setName] = useState(project.name);
 	const [origins, setOrigins] = useState(project.allowedOrigins.join("\n"));
+	const [installTab, setInstallTab] = useState<InstallTab>("web");
 	const [events, setEvents] = useState<WebhookEvent[]>([]);
 	const [chatService, setChatService] = useState<"discord" | "slack">(
 		"discord",
@@ -86,6 +93,17 @@ function SettingsPage() {
 	const identifySnippet = `// After sign-in, so every report says who sent it:
 Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.plan })
 Tattle.setContext({ appVersion: "1.4.2" })`;
+	const curlSnippet = `curl ${baseUrl}/api/v1/ingest \\
+  -H "content-type: application/json" \\
+  -d '{
+    "projectKey": "${project.publicKey}",
+    "type": "bug",
+    "message": "The checkout button does nothing",
+    "pageUrl": "Checkout",
+    "device": { "platform": "ios", "os": { "name": "iOS", "version": "18.2" } },
+    "console": [],
+    "network": []
+  }'`;
 
 	return (
 		<>
@@ -142,11 +160,54 @@ Tattle.setContext({ appVersion: "1.4.2" })`;
 						</>
 					}
 				>
-					<CodeBlock code={scriptSnippet} />
-					<CodeBlock
-						label="Then identify the signed-in user"
-						code={identifySnippet}
-					/>
+					<div
+						role="tablist"
+						aria-label="Platform"
+						className="flex gap-5 border-b"
+					>
+						{INSTALL_TABS.map((t) => (
+							<button
+								key={t.id}
+								type="button"
+								role="tab"
+								aria-selected={installTab === t.id}
+								onClick={() => setInstallTab(t.id)}
+								className={cn(
+									"-mb-px h-9 border-b-2 border-transparent text-muted-foreground hover:text-ink",
+									installTab === t.id && "border-brand font-medium text-ink",
+								)}
+							>
+								{t.label}
+							</button>
+						))}
+					</div>
+					{installTab === "web" && (
+						<>
+							<CodeBlock code={scriptSnippet} />
+							<CodeBlock
+								label="Then identify the signed-in user"
+								code={identifySnippet}
+							/>
+						</>
+					)}
+					{installTab === "api" && (
+						<>
+							<p className="text-muted-foreground">
+								Swift, Kotlin, Flutter, React Native or a backend: send reports
+								with one JSON request. The{" "}
+								<a
+									href="https://github.com/lilybarberou/tattle/blob/main/docs/INGEST-API.md"
+									target="_blank"
+									rel="noreferrer"
+									className="text-ink underline underline-offset-2"
+								>
+									ingest API reference
+								</a>{" "}
+								lists every field.
+							</p>
+							<CodeBlock code={curlSnippet} />
+						</>
+					)}
 				</SettingsSection>
 
 				<SettingsSection
@@ -159,7 +220,12 @@ Tattle.setContext({ appVersion: "1.4.2" })`;
 								list your app's address before you go live.
 							</p>
 						) : (
-							"Only these sites can send reports with this key."
+							<>
+								<p>Only these sites can send reports with this key.</p>
+								<p className="mt-2">
+									Mobile apps are not affected: they send no site address.
+								</p>
+							</>
 						)
 					}
 				>

@@ -97,7 +97,14 @@ export function describeEvent(
 			color: isBug ? COLORS.bug : COLORS.feature,
 			fields: [
 				["From", who],
-				["Page", truncate(data.report.pageUrl, 200)],
+				...(data.report.pageUrl
+					? ([
+							[
+								/^https?:\/\//i.test(data.report.pageUrl) ? "Page" : "Screen",
+								truncate(data.report.pageUrl, 200),
+							],
+						] as Array<[string, string]>)
+					: []),
 				...(signals.length
 					? ([["Evidence", signals.join(" · ")]] as Array<[string, string]>)
 					: []),

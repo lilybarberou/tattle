@@ -216,6 +216,8 @@ const buildServer = (principal: Principal) => {
 								reporter: r.reporter,
 								hasScreenshot: r.screenshotKey !== null,
 								browser: r.device.browser,
+								app: r.device.app,
+								model: r.device.model,
 								os: r.device.os,
 								consoleErrors: r.console.filter((c) => c.level === "error")
 									.length,

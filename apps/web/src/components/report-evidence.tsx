@@ -39,14 +39,37 @@ const record = (value: unknown) =>
 		? (value as Record<string, unknown>)
 		: undefined;
 
+/** True when the page is a web address, false for a mobile app's screen name. */
+export const isWebPage = (pageUrl: string) => /^https?:\/\//i.test(pageUrl);
+
+/**
+ * Short labels for a report's device. Web reports describe a browser; mobile
+ * SDKs send `app` (name, version, build) and `model` instead.
+ */
 export const deviceSummary = (device: ReportDto["device"]) => {
 	const browser = record(device.browser);
+	const app = record(device.app);
 	const os = record(device.os);
 	const viewport = record(device.viewport);
+	const model = [str(device.manufacturer), str(device.model)]
+		.filter(Boolean)
+		.join(" ");
+	const appVersion = [
+		str(app?.version),
+		str(app?.build) ? `(${str(app?.build)})` : undefined,
+	]
+		.filter(Boolean)
+		.join(" ");
 	return {
+		mobile:
+			!browser && (device.platform === "ios" || device.platform === "android"),
 		browser: browser
 			? `${str(browser.name) ?? ""} ${str(browser.version)?.split(".")[0] ?? ""}`.trim()
 			: undefined,
+		app: app
+			? `${str(app.name) ?? ""} ${appVersion}`.trim() || undefined
+			: undefined,
+		model: model || undefined,
 		os: os
 			? `${str(os.name) ?? ""} ${str(os.version) ?? ""}`.trim()
 			: undefined,
@@ -83,7 +106,11 @@ export const countErrors = (report: ReportDto) => ({
 		.length,
 });
 
-/** The annotated screenshot, large, opening the full-size file in a new tab. */
+/**
+ * The annotated screenshot, large, opening the full-size file in a new tab.
+ * Its height is capped so a phone screenshot doesn't push the logs off screen;
+ * a desktop one still fills the column.
+ */
 export function Screenshot({ report }: { report: ReportDto }) {
 	const { objectUrl, failed } = useFetchedImage(report.screenshotUrl);
 	if (!report.screenshotUrl) return null;
@@ -92,13 +119,16 @@ export function Screenshot({ report }: { report: ReportDto }) {
 			href={objectUrl ?? report.screenshotUrl}
 			target="_blank"
 			rel="noreferrer"
-			className="block overflow-hidden rounded-lg border bg-raised"
+			className={cn(
+				"block overflow-hidden rounded-lg border bg-raised",
+				objectUrl && "w-fit max-w-full",
+			)}
 		>
 			{objectUrl ? (
 				<img
 					src={objectUrl}
 					alt="Annotated screenshot sent with the report"
-					className="w-full"
+					className="max-h-[32rem] w-auto max-w-full"
 				/>
 			) : (
 				<div className="flex aspect-[16/10] w-full items-center justify-center text-muted-foreground">
@@ -325,25 +355,40 @@ export function ReportFacts({ report }: { report: ReportDto }) {
 					</span>,
 				] as [string, React.ReactNode],
 		),
+		isWebPage(report.pageUrl)
+			? [
+					"Page",
+					<a
+						key="p"
+						href={report.pageUrl}
+						target="_blank"
+						rel="noreferrer"
+						className="flex min-w-0 items-center gap-1 hover:underline"
+					>
+						<span className="truncate">
+							{report.pageTitle || report.pageUrl.replace(/^https?:\/\//, "")}
+						</span>
+						<ExternalLinkIcon className="size-3 flex-none text-muted-foreground" />
+					</a>,
+				]
+			: [
+					"Screen",
+					<span key="p" className="truncate">
+						{report.pageTitle || report.pageUrl || "—"}
+					</span>,
+				],
+		...((device.mobile
+			? [
+					["App", device.app ?? "—"],
+					["Device", device.model ?? "—"],
+					["System", device.os ?? "—"],
+				]
+			: [
+					["Browser", device.browser ?? "—"],
+					["System", device.os ?? "—"],
+				]) as Array<[string, React.ReactNode]>),
 		[
-			"Page",
-			<a
-				key="p"
-				href={report.pageUrl}
-				target="_blank"
-				rel="noreferrer"
-				className="flex min-w-0 items-center gap-1 hover:underline"
-			>
-				<span className="truncate">
-					{report.pageTitle || report.pageUrl.replace(/^https?:\/\//, "")}
-				</span>
-				<ExternalLinkIcon className="size-3 flex-none text-muted-foreground" />
-			</a>,
-		],
-		["Browser", device.browser ?? "—"],
-		["System", device.os ?? "—"],
-		[
-			"Window",
+			device.mobile ? "Screen size" : "Window",
 			device.viewport ? (
 				<span key="v" className="num">
 					{device.viewport}

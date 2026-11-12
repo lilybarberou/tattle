@@ -40,12 +40,13 @@ describe("describeEvent", () => {
 	it("calls a feature report an idea and an anonymous reporter someone", () => {
 		const message = describeEvent("report.created", "p1", {
 			issue: { ...issue, type: "feature" },
-			report: { message: "Dark mode please", pageUrl: "/" },
+			report: { message: "Dark mode please", pageUrl: "Settings" },
 		});
 		expect(message?.title).toBe("Idea #7: Checkout button does nothing");
+		// A mobile app sends the screen's name instead of a web address.
 		expect(message?.fields).toEqual([
 			["From", "Someone"],
-			["Page", "/"],
+			["Screen", "Settings"],
 		]);
 	});
 

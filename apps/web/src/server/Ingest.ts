@@ -73,13 +73,20 @@ const parseDataUrl = (dataUrl: string) => {
 	return { extension: format === "jpeg" ? "jpg" : format, bytes };
 };
 
+/**
+ * The allowed origins stop other websites from sending reports with this key
+ * from their visitors' browsers. Browsers always send `Origin` on these
+ * requests and pages cannot change it. Mobile apps and servers send none, and
+ * could send any value anyway, so a missing `Origin` is accepted: refusing it
+ * would only shut out native apps, not anyone abusing the key.
+ */
 export const originAllowed = (
 	allowedOrigins: ReadonlyArray<string>,
 	origin: string | null,
 ) =>
+	origin === null ||
 	allowedOrigins.length === 0 ||
-	(origin !== null &&
-		allowedOrigins.some((allowed) => allowed === origin || allowed === "*"));
+	allowedOrigins.some((allowed) => allowed === origin || allowed === "*");
 
 export class Ingest extends Context.Service<
 	Ingest,
