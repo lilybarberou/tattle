@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { GitHub } from "#/server/GitHub";
 import { clientIp, limitGithub } from "#/server/rate-limit";
+import { readLimitedBody } from "#/server/request-body";
 import { run } from "#/server/runtime";
 
 // Pull request payloads are a few dozen KB; GitHub caps deliveries at 25 MB.
@@ -12,13 +13,6 @@ export const Route = createFileRoute("/api/v1/github/$projectId")({
 	server: {
 		handlers: {
 			POST: async ({ request, params }) => {
-				const length = Number(request.headers.get("content-length") ?? 0);
-				if (length > MAX_BODY_BYTES) {
-					return Response.json(
-						{ ok: false, message: "Payload is too large" },
-						{ status: 413 },
-					);
-				}
 				const limit = limitGithub(clientIp(), params.projectId);
 				if (!limit.ok) {
 					return Response.json(
@@ -29,13 +23,19 @@ export const Route = createFileRoute("/api/v1/github/$projectId")({
 						},
 					);
 				}
-				const body = new Uint8Array(await request.arrayBuffer());
-				if (body.byteLength > MAX_BODY_BYTES) {
-					return Response.json(
-						{ ok: false, message: "Payload is too large" },
-						{ status: 413 },
-					);
+				const read = await readLimitedBody(request, MAX_BODY_BYTES);
+				if (!read.ok) {
+					return read.reason === "too_large"
+						? Response.json(
+								{ ok: false, message: "Payload is too large" },
+								{ status: 413 },
+							)
+						: Response.json(
+								{ ok: false, message: "The body could not be read" },
+								{ status: 400 },
+							);
 				}
+				const body = read.bytes;
 				try {
 					const result = await run(
 						GitHub.use((github) =>

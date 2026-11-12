@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Ingest } from "#/server/Ingest";
 import { clientIp, limitIngest } from "#/server/rate-limit";
+import { readLimitedJson } from "#/server/request-body";
 import { runJson } from "#/server/runtime";
 
 // The widget runs on other sites, so this endpoint answers any origin; the
@@ -22,22 +23,19 @@ export const Route = createFileRoute("/api/v1/ingest")({
 				new Response(null, { status: 204, headers: corsHeaders(request) }),
 			POST: async ({ request }) => {
 				const headers = corsHeaders(request);
-				const length = Number(request.headers.get("content-length") ?? 0);
-				if (length > MAX_BODY_BYTES) {
-					return Response.json(
-						{ error: "Report is too large" },
-						{ status: 413, headers },
-					);
+				const read = await readLimitedJson(request, MAX_BODY_BYTES);
+				if (!read.ok) {
+					return read.reason === "too_large"
+						? Response.json(
+								{ error: "Report is too large" },
+								{ status: 413, headers },
+							)
+						: Response.json(
+								{ error: "Body must be JSON" },
+								{ status: 400, headers },
+							);
 				}
-				let body: unknown;
-				try {
-					body = await request.json();
-				} catch {
-					return Response.json(
-						{ error: "Body must be JSON" },
-						{ status: 400, headers },
-					);
-				}
+				const body = read.value;
 				const projectKey =
 					typeof body === "object" && body !== null && "projectKey" in body
 						? String((body as { projectKey: unknown }).projectKey)

@@ -604,6 +604,33 @@ describe("GET/POST /api/v1/my-reports", () => {
 			`test-${Math.random()}`,
 		);
 
+	it("refuses a chunked message body over the cap without reading all of it", async () => {
+		const { project: p } = await createWorkspace();
+		const sent = await submit(
+			reportPayload(p.publicKey, { reporterKey: KEY_A }),
+		);
+		let pulled = 0;
+		const body = new ReadableStream<Uint8Array>({
+			pull(controller) {
+				pulled++;
+				controller.enqueue(new Uint8Array(16 * 1024).fill(32));
+			},
+		});
+		const response = await request(`/${sent.id}/messages`, {
+			method: "POST",
+			headers: {
+				"x-tattle-project-key": p.publicKey,
+				"x-tattle-reporter-key": KEY_A,
+				"content-type": "application/json",
+			},
+			body,
+			duplex: "half",
+		} as RequestInit & { headers: Record<string, string> });
+		expect(response.status).toBe(413);
+		expect(pulled).toBeLessThan(20);
+		expect(await db.select().from(reportMessage)).toEqual([]);
+	});
+
 	it("lists, opens, answers and marks read with the device's key", async () => {
 		const { project: p } = await createWorkspace();
 		const sent = await submit(

@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import { Conversations, type ReporterAuth } from "./Conversations";
 import { limitReporter } from "./rate-limit";
+import { readLimitedJson } from "./request-body";
 import { runJson } from "./runtime";
 
 /**
@@ -97,14 +98,12 @@ export const handleReporterRequest = async (
 				{ headers },
 			);
 		case "post": {
-			if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES)
-				return error(413, "Message is too long");
-			let body: unknown;
-			try {
-				body = await request.json();
-			} catch {
-				return error(400, "Body must be JSON");
-			}
+			const read = await readLimitedJson(request, MAX_BODY_BYTES);
+			if (!read.ok)
+				return read.reason === "too_large"
+					? error(413, "Message is too long")
+					: error(400, "Body must be JSON");
+			const body = read.value;
 			const text =
 				typeof body === "object" &&
 				body !== null &&
