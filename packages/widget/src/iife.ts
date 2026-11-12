@@ -1,6 +1,7 @@
 // Script-tag entry: exposes `window.Tattle` and auto-initializes from the
 // <script data-project-key="pk_..." data-api-url="https://host"> attributes.
 import {
+	addBreadcrumb,
 	close,
 	destroy,
 	identify,
@@ -14,6 +15,7 @@ import { isColorScheme } from "./theme";
 import type { InitOptions } from "./types";
 
 export {
+	addBreadcrumb,
 	close,
 	destroy,
 	identify,
@@ -31,6 +33,7 @@ const api: Record<string, (...args: never[]) => void> = {
 	init,
 	identify,
 	setContext,
+	addBreadcrumb,
 	setTheme,
 	setColorScheme,
 	open,
@@ -68,7 +71,7 @@ function readScriptOptions(script: HTMLScriptElement): InitOptions | null {
 /**
  * Replays calls recorded by the optional loader stub:
  *   window.Tattle = window.Tattle || { q: [] };
- *   ["init","identify","setContext","setTheme","setColorScheme","open","close","destroy"].forEach(m =>
+ *   ["init","identify","setContext","addBreadcrumb","setTheme","setColorScheme","open","close","destroy"].forEach(m =>
  *     Tattle[m] = (...a) => Tattle.q.push([m, ...a]));
  */
 function replayQueue(stub: unknown): void {

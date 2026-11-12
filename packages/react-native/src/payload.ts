@@ -1,3 +1,4 @@
+import { getBreadcrumbs } from "./collectors/breadcrumbs";
 import { getConsoleEntries } from "./collectors/console";
 import { getDeviceInfo } from "./collectors/device";
 import { getNetworkEntries, getOriginalFetch } from "./collectors/network";
@@ -80,6 +81,7 @@ export function buildPayload(input: PayloadInput): IngestPayload {
 		device: getDeviceInfo(input.app),
 		console: getConsoleEntries(),
 		network: getNetworkEntries(),
+		breadcrumbs: getBreadcrumbs(),
 		sdk: { name: SDK_NAME, version: SDK_VERSION },
 	};
 	if (input.screenshot && input.type === "bug")

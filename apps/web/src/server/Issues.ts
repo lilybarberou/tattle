@@ -180,6 +180,7 @@ export class Issues extends Context.Service<
 				device: row.device,
 				console: row.console,
 				network: row.network,
+				breadcrumbs: row.breadcrumbs,
 				createdAt: row.createdAt.toISOString(),
 			});
 
@@ -793,6 +794,7 @@ export type ReportDto = {
 	device: ReportRow["device"];
 	console: ReportRow["console"];
 	network: ReportRow["network"];
+	breadcrumbs: ReportRow["breadcrumbs"];
 	createdAt: string;
 };
 

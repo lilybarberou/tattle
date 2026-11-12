@@ -101,6 +101,17 @@ export type NetworkEntry = {
 	timestamp: number;
 	error?: string;
 };
+/**
+ * One step of the trail an SDK records before a report: a navigation, a click,
+ * a form field change, the app going to the background, or one the app added.
+ */
+export type Breadcrumb = {
+	/** "navigation", "click", "input", "app", "custom" or the app's own. */
+	category: string;
+	message: string;
+	timestamp: number;
+	data?: { [key: string]: string | number | boolean | null };
+};
 export type Reporter = {
 	id?: string;
 	email?: string;
@@ -165,6 +176,10 @@ export const report = pgTable(
 		device: jsonb("device").$type<DeviceInfo>().notNull(),
 		console: jsonb("console").$type<ConsoleEntry[]>().notNull(),
 		network: jsonb("network").$type<NetworkEntry[]>().notNull(),
+		breadcrumbs: jsonb("breadcrumbs")
+			.$type<Breadcrumb[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		sdk: jsonb("sdk").$type<{ name: string; version: string }>(),
 		origin: text("origin"),
 		createdAt: createdAt(),

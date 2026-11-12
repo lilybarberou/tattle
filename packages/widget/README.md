@@ -2,7 +2,7 @@
 
 A drop-in bug report and feedback widget for any web app. It has no framework dependency and renders in a Shadow DOM.
 
-Users click a floating button, choose **Report a bug** or **Suggest an idea**, and can take an annotated screenshot of the page (rectangle, circle, arrow, pen, blur, undo, clear). They write a message and send it. Each report also carries the recent console logs, JS errors, network requests, device info, and the user and context your app provides.
+Users click a floating button, choose **Report a bug** or **Suggest an idea**, and can take an annotated screenshot of the page (rectangle, circle, arrow, pen, blur, undo, clear). They write a message and send it. Each report also carries the steps the user took before reporting (pages, clicks, field changes), the recent console logs, JS errors, network requests, device info, and the user and context your app provides.
 
 - Vanilla TypeScript. UI isolated in a closed Shadow DOM, with light and dark themes that follow `prefers-color-scheme` or your app
 - Themable to look like part of your app: colors, font, corner radius, texts, and extra CSS
@@ -38,7 +38,7 @@ With `defer`/`async` your code may run before the script has loaded. To call the
 ```html
 <script>
   window.Tattle = window.Tattle || { q: [] };
-  ["init", "identify", "setContext", "setTheme", "setColorScheme", "open", "close", "destroy"].forEach(function (m) {
+  ["init", "identify", "setContext", "addBreadcrumb", "setTheme", "setColorScheme", "open", "close", "destroy"].forEach(function (m) {
     Tattle[m] = Tattle[m] || function () { Tattle.q.push([m].concat([].slice.call(arguments))); };
   });
   Tattle.identify({ id: "u_42", email: "jane@acme.com", name: "Jane" });
@@ -67,14 +67,16 @@ Tattle.setColorScheme(scheme: "light" | "dark" | "system"): void
 
 Tattle.identify(user: { id?: string; email?: string; name?: string; [trait: string]: unknown } | null): void
 Tattle.setContext(context: Record<string, unknown>): void   // shallow-merged into previous context
+Tattle.addBreadcrumb(step: { message: string; category?: string; data?: Record<string, unknown> }): void
 Tattle.open(options?: { type?: "bug" | "feature" }): void
 Tattle.close(): void
 Tattle.destroy(): void
 ```
 
-- You can call `identify`, `setContext`, `setTheme`, `setColorScheme` and `open` before `init`. They are stored and applied when `init` runs; a `theme` or `colorScheme` given to `init` wins.
+- You can call `identify`, `setContext`, `addBreadcrumb`, `setTheme`, `setColorScheme` and `open` before `init`. They are stored and applied when `init` runs; a `theme` or `colorScheme` given to `init` wins.
 - Calling `init` again replaces the current widget, for example to change locale or position.
-- `destroy` removes the UI and restores the original `console`, `fetch` and `XMLHttpRequest`. It also clears buffers, user and context.
+- `destroy` removes the UI and restores the original `console`, `fetch`, `XMLHttpRequest` and `history` methods. It also clears buffers, user and context.
+- `addBreadcrumb` adds a step of your own to the trail, for what the page alone does not show: `Tattle.addBreadcrumb({ message: "Applied coupon", category: "cart", data: { code: "SPRING" } })`. `category` defaults to `"custom"`; `data` keeps up to 10 strings, numbers, booleans or nulls. Never put secrets in it.
 - When `identify` gives a user email, the form hides its optional email field.
 
 ## Match your app's design
@@ -191,6 +193,7 @@ Submitting a report sends `POST {apiUrl}/api/v1/ingest` with `Content-Type: appl
             screen, viewport, colorScheme, online, deviceMemory?, connection? },
   console: [{ level, message, timestamp, stack? }],                  // last 200
   network: [{ method, url, status, durationMs, timestamp, error? }],  // last 100
+  breadcrumbs: [{ category, message, timestamp, data? }],            // last 50
   sdk: { name: "@tattle/widget", version: "0.1.0" }
 }
 ```
@@ -202,11 +205,20 @@ The server answers `201 { id, issueNumber? }`. On an error status it answers `{ 
 - **Console**: wraps `console.log/info/warn/error/debug`. The original methods still run. Arguments are serialized safely: Errors become `name: message` with their stack. Objects are stringified with circular references handled, a depth limit of 4, and strings cut to 1000 chars. Each message is capped at 4000 chars.
 - **Errors**: uncaught errors, unhandled promise rejections and failed resource loads become `error` entries.
 - **Network**: wraps `fetch` and `XMLHttpRequest`. It records only method, URL, status (0 on network failure), duration and timestamp, never bodies or headers. The widget's own requests are not recorded: the ingest call and the assets fetched while taking a screenshot.
+- **Steps before the report** (`breadcrumbs`): the last 50 of these, with their time:
+  - `navigation`: every URL change (`pushState`, `replaceState`, back and forward, `#hash` changes), redacted like `pageUrl` and without the origin when it is the page's own.
+  - `click`: a short description of what was clicked: its role, accessible name (or up to 40 characters of its text), and id, e.g. `button “Pay now” #pay`. Clicks inside fields are skipped: their changes are recorded instead.
+  - `input`: which field changed, by its label and type, e.g. `Changed “Email” (email)`. Never the value. Password and payment card fields (`autocomplete="cc-…"`) are skipped entirely.
+  - `app`: leaving the tab and coming back.
+  - Your own steps, from `addBreadcrumb`.
+
+  Clicks and changes inside the widget are not recorded. The dashboard shows the steps in time order, with the console errors and failed requests in between.
 - **Device**: a small built-in UA parser covers Chrome, Edge, Firefox, Safari and Opera on Windows, macOS, iOS, Android and Linux. Screen, viewport, timezone, color scheme and connection info are read when the report is sent.
 
 ## Privacy
 
-- **URL redaction.** Query (and `#fragment`) parameters whose key matches `/token|key|secret|password|auth|session|code/i` have their value replaced with `[redacted]`. This applies to network entries and `pageUrl`.
+- **URL redaction.** Query (and `#fragment`) parameters whose key matches `/token|key|secret|password|auth|session|code/i` have their value replaced with `[redacted]`. This applies to network entries, navigation steps and `pageUrl`.
+- **Steps.** Field values are never recorded. Inside an element with `data-tattle-mask`, a click is described by its role and label (`aria-label`, `title`) only, never by its text.
 - **Screenshot masking.** Elements matching any of these selectors are covered with a solid block in the screenshot:
   - `input[type=password]`
   - `[data-tattle-mask]`

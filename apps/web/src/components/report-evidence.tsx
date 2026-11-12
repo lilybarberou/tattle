@@ -2,6 +2,7 @@ import { ExternalLinkIcon, ImageOffIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "#/lib/utils";
 import type { ReportDto } from "#/server/Issues";
+import { buildTrail, isFailedRequest } from "#/shared/trail";
 import { Face, relativeTime } from "./issue-meta";
 
 // Loads an image through fetch(). In development, Nitro hands requests made by
@@ -102,8 +103,7 @@ export const errorSignal = (errors: number, failed: number) =>
 
 export const countErrors = (report: ReportDto) => ({
 	errors: report.console.filter((c) => c.level === "error").length,
-	failed: report.network.filter((n) => n.status === 0 || n.status >= 400)
-		.length,
+	failed: report.network.filter(isFailedRequest).length,
 });
 
 /**
@@ -144,7 +144,7 @@ export function Screenshot({ report }: { report: ReportDto }) {
 	);
 }
 
-type Tab = "console" | "network" | "device" | "context";
+type Tab = "steps" | "console" | "network" | "device" | "context";
 
 const levelClass: Record<string, string> = {
 	error: "text-negative",
@@ -158,11 +158,91 @@ const levelClass: Record<string, string> = {
 const withRowIds = <T,>(entries: T[]) =>
 	entries.map((entry, index) => ({ entry, rowId: `row-${index}` }));
 
-/** Console, network, device and account data, behind underline tabs. */
+const STEP_LABELS: Record<string, string> = {
+	navigation: "navigate",
+	click: "click",
+	input: "input",
+	app: "app",
+};
+
+/**
+ * What the user did before sending, oldest first, with the console errors and
+ * failed requests in between: usually enough to reproduce the bug.
+ */
+function StepsTimeline({ report }: { report: ReportDto }) {
+	const trail = buildTrail(report);
+	if (report.breadcrumbs.length === 0)
+		return (
+			<p className="py-3 font-sans text-muted-foreground">
+				No steps were recorded before the report.
+			</p>
+		);
+	return (
+		<ol aria-label="Steps before the report">
+			{withRowIds(trail).map(({ entry, rowId }) => (
+				<li
+					key={rowId}
+					className={cn(
+						"grid grid-cols-[64px_64px_minmax(0,1fr)] gap-2 border-b border-rule py-1",
+						entry.kind !== "step" && "text-negative",
+					)}
+				>
+					<span className="num text-muted-foreground">
+						{new Date(entry.timestamp).toLocaleTimeString("en-GB")}
+					</span>
+					<span className="truncate text-muted-foreground">
+						{entry.kind === "step"
+							? (STEP_LABELS[entry.category] ?? entry.category)
+							: entry.kind === "error"
+								? "error"
+								: "failed"}
+					</span>
+					<span className="min-w-0 break-words whitespace-pre-wrap">
+						{entry.kind === "step" ? (
+							<>
+								{entry.message}
+								{entry.data && (
+									<span className="text-muted-foreground">
+										{" "}
+										{Object.entries(entry.data)
+											.map(([key, value]) => `${key}: ${String(value)}`)
+											.join(" · ")}
+									</span>
+								)}
+							</>
+						) : entry.kind === "error" ? (
+							<span className="line-clamp-3">{entry.message}</span>
+						) : (
+							<>
+								{entry.method} {entry.url}{" "}
+								<span className="num">
+									{entry.status || entry.error || "no response"}
+								</span>
+							</>
+						)}
+					</span>
+				</li>
+			))}
+			<li className="grid grid-cols-[64px_64px_minmax(0,1fr)] gap-2 py-1 text-muted-foreground">
+				<span />
+				<span>sent</span>
+				<span className="font-sans">The report was sent.</span>
+			</li>
+		</ol>
+	);
+}
+
+/** Steps, console, network, device and account data, behind underline tabs. */
 export function ReportLogs({ report }: { report: ReportDto }) {
 	const { errors, failed } = countErrors(report);
 	const [tab, setTab] = useState<Tab>(
-		errors > 0 ? "console" : failed > 0 ? "network" : "console",
+		report.breadcrumbs.length > 0
+			? "steps"
+			: errors > 0
+				? "console"
+				: failed > 0
+					? "network"
+					: "console",
 	);
 	const tabs: Array<{
 		id: Tab;
@@ -170,6 +250,7 @@ export function ReportLogs({ report }: { report: ReportDto }) {
 		count?: number;
 		alert?: number;
 	}> = [
+		{ id: "steps", label: "Steps", count: report.breadcrumbs.length },
 		{
 			id: "console",
 			label: "Console",
@@ -217,6 +298,7 @@ export function ReportLogs({ report }: { report: ReportDto }) {
 				))}
 			</div>
 			<div className="max-h-80 overflow-auto pt-2 font-mono text-xs leading-5">
+				{tab === "steps" && <StepsTimeline report={report} />}
 				{tab === "console" &&
 					(report.console.length === 0 ? (
 						<p className="py-3 font-sans text-muted-foreground">
@@ -257,7 +339,7 @@ export function ReportLogs({ report }: { report: ReportDto }) {
 						<table className="w-full">
 							<tbody>
 								{withRowIds(report.network).map(({ entry, rowId }) => {
-									const bad = entry.status === 0 || entry.status >= 400;
+									const bad = isFailedRequest(entry);
 									return (
 										<tr key={rowId} className="border-b border-rule">
 											<td

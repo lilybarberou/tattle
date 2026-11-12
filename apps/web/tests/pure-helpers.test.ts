@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { passwordPolicy } from "#/lib/password-policy";
 import { limitIngest, limitPortal } from "#/server/rate-limit";
+import { buildTrail, trailLine } from "#/shared/trail";
 
 afterEach(() => {
 	vi.unstubAllEnvs();
@@ -66,5 +67,63 @@ describe("passwordPolicy", () => {
 		expect(passwordPolicy().breachCheck).toBe(false);
 		vi.stubEnv("PASSWORD_BREACH_CHECK", "0");
 		expect(passwordPolicy().breachCheck).toBe(true);
+	});
+});
+
+describe("the trail before a report", () => {
+	it("interleaves steps with errors and failed requests, oldest first", () => {
+		const at = (seconds: number) => Date.UTC(2026, 0, 2, 9, 0, seconds);
+		const trail = buildTrail({
+			breadcrumbs: [
+				{ category: "navigation", message: "/cart", timestamp: at(1) },
+				{ category: "click", message: "button “Pay”", timestamp: at(4) },
+			],
+			console: [
+				{ level: "warn", message: "slow", timestamp: at(2) },
+				{ level: "error", message: "TypeError:\n  boom", timestamp: at(4) },
+			],
+			network: [
+				{
+					method: "GET",
+					url: "/a",
+					status: 200,
+					durationMs: 1,
+					timestamp: at(3),
+				},
+				{
+					method: "POST",
+					url: "/pay",
+					status: 0,
+					durationMs: 1,
+					timestamp: at(5),
+					error: "Network error",
+				},
+				{
+					method: "GET",
+					url: "/b",
+					status: 404,
+					durationMs: 1,
+					timestamp: at(6),
+				},
+			],
+		});
+		expect(trail.map(trailLine)).toEqual([
+			"09:00:01 navigation: /cart",
+			"09:00:04 click: button “Pay”",
+			"09:00:04 console error: TypeError: boom",
+			"09:00:05 failed request: POST /pay → Network error",
+			"09:00:06 failed request: GET /b → 404",
+		]);
+	});
+
+	it("survives a timestamp no clock can show", () => {
+		expect(
+			trailLine({
+				kind: "step",
+				category: "custom",
+				message: "x",
+				timestamp: 1e20,
+			}),
+		).toBe("--:--:-- custom: x");
 	});
 });

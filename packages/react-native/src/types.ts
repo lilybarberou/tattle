@@ -159,6 +159,24 @@ export interface NetworkEntry {
 	error?: string;
 }
 
+/** One step of what the user did before the report. */
+export interface Breadcrumb {
+	/** "navigation", "app", "custom" or your own. */
+	category: string;
+	message: string;
+	timestamp: number;
+	data?: Record<string, string | number | boolean | null>;
+}
+
+export interface BreadcrumbInput {
+	/** What happened, e.g. "Applied coupon SPRING". Up to 300 characters. */
+	message: string;
+	/** Default "custom". */
+	category?: string;
+	/** Up to 10 short values: strings, numbers, booleans or null. */
+	data?: Record<string, unknown>;
+}
+
 export interface DeviceInfo {
 	platform: "ios" | "android" | string;
 	os: { name: string; version: string };
@@ -200,6 +218,8 @@ export interface IngestPayload {
 	device: DeviceInfo;
 	console: ConsoleEntry[];
 	network: NetworkEntry[];
+	/** The last 50 steps: screens, foreground and background, your own. */
+	breadcrumbs: Breadcrumb[];
 	sdk: { name: string; version: string };
 }
 

@@ -1,6 +1,12 @@
 import { eq } from "drizzle-orm";
 import { Context, Effect, Layer, Schema } from "effect";
-import { type JsonObject, project, type Reporter, report } from "#/db/schema";
+import {
+	type Breadcrumb,
+	type JsonObject,
+	project,
+	type Reporter,
+	report,
+} from "#/db/schema";
 import { Database } from "./Database";
 import {
 	type DbError,
@@ -16,6 +22,20 @@ const MAX_SCREENSHOT_BYTES = 8 * 1024 * 1024;
 
 const Text = (max: number) => Schema.String.check(Schema.isMaxLength(max));
 const JsonRecord = Schema.Record(Schema.String, Schema.Unknown);
+
+// What the user did before the report. Flat and small: a few short values per
+// step, so a step cannot smuggle a large blob past the size caps.
+const BreadcrumbEntry = Schema.Struct({
+	category: Text(50),
+	message: Text(500),
+	timestamp: Schema.Number,
+	data: Schema.optional(
+		Schema.Record(
+			Text(100),
+			Schema.Union([Text(500), Schema.Number, Schema.Boolean, Schema.Null]),
+		).check(Schema.isMaxProperties(10)),
+	),
+});
 
 // Contract shared with packages/widget (see its README).
 export const IngestPayload = Schema.Struct({
@@ -53,6 +73,10 @@ export const IngestPayload = Schema.Struct({
 			error: Schema.optional(Text(2000)),
 		}),
 	).check(Schema.isMaxLength(300)),
+	// Optional: SDKs older than the trail, and custom clients, send none.
+	breadcrumbs: Schema.optional(
+		Schema.Array(BreadcrumbEntry).check(Schema.isMaxLength(100)),
+	),
 	sdk: Schema.optional(Schema.Struct({ name: Text(100), version: Text(50) })),
 });
 export type IngestPayload = typeof IngestPayload.Type;
@@ -170,6 +194,7 @@ export class Ingest extends Context.Service<
 							device: payload.device as JsonObject,
 							console: [...payload.console],
 							network: [...payload.network],
+							breadcrumbs: (payload.breadcrumbs ?? []) as Breadcrumb[],
 							sdk: payload.sdk ?? null,
 							origin,
 						})

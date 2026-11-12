@@ -140,6 +140,9 @@ describe("reporters (GDPR)", () => {
 			withScreenshot(p.publicKey, {
 				reporter: jo,
 				message: "Jo's private problem",
+				breadcrumbs: [
+					{ category: "navigation", message: "/account", timestamp: 1 },
+				],
 			}),
 		);
 		const shared = await submit(reportPayload(p.publicKey, { reporter: sam }));
@@ -188,6 +191,7 @@ describe("reporters (GDPR)", () => {
 				project: string;
 				message: string;
 				screenshot: string | null;
+				breadcrumbs: unknown[];
 			}>;
 			votes: Array<{ issue: string }>;
 		};
@@ -197,6 +201,9 @@ describe("reporters (GDPR)", () => {
 			(r) => r.message === "Jo's private problem",
 		);
 		expect(withShot?.project).toBe(p.name);
+		expect(withShot?.breadcrumbs).toEqual([
+			{ category: "navigation", message: "/account", timestamp: 1 },
+		]);
 		expect(withShot?.screenshot).toMatch(
 			/^http:\/\/localhost:3000\/api\/v1\/files\?key=/,
 		);
@@ -288,13 +295,14 @@ describe("reporters (GDPR)", () => {
 });
 
 describe("purgeExpired", () => {
-	it("drops screenshots and logs of old reports only, keeping the message", async () => {
+	it("drops screenshots, logs and steps of old reports only, keeping the message", async () => {
 		const { project: p } = await createWorkspace();
 		const logs = {
 			console: [{ level: "error" as const, message: "boom", timestamp: 1 }],
 			network: [
 				{ method: "GET", url: "/x", status: 500, durationMs: 1, timestamp: 1 },
 			],
+			breadcrumbs: [{ category: "click", message: "button", timestamp: 1 }],
 		};
 		const old = await submit(
 			withScreenshot(p.publicKey, { ...logs, message: "Old one" }),
@@ -314,11 +322,13 @@ describe("purgeExpired", () => {
 			screenshotKey: null,
 			console: [],
 			network: [],
+			breadcrumbs: [],
 		});
 		expect(existsSync(fileOf(oldKey))).toBe(false);
 		expect(await reportRow(recent.id)).toMatchObject({
 			screenshotKey: recentKey,
 			console: logs.console,
+			breadcrumbs: logs.breadcrumbs,
 		});
 		expect(existsSync(fileOf(recentKey))).toBe(true);
 		// Nothing left to purge.

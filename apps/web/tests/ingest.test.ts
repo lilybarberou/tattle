@@ -131,6 +131,67 @@ describe("Ingest.submit", () => {
 		expect(error._tag).toBe("InvalidInput");
 	});
 
+	it("stores the steps before the report, and none from older SDKs", async () => {
+		const { project: p } = await createWorkspace();
+		const breadcrumbs = [
+			{ category: "navigation", message: "/cart", timestamp: 1 },
+			{
+				category: "click",
+				message: "button “Pay now” #pay",
+				timestamp: 2,
+				data: { attempt: 2, coupon: null, express: true, plan: "pro" },
+			},
+		];
+		const withSteps = await submit(reportPayload(p.publicKey, { breadcrumbs }));
+		const without = await submit(reportPayload(p.publicKey));
+		const [saved] = await db
+			.select()
+			.from(report)
+			.where(eq(report.id, withSteps.id));
+		expect(saved?.breadcrumbs).toEqual(breadcrumbs);
+		const [old] = await db
+			.select()
+			.from(report)
+			.where(eq(report.id, without.id));
+		expect(old?.breadcrumbs).toEqual([]);
+	});
+
+	const step = (overrides: object = {}) => ({
+		category: "click",
+		message: "button",
+		timestamp: 1,
+		...overrides,
+	});
+	it.each([
+		["too many steps", Array.from({ length: 101 }, () => step())],
+		[
+			"a step message over 500 characters",
+			[step({ message: "x".repeat(501) })],
+		],
+		["a category over 50 characters", [step({ category: "c".repeat(51) })]],
+		["a step without a timestamp", [step({ timestamp: undefined })]],
+		["nested step data", [step({ data: { cart: { items: ["a", "b"] } } })]],
+		[
+			"step data with more than 10 keys",
+			[
+				step({
+					data: Object.fromEntries(
+						Array.from({ length: 11 }, (_, i) => [`k${i}`, i]),
+					),
+				}),
+			],
+		],
+		["a long step value", [step({ data: { note: "y".repeat(501) } })]],
+	])("rejects %s", async (_, breadcrumbs) => {
+		const { project: p } = await createWorkspace();
+		const error = await submitFailure({
+			...reportPayload(p.publicKey),
+			breadcrumbs,
+		});
+		expect(error._tag).toBe("InvalidInput");
+		expect(await db.select().from(report)).toHaveLength(0);
+	});
+
 	it("rejects a payload that is not an object", async () => {
 		expect((await submitFailure("hello"))._tag).toBe("InvalidInput");
 	});

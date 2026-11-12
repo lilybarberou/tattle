@@ -15,6 +15,13 @@
       "when": 1794409790734,
       "tag": "0001_slow_reptil",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794495559548,
+      "tag": "0002_report_breadcrumbs",
+      "breakpoints": true
     }
   ]
 }

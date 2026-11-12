@@ -1,0 +1,1 @@
+ALTER TABLE "report" ADD COLUMN "breadcrumbs" jsonb DEFAULT '[]'::jsonb NOT NULL;

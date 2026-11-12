@@ -1,11 +1,21 @@
+import { installBreadcrumbCollector } from "./collectors/breadcrumbs";
 import { installConsoleCollector } from "./collectors/console";
 import { installNetworkCollector } from "./collectors/network";
+import { addBreadcrumb, setScreen, trackNavigation } from "./navigation";
 import { requestClose, requestOpen, state } from "./state";
 import type { OpenOptions, TattleUser } from "./types";
 
+export {
+	addBreadcrumb,
+	type NavigationRefLike,
+	setScreen,
+	trackNavigation,
+} from "./navigation";
 export type {
 	AnimationPreset,
 	AppInfo,
+	Breadcrumb,
+	BreadcrumbInput,
 	ColorScheme,
 	ConsoleEntry,
 	ConsoleLevel,
@@ -31,6 +41,7 @@ export { TattleProvider, type TattleProviderProps } from "./ui/Provider";
 // are kept: import it near the top of your entry file.
 installConsoleCollector();
 installNetworkCollector();
+installBreadcrumbCollector();
 
 /** Sets (or clears with `null`) the user attached to reports. */
 export function identify(user: TattleUser | null): void {
@@ -43,11 +54,6 @@ export function setContext(context: Record<string, unknown>): void {
 	state.context = { ...(state.context ?? {}), ...context };
 }
 
-/** Names the screen the user is on; reports show it. */
-export function setScreen(name: string | null | undefined): void {
-	state.screen = typeof name === "string" ? name : "";
-}
-
 /** Opens the feedback form. Works before the provider mounts too. */
 export function open(options?: OpenOptions): void {
 	requestOpen(options);
@@ -57,5 +63,13 @@ export function close(): void {
 	requestClose();
 }
 
-export const Tattle = { identify, setContext, setScreen, open, close };
+export const Tattle = {
+	identify,
+	setContext,
+	setScreen,
+	trackNavigation,
+	addBreadcrumb,
+	open,
+	close,
+};
 export default Tattle;

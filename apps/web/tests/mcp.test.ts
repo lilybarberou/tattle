@@ -129,7 +129,20 @@ describe("handleMcpRequest", () => {
 							{
 								level: "error",
 								message: "TypeError: x is undefined",
-								timestamp: 1,
+								timestamp: Date.UTC(2026, 0, 2, 14, 3, 6),
+							},
+						],
+						breadcrumbs: [
+							{
+								category: "navigation",
+								message: "/checkout",
+								timestamp: Date.UTC(2026, 0, 2, 14, 3, 0),
+							},
+							{
+								category: "click",
+								message: "button “Pay now”",
+								timestamp: Date.UTC(2026, 0, 2, 14, 3, 5),
+								data: { attempt: 2 },
 							},
 						],
 					}),
@@ -151,6 +164,11 @@ describe("handleMcpRequest", () => {
 			console: [{ level: "error", message: "TypeError: x is undefined" }],
 		});
 		expect(reportJson).not.toHaveProperty("screenshotKey");
+		expect(reportJson.timeline).toEqual([
+			"14:03:00 navigation: /checkout",
+			"14:03:05 click: button “Pay now” (attempt: 2)",
+			"14:03:06 console error: TypeError: x is undefined",
+		]);
 		expect(imagePart).toEqual({
 			type: "image",
 			mimeType: "image/png",

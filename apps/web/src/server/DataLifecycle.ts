@@ -15,7 +15,7 @@ export type ReporterMatch = {
 /**
  * Deleting things and the personal data in them: projects, reports, issues,
  * everything about one end user (GDPR access and erasure), and the automatic
- * purge of old screenshots and logs (REPORT_RETENTION_DAYS).
+ * purge of old screenshots, logs and steps (REPORT_RETENTION_DAYS).
  */
 export class DataLifecycle extends Context.Service<
 	DataLifecycle,
@@ -241,6 +241,7 @@ export class DataLifecycle extends Context.Service<
 							device: r.device,
 							console: r.console,
 							network: r.network,
+							breadcrumbs: r.breadcrumbs,
 							screenshot: r.screenshotKey
 								? storage.signedUrl(r.screenshotKey, 7 * 24 * 3600)
 								: null,
@@ -339,7 +340,8 @@ export class DataLifecycle extends Context.Service<
 				};
 			});
 
-			// Keeps the message and who sent it, drops what is heavy and sensitive.
+			// Keeps the message and who sent it, drops what is heavy and sensitive:
+			// the screenshot, the logs and the steps before the report.
 			const purgeExpired = Effect.fn("DataLifecycle.purgeExpired")(function* (
 				days: number,
 			) {
@@ -355,6 +357,7 @@ export class DataLifecycle extends Context.Service<
 									isNotNull(report.screenshotKey),
 									sql`jsonb_array_length(${report.console}) > 0`,
 									sql`jsonb_array_length(${report.network}) > 0`,
+									sql`jsonb_array_length(${report.breadcrumbs}) > 0`,
 								),
 							),
 						)
@@ -365,7 +368,12 @@ export class DataLifecycle extends Context.Service<
 				yield* database.query((db) =>
 					db
 						.update(report)
-						.set({ screenshotKey: null, console: [], network: [] })
+						.set({
+							screenshotKey: null,
+							console: [],
+							network: [],
+							breadcrumbs: [],
+						})
 						.where(
 							inArray(
 								report.id,

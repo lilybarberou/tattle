@@ -2,7 +2,7 @@
 
 Self-hosted bug reports and feature requests for your web and mobile apps, built to be triaged by AI agents.
 
-- **Widget** (`packages/widget`, and `packages/react-native` for React Native and Expo apps): a button in your app. Users report a bug with an annotated screenshot, or suggest an idea. Console logs, JS errors, network requests, device info and the signed-in account are attached automatically.
+- **Widget** (`packages/widget`, and `packages/react-native` for React Native and Expo apps): a button in your app. Users report a bug with an annotated screenshot, or suggest an idea. The steps the user took before reporting (pages, clicks, field changes), console logs, JS errors, network requests, device info and the signed-in account are attached automatically.
 - **Tracker** (`apps/web`): projects, a Triage inbox, issues with status, priority, labels and assignee, duplicates merged with their reports.
 - **For agents**: an MCP server, signed webhooks and API tokens, so an agent can triage new reports, merge duplicates and work on fixes.
 
@@ -42,7 +42,7 @@ What runs:
 
 **Screenshots on S3** (optional): set `STORAGE_DRIVER=s3` with `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, and `S3_ENDPOINT` for any provider other than AWS (Cloudflare R2, Scaleway, OVH, Backblaze, RustFS, Garage…; add `S3_FORCE_PATH_STYLE=true` for the self-hosted ones). The bucket stays private: the app serves screenshots through short-lived signed links. Switching drivers does not move existing files.
 
-**Personal data**: **Privacy** in the dashboard finds everything about one person by email or user id, exports it as JSON and erases it (GDPR access and erasure requests). `REPORT_RETENTION_DAYS` drops screenshots and logs of older reports automatically; the message and the reporter stay.
+**Personal data**: **Privacy** in the dashboard finds everything about one person by email or user id, exports it as JSON and erases it (GDPR access and erasure requests). `REPORT_RETENTION_DAYS` drops screenshots, logs and the steps before the report of older reports automatically; the message and the reporter stay.
 
 On start, the app checks its configuration, waits for Postgres and applies pending migrations, so an upgrade is `docker compose pull && docker compose up -d`. Pin a version with `TATTLE_VERSION` in `.env`.
 
@@ -92,7 +92,7 @@ See [packages/widget/README.md](packages/widget/README.md) for the options, the 
 
 ## Install in a mobile app
 
-**React Native and Expo**: `@tattle/react-native` adds the same button and form, with an annotated screenshot of the current screen, console logs, uncaught errors, network requests, and the device and app version. It is not on npm yet: its README explains how to install it from this repository.
+**React Native and Expo**: `@tattle/react-native` adds the same button and form, with an annotated screenshot of the current screen, the screens visited before, console logs, uncaught errors, network requests, and the device and app version. It is not on npm yet: its README explains how to install it from this repository.
 
 ```tsx
 import { TattleProvider, Tattle } from "@tattle/react-native";
@@ -102,7 +102,7 @@ import { TattleProvider, Tattle } from "@tattle/react-native";
 </TattleProvider>
 
 Tattle.identify({ id: user.id, email: user.email, name: user.name });
-Tattle.setScreen(route.name); // on every navigation
+Tattle.trackNavigation(navigationRef); // or Tattle.setScreen(name) on every navigation
 ```
 
 See [packages/react-native/README.md](packages/react-native/README.md).
@@ -134,7 +134,7 @@ OAuth discovery follows the MCP spec: `/.well-known/oauth-protected-resource/api
 | `list_issues` | Filter by status (`["triage"]` for the inbox), type, keyword |
 | `search_issues` | Similar issues by keywords, to spot duplicates |
 | `get_issue` | Issue, comments, activity, report summaries |
-| `get_report` | Full report: logs, device, account, and the screenshot as an image |
+| `get_report` | Full report: logs, device, account, a timeline of what the user did with errors and failed requests in between, and the screenshot as an image |
 | `create_issue`, `update_issue`, `add_comment` | Write access (tokens can be read-only) |
 | `mark_duplicate` | Marks an issue as a duplicate; its reports move to the original |
 | `move_report` | Attaches one report to another issue |

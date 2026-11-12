@@ -134,6 +134,24 @@ export interface NetworkEntry {
 	error?: string;
 }
 
+/** One step of what the user did before the report. */
+export interface Breadcrumb {
+	/** "navigation", "click", "input", "app", "custom" or your own. */
+	category: string;
+	message: string;
+	timestamp: number;
+	data?: Record<string, string | number | boolean | null>;
+}
+
+export interface BreadcrumbInput {
+	/** What happened, e.g. "Applied coupon SPRING". Up to 300 characters. */
+	message: string;
+	/** Default "custom". */
+	category?: string;
+	/** Up to 10 short values: strings, numbers, booleans or null. */
+	data?: Record<string, unknown>;
+}
+
 export interface DeviceInfo {
 	userAgent: string;
 	browser: { name: string; version: string };
@@ -169,6 +187,8 @@ export interface IngestPayload {
 	device: DeviceInfo;
 	console: ConsoleEntry[];
 	network: NetworkEntry[];
+	/** The last 50 steps: navigations, clicks, field changes, tab switches. */
+	breadcrumbs: Breadcrumb[];
 	sdk: { name: "@tattle/widget"; version: "0.1.0" };
 }
 

@@ -2,7 +2,7 @@
 
 Tattle's bug report and feedback widget for React Native and Expo apps.
 
-Users tap a floating button, choose **Report a bug** or **Suggest an idea**, write a message and send it. A bug report comes with a screenshot of the screen they were on. Users can annotate it (rectangle, circle, arrow, pen, blur) or remove it. Each report also carries the recent console logs, uncaught errors, network requests, the device and app version, and the user and context your app provides.
+Users tap a floating button, choose **Report a bug** or **Suggest an idea**, write a message and send it. A bug report comes with a screenshot of the screen they were on. Users can annotate it (rectangle, circle, arrow, pen, blur) or remove it. Each report also carries the screens the user went through before reporting, the recent console logs, uncaught errors, network requests, the device and app version, and the user and context your app provides.
 
 - Works with Expo (including Expo Go) and bare React Native, iOS and Android
 - French and English UI, light and dark themes that follow the system or your app
@@ -54,7 +54,7 @@ Tattle.identify(null); // after sign-out
 Tattle.setContext({ tenant: "acme" });
 ```
 
-Reports show the screen they came from once you name it on every navigation:
+Reports show the screen they came from, and the screens visited before it, once the SDK follows your navigation:
 
 ```tsx
 // React Navigation
@@ -62,13 +62,29 @@ const navigationRef = useNavigationContainerRef();
 
 <NavigationContainer
   ref={navigationRef}
-  onStateChange={() => Tattle.setScreen(navigationRef.getCurrentRoute()?.name)}
+  onReady={() => Tattle.trackNavigation(navigationRef)}
 >
 
 // Expo Router, in the root layout
 const pathname = usePathname();
 useEffect(() => Tattle.setScreen(pathname), [pathname]);
 ```
+
+`trackNavigation` calls `setScreen` with the current route's name on every navigation, and returns a function that stops it. With any other navigation, call `Tattle.setScreen(name)` when the screen changes. Route params are never sent.
+
+## The steps before the report
+
+Each report carries the last 50 steps the user took, with their time. The dashboard shows them in time order, with the console errors and failed requests in between, so you can retrace what led to the bug:
+
+- **Screens**: each new name given to `setScreen` (or found by `trackNavigation`).
+- **App state**: leaving the app and coming back to it.
+- **Your own steps**, for what the screens alone do not show:
+
+```ts
+Tattle.addBreadcrumb({ message: "Applied coupon", category: "cart", data: { code: "SPRING" } });
+```
+
+`category` defaults to `"custom"`; `data` keeps up to 10 strings, numbers, booleans or nulls. Never put secrets in it. Taps are not recorded: React Native gives no reliable way to name what was tapped without reaching into its internals, so add a step for the actions that matter.
 
 ## Options
 
@@ -193,6 +209,7 @@ Submitting a report sends `POST {apiUrl}/api/v1/ingest`, the same endpoint as th
 - **Network**: the last 100 `fetch` and `XMLHttpRequest` calls: method, URL, status (0 on failure), duration. Never bodies or headers. Query values whose name looks secret (`token`, `key`, `password`, `session`, `code`…) are replaced with `[redacted]`.
 - **Device**: platform, OS version, model and manufacturer, phone or tablet, screen size and pixel ratio, font scale, language, time zone, color scheme, React Native version and engine. With `expo-device` installed, the exact model name (for example "iPhone 16 Pro").
 - **Screen**: the name from `Tattle.setScreen`, sent as `pageUrl`.
+- **Steps** (`breadcrumbs`): the last 50 screens, foreground and background changes, and steps added with `addBreadcrumb`.
 - **Screenshot**: a JPEG of the provider's content, bug reports only, unless the user removed it.
 
 ## Development

@@ -1,4 +1,9 @@
 import {
+	installBreadcrumbCollector,
+	addBreadcrumb as pushCustomBreadcrumb,
+	uninstallBreadcrumbCollector,
+} from "./collectors/breadcrumbs";
+import {
 	installConsoleCollector,
 	uninstallConsoleCollector,
 } from "./collectors/console";
@@ -16,6 +21,7 @@ import {
 	sanitizeTheme,
 } from "./theme";
 import type {
+	BreadcrumbInput,
 	ColorScheme,
 	InitOptions,
 	OpenOptions,
@@ -26,6 +32,8 @@ import { Widget } from "./ui/widget";
 
 export type {
 	AnimationPreset,
+	Breadcrumb,
+	BreadcrumbInput,
 	ColorScheme,
 	ConsoleEntry,
 	ConsoleLevel,
@@ -61,6 +69,7 @@ function startCollectors(): void {
 	if (!isBrowser) return;
 	installConsoleCollector();
 	installNetworkCollector();
+	installBreadcrumbCollector();
 }
 
 // Collectors start as soon as the SDK is evaluated so early logs/requests are kept.
@@ -139,6 +148,14 @@ export function setContext(next: Record<string, unknown>): void {
 	context = { ...(context ?? {}), ...next };
 }
 
+/**
+ * Adds a step to the trail sent with the next report, next to the navigations,
+ * clicks and field changes the widget records. May be called before `init`.
+ */
+export function addBreadcrumb(breadcrumb: BreadcrumbInput): void {
+	pushCustomBreadcrumb(breadcrumb);
+}
+
 /** Opens the panel. Before `init`, the request is kept and applied on init. */
 export function open(options?: OpenOptions): void {
 	const type =
@@ -188,12 +205,14 @@ export function destroy(): void {
 	if (!isBrowser) return;
 	uninstallConsoleCollector();
 	uninstallNetworkCollector();
+	uninstallBreadcrumbCollector();
 }
 
 export const Tattle = {
 	init,
 	identify,
 	setContext,
+	addBreadcrumb,
 	setTheme,
 	setColorScheme,
 	open,

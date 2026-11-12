@@ -45,6 +45,14 @@ The project's **public key** (`pk_…`, in project settings) authenticates the r
       "error": "Request timed out"       // optional, max 2000
     }
   ],
+  "breadcrumbs": [                       // optional, at most 100 entries, oldest first
+    {
+      "category": "click",               // max 50: "navigation", "click", "input", "app", "custom" or your own
+      "message": "button “Pay now” #pay", // max 500
+      "timestamp": 1731400000000,        // milliseconds since 1970
+      "data": { "attempt": 2 }           // optional: at most 10 keys, values are strings (max 500), numbers, booleans or null
+    }
+  ],
   "sdk": { "name": "my-ios-app", "version": "1.0.0" } // optional
 }
 ```
@@ -65,6 +73,20 @@ The server stores any JSON object. The dashboard reads these fields when they ar
 | `viewport: { width, height }` | ✓ | ✓ | Window, or screen size on mobile |
 
 Add anything else useful (locale, time zone, connection…): it appears in the report's **Device** tab and in what agents read through MCP.
+
+### `breadcrumbs`
+
+The steps the user took before reporting. The dashboard shows them in the report's **Steps** tab, in time order with the console errors and failed requests in between, and agents read the same timeline through MCP. The SDKs keep the last 50.
+
+| `category` | Shown as | Recorded by |
+|---|---|---|
+| `navigation` | navigate | Web: every URL change (redacted like `pageUrl`). Mobile: every screen change |
+| `click` | click | Web: what was clicked, e.g. `button “Pay now” #pay` |
+| `input` | input | Web: which field changed, e.g. `Changed “Email” (email)`, never its value |
+| `app` | app | Leaving and coming back to the tab or the app |
+| anything else | the category | Steps the app adds itself |
+
+Never put passwords, payment details or other secrets in a step: they are stored and shown as they are.
 
 ## Responses
 
