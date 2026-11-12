@@ -167,7 +167,7 @@ function PrivacyPage() {
 													try {
 														const result = await eraseReporterFn({ data });
 														toast.success(
-															`Erased ${result.reports} reports and ${result.votes} votes; ${result.issues} issues they opened were deleted`,
+															`Erased ${result.reports} reports, ${result.messages} messages and ${result.votes} votes; ${result.issues} issues they opened were deleted`,
 														);
 														setMatch({
 															...match,

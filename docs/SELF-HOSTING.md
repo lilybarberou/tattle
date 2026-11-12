@@ -358,6 +358,8 @@ After changing `.env`, apply it with `docker compose up -d`.
 | `INGEST_LIMIT_PER_PROJECT` | `300` | Reports per project per hour. |
 | `PORTAL_LIMIT_PER_IP` | `30` | Votes and ideas per IP per 10 minutes on public pages. |
 | `GITHUB_LIMIT_PER_IP` | `300` | GitHub webhook deliveries per IP and project per 10 minutes. |
+| `REPORTER_READ_LIMIT_PER_IP` | `120` | "My reports" reads per IP per 10 minutes (widgets and reply links). |
+| `REPORTER_MESSAGE_LIMIT_PER_IP` | `20` | Reporters' messages per IP per 10 minutes. |
 | `REPORT_RETENTION_DAYS` | (keep all) | Deletes screenshots and logs of reports older than this. The message and the reporter stay. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_SECURE`, `SMTP_FROM` | (no email) | Sending email. `SMTP_SECURE=true` for port 465. |
 | `STORAGE_DRIVER` | `local` | `s3` to store screenshots in a bucket. |

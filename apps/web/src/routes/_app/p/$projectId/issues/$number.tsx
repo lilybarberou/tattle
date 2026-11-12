@@ -8,8 +8,10 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	GitPullRequestIcon,
+	MessageCircleIcon,
 	PencilIcon,
 	SearchIcon,
+	SendIcon,
 	Trash2Icon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -50,6 +52,7 @@ import {
 	findDuplicatesFn,
 	getIssueFn,
 	markDuplicateFn,
+	replyToReporterFn,
 	updateIssueFn,
 } from "#/server/fns";
 import type { IssueDetail, ReportDto } from "#/server/Issues";
@@ -161,6 +164,12 @@ function ReportBlock({
 						</span>
 					)}
 				</span>
+				{report.awaitingReply && (
+					<span className="flex flex-none items-center gap-1 rounded-full bg-brand-soft px-2 text-xs font-medium text-brand">
+						<MessageCircleIcon className="size-3" />
+						Waiting for your reply
+					</span>
+				)}
 				{signal && (
 					<span className="num flex-none rounded-full bg-pill-negative px-2 text-xs font-medium text-pill-negative-ink">
 						{signal}
@@ -204,6 +213,7 @@ function ReportBlock({
 						</p>
 						<Screenshot report={report} />
 						<ReportLogs report={report} />
+						<ReporterThread report={report} name={name} />
 					</div>
 					<ReportFacts report={report} />
 				</div>
@@ -311,6 +321,123 @@ function Description({
 				</Button>
 			</div>
 		</form>
+	);
+}
+
+/**
+ * The conversation with the person who sent the report. Everything here is
+ * visible to them, unlike the comments under Activity. Their messages are
+ * shown as plain text: they are written by anyone using the app.
+ */
+function ReporterThread({ report, name }: { report: ReportDto; name: string }) {
+	const { projectId } = Route.useParams();
+	const router = useRouter();
+	const [body, setBody] = useState("");
+	const [sending, setSending] = useState(false);
+	const { inApp, email } = report.reachable;
+	const reachable = inApp || email;
+
+	const send = async () => {
+		if (!body.trim() || sending) return;
+		setSending(true);
+		try {
+			await replyToReporterFn({
+				data: { projectId, reportId: report.id, body },
+			});
+			setBody("");
+			toast.success(`Sent to ${name}`);
+			await router.invalidate();
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Not sent");
+		} finally {
+			setSending(false);
+		}
+	};
+
+	return (
+		<section aria-label={`Conversation with ${name}`} className="space-y-3">
+			<h3 className="flex flex-wrap items-baseline gap-x-2 font-medium">
+				Conversation with {name}
+				<span className="text-xs font-normal text-muted-foreground">
+					{!reachable
+						? "They can't receive replies"
+						: inApp && email
+							? "They see replies in the app and by email"
+							: inApp
+								? "They see replies in the app"
+								: "They get replies by email"}
+				</span>
+			</h3>
+			{report.messages.length > 0 && (
+				<ol className="space-y-2">
+					{report.messages.map((message) => (
+						<li
+							key={message.id}
+							className={cn(
+								"max-w-[85%] rounded-lg px-3 py-2",
+								message.from === "team"
+									? "ml-auto bg-brand-soft"
+									: "border bg-surface",
+							)}
+						>
+							<p className="text-xs text-muted-foreground">
+								<span className="font-medium text-ink">
+									{message.from === "team" ? message.author.name : name}
+								</span>
+								{message.from === "team" &&
+									(message.readAt ? " · Seen" : " · Not seen yet")}
+								{" · "}
+								{relativeTime(message.createdAt)}
+							</p>
+							<p className="mt-0.5 break-words whitespace-pre-wrap">
+								{message.body}
+							</p>
+						</li>
+					))}
+				</ol>
+			)}
+			{reachable ? (
+				<form
+					className="rounded-lg border border-brand/40 focus-within:border-brand"
+					onSubmit={(event) => {
+						event.preventDefault();
+						void send();
+					}}
+				>
+					<label htmlFor={`reply-${report.id}`} className="sr-only">
+						Reply to {name}
+					</label>
+					<textarea
+						id={`reply-${report.id}`}
+						value={body}
+						maxLength={5000}
+						onChange={(e) => setBody(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+								e.preventDefault();
+								void send();
+							}
+						}}
+						placeholder={`Write to ${name}… they will read this.`}
+						className="field-sizing-content block min-h-16 w-full resize-none bg-transparent px-3 py-2.5 outline-none placeholder:text-muted-foreground"
+					/>
+					<div className="flex items-center justify-between gap-2 px-3 pb-2.5">
+						<span className="text-xs text-muted-foreground">
+							Visible to the reporter
+						</span>
+						<Button type="submit" size="sm" disabled={!body.trim() || sending}>
+							<SendIcon />
+							Reply to reporter
+						</Button>
+					</div>
+				</form>
+			) : (
+				<p className="text-muted-foreground">
+					This report came without an email, from an app whose widget can't show
+					replies.
+				</p>
+			)}
+		</section>
 	);
 }
 
@@ -531,7 +658,7 @@ function IssuePage() {
 							<ReportBlock
 								key={report.id}
 								report={report}
-								defaultOpen={index === 0}
+								defaultOpen={index === 0 || report.awaitingReply}
 								onDelete={async () => {
 									try {
 										await deleteReportFn({
@@ -617,7 +744,7 @@ function IssuePage() {
 							id="comment"
 							value={comment}
 							onChange={(e) => setComment(e.target.value)}
-							placeholder="Leave a comment… your agent reads these too."
+							placeholder="Leave an internal comment… your team and agents read these, reporters never do."
 							headerClassName="px-2 pt-2"
 							className="field-sizing-content block min-h-20 w-full resize-none bg-transparent px-4 py-3 outline-none placeholder:text-muted-foreground"
 							previewClassName="min-h-20 px-4 py-3"

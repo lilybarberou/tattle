@@ -27,6 +27,7 @@ import {
 	pingWebhookFn,
 	regenerateGithubSecretFn,
 	setGithubEnabledFn,
+	setIdentityVerificationFn,
 	updateProjectFn,
 } from "#/server/fns";
 import type { WebhookEvent } from "#/shared/issues";
@@ -50,6 +51,8 @@ const EVENT_HELP: Record<WebhookEvent, string> = {
 	"issue.created": "An issue was opened, from a report or by hand",
 	"issue.updated": "Status, priority, labels, assignee or PR changed",
 	"comment.created": "Someone, or an agent, commented",
+	"message.created":
+		"A reporter wrote to the team, or the team replied to a reporter",
 };
 
 type InstallTab = "web" | "api";
@@ -92,6 +95,26 @@ function SettingsPage() {
 			toast.error(error instanceof Error ? error.message : "Could not save");
 		}
 	};
+
+	const setIdentityVerification = async (enabled: boolean, done: string) => {
+		try {
+			await setIdentityVerificationFn({
+				data: { projectId: project.id, enabled },
+			});
+			toast.success(done);
+			await router.invalidate();
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Could not save");
+		}
+	};
+
+	const identityServerSnippet = `import { createHmac } from "node:crypto";
+
+// Send it to the page with the rest of the signed-in user's data.
+const tattleHash = createHmac("sha256", process.env.TATTLE_IDENTITY_SECRET)
+  .update(String(user.id))
+  .digest("hex");`;
+	const identityClientSnippet = `Tattle.identify({ id: user.id, email: user.email, name: user.name, hash: tattleHash })`;
 
 	const scriptSnippet = `<script
   src="${baseUrl}/widget.js"
@@ -268,6 +291,86 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 				</SettingsSection>
 
 				<SettingsSection
+					id="identity"
+					title="Verified identity"
+					description={
+						<>
+							<p>
+								People follow their reports and talk with you from the widget.
+								By default, each device sees the reports sent from it.
+							</p>
+							<p className="mt-2">
+								Turn this on so a signed-in user sees all their reports, on
+								every device: your server signs their id with this secret and
+								the widget passes the signature along. A user id without a valid
+								signature never opens anyone's reports.
+							</p>
+						</>
+					}
+				>
+					{project.identitySecret ? (
+						<>
+							<CodeBlock
+								label="Identity secret: keep it on your server"
+								code={project.identitySecret}
+							/>
+							<CodeBlock
+								label="On your server, for the signed-in user (Node)"
+								code={identityServerSnippet}
+							/>
+							<p className="text-muted-foreground">
+								Any other language: the HMAC-SHA256 of the user id with this
+								secret, in hex. In PHP,{" "}
+								<code className="font-mono text-xs">
+									hash_hmac('sha256', $userId, $secret)
+								</code>
+								.
+							</p>
+							<CodeBlock
+								label="Then in your app, with the same id"
+								code={identityClientSnippet}
+							/>
+							<div className="flex flex-wrap gap-2">
+								<Button
+									variant="outline"
+									onClick={() =>
+										setIdentityVerification(
+											true,
+											"New secret. Update your server: signatures made with the old one no longer work.",
+										)
+									}
+								>
+									Replace the secret
+								</Button>
+								<Button
+									variant="ghost"
+									onClick={() =>
+										setIdentityVerification(
+											false,
+											"Verified identity is off. Each device sees its own reports.",
+										)
+									}
+								>
+									Turn off
+								</Button>
+							</div>
+						</>
+					) : (
+						<Button
+							variant="outline"
+							onClick={() =>
+								setIdentityVerification(
+									true,
+									"Verified identity is on. Add the signature on your server.",
+								)
+							}
+						>
+							Turn on verified identity
+						</Button>
+					)}
+				</SettingsSection>
+
+				<SettingsSection
 					id="notifications"
 					title="Discord and Slack"
 					description={
@@ -341,6 +444,7 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 											"issue.created",
 											"issue.updated",
 											"comment.created",
+											"message.created",
 										],
 									},
 								});

@@ -28,6 +28,11 @@ type Data = {
 	};
 	changes?: Record<string, { from: unknown; to: unknown }>;
 	comment?: { body: string; author: { name: string; type: string } };
+	message?: {
+		from: "team" | "reporter";
+		body: string;
+		author: { name: string; type: string };
+	};
 	actor?: { name: string; type: string };
 	duplicateOf?: Issue | null;
 };
@@ -158,6 +163,17 @@ export function describeEvent(
 			url: issueUrl(data.issue),
 			text: `${truncate(data.comment.body, 1500)}\n— ${data.comment.author.name}${data.comment.author.type === "agent" ? " (agent)" : ""}`,
 			color: COLORS.comment,
+			fields: [],
+		};
+	}
+
+	if (event === "message.created" && data.issue && data.message) {
+		const fromReporter = data.message.from === "reporter";
+		return {
+			title: `${fromReporter ? "Reporter replied" : "Reply to the reporter"} on #${data.issue.number} ${truncate(data.issue.title, 200)}`,
+			url: issueUrl(data.issue),
+			text: `${truncate(data.message.body, 1500)}\n— ${data.message.author.name}${data.message.author.type === "agent" ? " (agent)" : ""}`,
+			color: fromReporter ? COLORS.feature : COLORS.comment,
 			fields: [],
 		};
 	}

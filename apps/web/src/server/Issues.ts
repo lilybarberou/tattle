@@ -20,6 +20,7 @@ import {
 	type JsonObject,
 	project,
 	report,
+	reportMessage,
 } from "#/db/schema";
 import type { DuplicateSuggestionView } from "#/shared/ai";
 import {
@@ -79,7 +80,28 @@ export type ReportSummary = {
 	release: string | null;
 	createdAt: string;
 };
-export type IssueListItem = IssueDto & { lastReport: ReportSummary | null };
+export type IssueListItem = IssueDto & {
+	lastReport: ReportSummary | null;
+	/** A reporter wrote last in one of its conversations: they wait for the team. */
+	awaitingReply: boolean;
+};
+
+type MessageRow = typeof reportMessage.$inferSelect;
+
+/** A message of a report's conversation, as the team sees it. */
+export const messageDto = (row: MessageRow) => ({
+	id: row.id,
+	from:
+		row.authorType === "reporter" ? ("reporter" as const) : ("team" as const),
+	author: { type: row.authorType, id: row.authorId, name: row.authorName },
+	body: row.body,
+	readAt: row.readAt?.toISOString() ?? null,
+	createdAt: row.createdAt.toISOString(),
+});
+export type MessageDto = ReturnType<typeof messageDto>;
+
+/** Reports whose conversation ends with a message from the reporter. */
+export const awaitingReplySql = sql`(select ${reportMessage.authorType} from ${reportMessage} where ${reportMessage.reportId} = ${report.id} order by ${reportMessage.createdAt} desc limit 1) = 'reporter'`;
 
 export type IssuePatch = {
 	title?: string;
@@ -102,7 +124,7 @@ export type IssueFilter = {
 	offset?: number;
 };
 
-const titleFromMessage = (message: string) => {
+export const titleFromMessage = (message: string) => {
 	const firstLine = message.trim().split("\n")[0] ?? "";
 	return firstLine.length > 90
 		? `${firstLine.slice(0, 87)}…`
@@ -183,7 +205,10 @@ export class Issues extends Context.Service<
 			const storage = yield* Storage;
 			const webhooks = yield* Webhooks;
 
-			const reportDto = (row: ReportRow) => ({
+			const reportDto = (
+				row: ReportRow,
+				messages: ReadonlyArray<MessageRow> = [],
+			): ReportDto => ({
 				id: row.id,
 				issueId: row.issueId,
 				type: row.type,
@@ -201,8 +226,26 @@ export class Issues extends Context.Service<
 				network: row.network,
 				breadcrumbs: row.breadcrumbs,
 				release: row.release,
+				identityVerified: row.verifiedUserId !== null,
+				reachable: {
+					inApp: row.reporterKeyHash !== null || row.verifiedUserId !== null,
+					email: Boolean(row.reporter?.email),
+				},
+				messages: messages.map(messageDto),
+				awaitingReply: messages.at(-1)?.authorType === "reporter",
 				createdAt: row.createdAt.toISOString(),
 			});
+
+			const messagesOf = (reportIds: string[]) =>
+				reportIds.length === 0
+					? Effect.succeed([] as MessageRow[])
+					: database.query((db) =>
+							db
+								.select()
+								.from(reportMessage)
+								.where(inArray(reportMessage.reportId, reportIds))
+								.orderBy(asc(reportMessage.createdAt)),
+						);
 
 			const findIssue = Effect.fn("Issues.findIssue")(function* (
 				projectId: string,
@@ -356,11 +399,27 @@ export class Issues extends Context.Service<
 						)
 						.orderBy(report.issueId, desc(report.createdAt)),
 				);
+				const waiting = yield* database.query((db) =>
+					db
+						.selectDistinct({ issueId: report.issueId })
+						.from(report)
+						.where(
+							and(
+								inArray(
+									report.issueId,
+									rows.map((r) => r.id),
+								),
+								awaitingReplySql,
+							),
+						),
+				);
+				const awaiting = new Set(waiting.map((w) => w.issueId));
 				const byIssue = new Map(latest.map((r) => [r.issueId, r]));
 				return rows.map((row): IssueListItem => {
 					const last = byIssue.get(row.id);
 					return {
 						...issueDto(row),
+						awaitingReply: awaiting.has(row.id),
 						lastReport: last
 							? {
 									id: last.id,
@@ -517,11 +576,17 @@ export class Issues extends Context.Service<
 					duplicateOf = dup ? issueDto(dup) : null;
 				}
 				const duplicateSuggestion = yield* openSuggestion(database, row.id);
+				const messages = yield* messagesOf(reports.map((r) => r.id));
 				return {
 					issue: issueDto(row),
 					duplicateOf,
 					duplicateSuggestion,
-					reports: reports.map(reportDto),
+					reports: reports.map((r) =>
+						reportDto(
+							r,
+							messages.filter((m) => m.reportId === r.id),
+						),
+					),
 					comments: comments.map(commentDto),
 					releases: seenIn.map((r) => ({
 						release: r.release as string,
@@ -552,7 +617,7 @@ export class Issues extends Context.Service<
 						),
 				);
 				if (!row) return yield* new NotFound({ message: "Report not found" });
-				return reportDto(row);
+				return reportDto(row, yield* messagesOf([row.id]));
 			});
 
 			const insertIssue = (
@@ -942,6 +1007,13 @@ export type ReportDto = {
 	network: ReportRow["network"];
 	breadcrumbs: ReportRow["breadcrumbs"];
 	release: string | null;
+	/** The app proved `reporter.id` with the identity verification hash. */
+	identityVerified: boolean;
+	/** How a reply reaches the reporter: in the widget, by email, both or neither. */
+	reachable: { inApp: boolean; email: boolean };
+	/** The conversation with the reporter, oldest first. */
+	messages: MessageDto[];
+	awaitingReply: boolean;
 	createdAt: string;
 };
 

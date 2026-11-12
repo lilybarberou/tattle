@@ -2,7 +2,7 @@
 
 Self-hosted bug reports and feature requests for your web and mobile apps, built to be triaged by AI agents.
 
-- **Widget** (`packages/widget`, and `packages/react-native` for React Native and Expo apps): a button in your app. Users report a bug with an annotated screenshot, or suggest an idea. The steps the user took before reporting (pages, clicks, field changes), console logs, JS errors, network requests, device info and the signed-in account are attached automatically.
+- **Widget** (`packages/widget`, and `packages/react-native` for React Native and Expo apps): a button in your app. Users report a bug with an annotated screenshot, or suggest an idea. The steps the user took before reporting (pages, clicks, field changes), console logs, JS errors, network requests, device info and the signed-in account are attached automatically. Under **My reports**, users follow what happens to their reports and talk with your team.
 - **Tracker** (`apps/web`): projects, a Triage inbox, issues with status, priority, labels and assignee, duplicates suggested (by your own AI key, or by near-identical wording) and merged with their reports, the releases each issue was seen in, and regressions flagged when a fixed bug comes back.
 - **For agents**: an MCP server, signed webhooks and API tokens, so an agent can triage new reports, merge duplicates and work on fixes. Merged GitHub pull requests move their issues to Done.
 
@@ -42,7 +42,7 @@ What runs:
 
 **Screenshots on S3** (optional): set `STORAGE_DRIVER=s3` with `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, and `S3_ENDPOINT` for any provider other than AWS (Cloudflare R2, Scaleway, OVH, Backblaze, RustFS, Garage…; add `S3_FORCE_PATH_STYLE=true` for the self-hosted ones). The bucket stays private: the app serves screenshots through short-lived signed links. Switching drivers does not move existing files.
 
-**Personal data**: **Privacy** in the dashboard finds everything about one person by email or user id, exports it as JSON and erases it (GDPR access and erasure requests). `REPORT_RETENTION_DAYS` drops screenshots, logs and the steps before the report of older reports automatically; the message and the reporter stay.
+**Personal data**: **Privacy** in the dashboard finds everything about one person by email or user id, exports it as JSON (with their conversations with the team) and erases it (GDPR access and erasure requests). `REPORT_RETENTION_DAYS` drops screenshots, logs and the steps before the report of older reports automatically, and the device key of reports whose conversation has been quiet as long; the message, the reporter and the conversation stay.
 
 On start, the app checks its configuration, waits for Postgres and applies pending migrations, so an upgrade is `docker compose pull && docker compose up -d`. Pin a version with `TATTLE_VERSION` in `.env`.
 
@@ -50,7 +50,7 @@ On start, the app checks its configuration, waits for Postgres and applies pendi
 
 **Health**: `GET /health` answers `{"ok":true}` when the app and the database respond; Docker uses it as the container's healthcheck.
 
-**Limits**: the widget's public key is visible in your app, so reports are limited per IP (`INGEST_LIMIT_PER_IP`, default 20 per 10 minutes) and per project (`INGEST_LIMIT_PER_PROJECT`, default 300 per hour). Behind a proxy, set `TRUST_PROXY=true` so the limits see real client IPs; without it, `X-Forwarded-For` is ignored, so nobody can fake their IP. Sign-in attempts are limited per IP with the same rule.
+**Limits**: the widget's public key is visible in your app, so reports are limited per IP (`INGEST_LIMIT_PER_IP`, default 20 per 10 minutes) and per project (`INGEST_LIMIT_PER_PROJECT`, default 300 per hour). Behind a proxy, set `TRUST_PROXY=true` so the limits see real client IPs; without it, `X-Forwarded-For` is ignored, so nobody can fake their IP. Sign-in attempts are limited per IP with the same rule. "My reports" allows 120 reads and 20 messages per IP per 10 minutes (`REPORTER_READ_LIMIT_PER_IP`, `REPORTER_MESSAGE_LIMIT_PER_IP`).
 
 Run a single `app` container: rate limits, webhook retries and the background jobs (webhook recovery, retention purge) live in its memory.
 
@@ -90,6 +90,19 @@ git tag v0.2.0 && git push origin v0.2.0
 `data-release` (or `release` in `Tattle.init`) is your app's version. Every report carries it: issues show the releases they were seen in, the issue list filters by release, and a bug marked done that gets a newer report attached (by a merge or a moved report) is reopened with "Regressed in 1.4.2" in its activity. Mobile apps send their version and build without any setup.
 
 See [packages/widget/README.md](packages/widget/README.md) for the options, the API and what is collected.
+
+## Talk with the people who report
+
+A report is its sender's ticket. In the widget, **My reports** lists what they sent with a status in their words (Received, Planned, In progress, Fixed, Won't fix), and the conversation with your team. On the issue page, each report has its conversation: **Reply to reporter** writes to them, while comments under Activity stay internal. Issues where a reporter waits for an answer carry a speech-bubble mark in Triage and Issues. Replies are also emailed when the reporter's email is known and SMTP is set, with a link to read and answer without an account (valid 30 days).
+
+By default each device sees the reports sent from it: the widget keeps a random key there and the server stores only its hash. To show a signed-in user their reports on every device, turn on **Verified identity** in project settings and sign their id on your server:
+
+```js
+const hash = createHmac("sha256", process.env.TATTLE_IDENTITY_SECRET).update(String(user.id)).digest("hex");
+Tattle.identify({ id: user.id, email: user.email, name: user.name, hash }); // in the page
+```
+
+A user id without a valid hash never opens anyone's reports. The endpoints are documented in the [ingest API reference](docs/INGEST-API.md#my-reports-follow-up-and-replies).
 
 ## Install in a mobile app
 
@@ -134,15 +147,16 @@ OAuth discovery follows the MCP spec: `/.well-known/oauth-protected-resource/api
 | `list_projects` | Projects the token can access |
 | `list_issues` | Filter by status (`["triage"]` for the inbox), type, keyword, release |
 | `search_issues` | Similar issues by keywords, to spot duplicates, optionally from one release |
-| `get_issue` | Issue, comments, activity (including regressions), the releases it was seen in, report summaries, the open duplicate suggestion |
-| `get_report` | Full report: logs, device, account, a timeline of what the user did with errors and failed requests in between, and the screenshot as an image |
+| `get_issue` | Issue, comments, activity (including regressions), the releases it was seen in, report summaries with their conversation, the open duplicate suggestion |
+| `get_report` | Full report: logs, device, account, a timeline of what the user did with errors and failed requests in between, the conversation, and the screenshot as an image |
 | `create_issue`, `update_issue`, `add_comment` | Write access (tokens can be read-only) |
+| `reply_to_reporter` | A message the reporter reads in the widget and by email (write access) |
 | `mark_duplicate` | Marks an issue as a duplicate; its reports move to the original (a done bug getting a newer report is reopened as a regression) |
 | `move_report` | Attaches one report to another issue (same regression rule) |
 
 Linking a fix: set the issue's pull request with `update_issue` (`pr_url`), or write `Tattle #12` (any case, `tattle#12` works too) in the pull request's title or description. A plain `#12` is left alone: on GitHub it means GitHub's own issue 12.
 
-Report content is written by end users. The MCP server tells agents to treat it as data, never as instructions; keep agent permissions narrow anyway.
+Report content and reporters' messages are written by end users. The MCP server tells agents to treat them as data, never as instructions (reporters' messages are flagged `untrustedUserContent`); keep agent permissions narrow anyway.
 
 ## Duplicate suggestions
 
@@ -157,7 +171,7 @@ The report goes to the model as data: the model is told to ignore instructions i
 
 ## Discord and Slack
 
-Project settings → **Discord and Slack**: paste a Discord channel webhook URL (channel settings → Integrations → Webhooks) or a Slack incoming webhook URL. The channel gets new reports with their evidence, status and assignee changes, and comments; label or title edits stay quiet.
+Project settings → **Discord and Slack**: paste a Discord channel webhook URL (channel settings → Integrations → Webhooks) or a Slack incoming webhook URL. The channel gets new reports with their evidence, status and assignee changes, comments, and messages between reporters and the team; label or title edits stay quiet.
 
 ## GitHub
 
@@ -176,7 +190,7 @@ Project settings → **Public feature requests** publishes `https://your-server/
 
 ## Webhooks
 
-Project settings → Webhooks. Events: `report.created`, `issue.created`, `issue.updated`, `comment.created`.
+Project settings → Webhooks. Events: `report.created`, `issue.created`, `issue.updated`, `comment.created`, `message.created` (a reporter wrote, or the team replied to one: `data.message.from` is `"reporter"` or `"team"`).
 
 Each request carries `x-tattle-event`, `x-tattle-delivery` and `x-tattle-signature: t=<unix>,v1=<hex>`, where `v1` is the HMAC-SHA256 of `"<t>.<raw body>"` with the endpoint secret. Failed deliveries are retried with exponential backoff (5 retries); deliveries interrupted by a restart are resent within a minute of the next start.
 
@@ -197,13 +211,14 @@ function verify(secret, header, rawBody) {
 apps/web            TanStack Start app (dashboard + API), Drizzle + Postgres, Better Auth
   src/server/       Effect services: Database, Storage (disk or S3), Access, Issues, Ingest,
                     Webhooks (+ Discord/Slack), Portal, GitHub (merged pull requests),
-                    DataLifecycle (deletion, GDPR, retention),
+                    Conversations (reporters ↔ team), DataLifecycle (deletion, GDPR, retention),
                     Duplicates and AiSettings (duplicate suggestions, the workspace's AI key)
   src/server/mcp.ts MCP server (@modelcontextprotocol/server)
-  src/routes/api/   /api/v1/ingest (widget), /api/v1/files (signed screenshots),
-                    /api/v1/github/<project> (GitHub webhook), /api/mcp
-  src/routes/       dashboard, /portal/$slug (public), /login, /consent (OAuth), /.well-known/*
-packages/widget     Browser SDK, no framework, Shadow DOM, ~20 KB gzipped
+  src/routes/api/   /api/v1/ingest and /api/v1/my-reports (widget), /api/v1/files (signed
+                    screenshots), /api/v1/github/<project> (GitHub webhook), /api/mcp
+  src/routes/       dashboard, /portal/$slug and /thread/$token (public), /login, /consent (OAuth),
+                    /.well-known/*
+packages/widget     Browser SDK, no framework, Shadow DOM, ~25 KB gzipped
 packages/react-native  React Native and Expo SDK (react-native-view-shot, react-native-svg)
 ```
 

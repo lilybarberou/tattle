@@ -1,6 +1,7 @@
 import { Cause, Effect, Exit, Layer, ManagedRuntime } from "effect";
 import { Access } from "./Access";
 import { AiSettings } from "./AiSettings";
+import { Conversations } from "./Conversations";
 import { Database } from "./Database";
 import { DataLifecycle } from "./DataLifecycle";
 import { Duplicates } from "./Duplicates";
@@ -42,6 +43,7 @@ export const AppLayer = Layer.mergeAll(
 			Layer.mergeAll(Infra, WebhooksLive, IssuesLive, DuplicatesLive),
 		),
 	),
+	Conversations.layer.pipe(Layer.provide(Layer.mergeAll(Infra, WebhooksLive))),
 );
 
 type Services = Layer.Success<typeof AppLayer>;

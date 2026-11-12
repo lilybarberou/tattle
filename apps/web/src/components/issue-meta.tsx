@@ -1,4 +1,9 @@
-import { BotIcon, BugIcon, LightbulbIcon } from "lucide-react";
+import {
+	BotIcon,
+	BugIcon,
+	LightbulbIcon,
+	MessageCircleIcon,
+} from "lucide-react";
 import { cn } from "#/lib/utils";
 import type { IssueStatus } from "#/shared/issues";
 
@@ -279,6 +284,20 @@ const hueOf = (key: string) => {
 	}
 	return hash % 360;
 };
+
+/** A reporter wrote last in one of the issue's conversations. */
+export function AwaitingReply({ className }: { className?: string }) {
+	return (
+		<span
+			className={cn("relative flex-none text-brand", className)}
+			title="A reporter is waiting for your reply"
+		>
+			<MessageCircleIcon className="size-4" />
+			<span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-brand ring-2 ring-surface" />
+			<span className="sr-only">Waiting for your reply</span>
+		</span>
+	);
+}
 
 export function LabelChip({ children }: { children: string }) {
 	return (

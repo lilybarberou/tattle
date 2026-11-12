@@ -60,6 +60,10 @@ export const project = pgTable(
 		githubSecret: text("github_secret"),
 		githubLastDeliveryAt: timestamp("github_last_delivery_at"),
 		githubLastDelivery: text("github_last_delivery"),
+		// Identity verification, off while null: the app's backend signs its
+		// user ids with this secret (HMAC-SHA256) so the widget can show a
+		// person their reports on every device.
+		identitySecret: text("identity_secret"),
 		createdAt: createdAt(),
 	},
 	(t) => [uniqueIndex("project_org_slug_idx").on(t.organizationId, t.slug)],
@@ -206,13 +210,44 @@ export const report = pgTable(
 		// The version of the app that sent it, e.g. "1.4.2" or "1.4.2 (87)".
 		release: text("release"),
 		origin: text("origin"),
+		// SHA-256 of the random key the widget keeps on the device: whoever
+		// holds that key can follow this report and talk with the team.
+		reporterKeyHash: text("reporter_key_hash"),
+		// `reporter.id` when the app proved it with the identity verification
+		// hash. Only then does the id give access, on any device.
+		verifiedUserId: text("verified_user_id"),
 		createdAt: createdAt(),
 	},
 	(t) => [
 		index("report_project_idx").on(t.projectId, t.createdAt),
 		index("report_issue_idx").on(t.issueId),
 		index("report_project_release_idx").on(t.projectId, t.release),
+		index("report_reporter_key_idx").on(t.projectId, t.reporterKeyHash),
+		index("report_verified_user_idx").on(t.projectId, t.verifiedUserId),
 	],
+);
+
+// The conversation between the team and the person who sent a report. Unlike
+// comments, every message here is visible to the reporter.
+export const reportMessage = pgTable(
+	"report_message",
+	{
+		id: id(),
+		reportId: text("report_id")
+			.notNull()
+			.references(() => report.id, { onDelete: "cascade" }),
+		// user or agent: the team; reporter: the person who sent the report.
+		authorType: text("author_type", {
+			enum: ["user", "agent", "reporter"],
+		}).notNull(),
+		authorId: text("author_id"),
+		authorName: text("author_name").notNull(),
+		body: text("body").notNull(),
+		// When the reporter read a team message; null while unread.
+		readAt: timestamp("read_at"),
+		createdAt: createdAt(),
+	},
+	(t) => [index("report_message_report_idx").on(t.reportId, t.createdAt)],
 );
 
 export const comment = pgTable(
@@ -383,12 +418,20 @@ export const issueRelations = relations(issue, ({ one, many }) => ({
 	activity: many(activity),
 }));
 
-export const reportRelations = relations(report, ({ one }) => ({
+export const reportRelations = relations(report, ({ one, many }) => ({
 	project: one(project, {
 		fields: [report.projectId],
 		references: [project.id],
 	}),
 	issue: one(issue, { fields: [report.issueId], references: [issue.id] }),
+	messages: many(reportMessage),
+}));
+
+export const reportMessageRelations = relations(reportMessage, ({ one }) => ({
+	report: one(report, {
+		fields: [reportMessage.reportId],
+		references: [report.id],
+	}),
 }));
 
 export const commentRelations = relations(comment, ({ one }) => ({

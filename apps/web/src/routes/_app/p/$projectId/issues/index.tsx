@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import * as z from "zod";
 import { useAppActions } from "#/components/app-actions";
 import {
+	AwaitingReply,
 	Face,
 	IssueNumber,
 	LabelChip,
@@ -90,6 +91,7 @@ function IssueRow({
 					</span>
 				</span>
 				<span className="flex items-center justify-end gap-4 text-muted-foreground">
+					{issue.awaitingReply && <AwaitingReply />}
 					{issue.reportCount > 1 && (
 						<span
 							className="num flex items-center gap-1 text-xs"

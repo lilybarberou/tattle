@@ -16,6 +16,11 @@ import {
 	type StorageError,
 } from "./errors";
 import { type IssueDto, Issues } from "./Issues";
+import {
+	hashReporterKey,
+	identityVerified,
+	REPORTER_KEY_PATTERN,
+} from "./reporter-identity";
 import { Storage } from "./Storage";
 import { Webhooks } from "./Webhooks";
 
@@ -81,6 +86,10 @@ export const IngestPayload = Schema.Struct({
 	sdk: Schema.optional(Schema.Struct({ name: Text(100), version: Text(50) })),
 	// The app's version, e.g. "1.4.2". Issues show the releases they were seen in.
 	release: Schema.optional(Text(100)),
+	// Lets the device follow this report (see reporter-identity.ts).
+	reporterKey: Schema.optional(Text(128)),
+	// HMAC-SHA256 of reporter.id with the project's identity secret.
+	userHash: Schema.optional(Text(128)),
 });
 export type IngestPayload = typeof IngestPayload.Type;
 
@@ -187,6 +196,22 @@ export class Ingest extends Context.Service<
 					});
 				}
 
+				if (
+					payload.reporterKey !== undefined &&
+					!REPORTER_KEY_PATTERN.test(payload.reporterKey)
+				) {
+					return yield* new InvalidInput({
+						message:
+							"reporterKey must be 32 to 128 letters, digits, dashes or underscores",
+					});
+				}
+				const userId = payload.reporter?.id;
+				const verifiedUserId =
+					userId &&
+					identityVerified(target.identitySecret, userId, payload.userHash)
+						? userId
+						: null;
+
 				const reportId = crypto.randomUUID();
 				let screenshotKey: string | null = null;
 				if (payload.screenshot) {
@@ -224,6 +249,10 @@ export class Ingest extends Context.Service<
 							sdk: payload.sdk ?? null,
 							release: releaseOf(payload),
 							origin,
+							reporterKeyHash: payload.reporterKey
+								? hashReporterKey(payload.reporterKey)
+								: null,
+							verifiedUserId,
 						})
 						.returning(),
 				);

@@ -23,6 +23,7 @@ import { Route as AppMembersRouteImport } from './routes/_app/members'
 import { Route as AppPrivacyRouteImport } from './routes/_app/privacy'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as PortalSlugRouteImport } from './routes/portal.$slug'
+import { Route as ThreadTokenRouteImport } from './routes/thread.$token'
 import { Route as AppPProjectIdRouteImport } from './routes/_app/p/$projectId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiV1FilesRouteImport } from './routes/api/v1/files'
@@ -33,6 +34,7 @@ import { Route as AppPProjectIdRequestsRouteImport } from './routes/_app/p/$proj
 import { Route as AppPProjectIdSettingsRouteImport } from './routes/_app/p/$projectId/settings'
 import { Route as AppPProjectIdTriageRouteImport } from './routes/_app/p/$projectId/triage'
 import { Route as ApiV1GithubProjectIdRouteImport } from './routes/api/v1/github.$projectId'
+import { Route as ApiV1MyReportsSplatRouteImport } from './routes/api/v1/my-reports.$'
 import { Route as AppPProjectIdIssuesIndexRouteImport } from './routes/_app/p/$projectId/issues/index'
 import { Route as AppPProjectIdIssuesNumberRouteImport } from './routes/_app/p/$projectId/issues/$number'
 
@@ -105,6 +107,11 @@ const PortalSlugRoute = PortalSlugRouteImport.update({
   path: '/portal/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ThreadTokenRoute = ThreadTokenRouteImport.update({
+  id: '/thread/$token',
+  path: '/thread/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppPProjectIdRoute = AppPProjectIdRouteImport.update({
   id: '/p/$projectId',
   path: '/p/$projectId',
@@ -155,6 +162,11 @@ const ApiV1GithubProjectIdRoute = ApiV1GithubProjectIdRouteImport.update({
   path: '/api/v1/github/$projectId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1MyReportsSplatRoute = ApiV1MyReportsSplatRouteImport.update({
+  id: '/api/v1/my-reports/$',
+  path: '/api/v1/my-reports/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppPProjectIdIssuesIndexRoute =
   AppPProjectIdIssuesIndexRouteImport.update({
     id: '/issues/',
@@ -182,6 +194,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof AppPrivacyRoute
   '/api/mcp': typeof ApiMcpRoute
   '/portal/$slug': typeof PortalSlugRoute
+  '/thread/$token': typeof ThreadTokenRoute
   '/p/$projectId': typeof AppPProjectIdRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/files': typeof ApiV1FilesRoute
@@ -191,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/p/$projectId/settings': typeof AppPProjectIdSettingsRoute
   '/p/$projectId/triage': typeof AppPProjectIdTriageRoute
   '/api/v1/github/$projectId': typeof ApiV1GithubProjectIdRoute
+  '/api/v1/my-reports/$': typeof ApiV1MyReportsSplatRoute
   '/p/$projectId/': typeof AppPProjectIdIndexRoute
   '/p/$projectId/issues/$number': typeof AppPProjectIdIssuesNumberRoute
   '/p/$projectId/issues/': typeof AppPProjectIdIssuesIndexRoute
@@ -208,6 +222,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof AppPrivacyRoute
   '/api/mcp': typeof ApiMcpRoute
   '/portal/$slug': typeof PortalSlugRoute
+  '/thread/$token': typeof ThreadTokenRoute
   '/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/files': typeof ApiV1FilesRoute
@@ -217,6 +232,7 @@ export interface FileRoutesByTo {
   '/p/$projectId/settings': typeof AppPProjectIdSettingsRoute
   '/p/$projectId/triage': typeof AppPProjectIdTriageRoute
   '/api/v1/github/$projectId': typeof ApiV1GithubProjectIdRoute
+  '/api/v1/my-reports/$': typeof ApiV1MyReportsSplatRoute
   '/p/$projectId': typeof AppPProjectIdIndexRoute
   '/p/$projectId/issues/$number': typeof AppPProjectIdIssuesNumberRoute
   '/p/$projectId/issues': typeof AppPProjectIdIssuesIndexRoute
@@ -236,6 +252,7 @@ export interface FileRoutesById {
   '/_app/privacy': typeof AppPrivacyRoute
   '/api/mcp': typeof ApiMcpRoute
   '/portal/$slug': typeof PortalSlugRoute
+  '/thread/$token': typeof ThreadTokenRoute
   '/_app/': typeof AppIndexRoute
   '/_app/p/$projectId': typeof AppPProjectIdRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -246,6 +263,7 @@ export interface FileRoutesById {
   '/_app/p/$projectId/settings': typeof AppPProjectIdSettingsRoute
   '/_app/p/$projectId/triage': typeof AppPProjectIdTriageRoute
   '/api/v1/github/$projectId': typeof ApiV1GithubProjectIdRoute
+  '/api/v1/my-reports/$': typeof ApiV1MyReportsSplatRoute
   '/_app/p/$projectId/': typeof AppPProjectIdIndexRoute
   '/_app/p/$projectId/issues/$number': typeof AppPProjectIdIssuesNumberRoute
   '/_app/p/$projectId/issues/': typeof AppPProjectIdIssuesIndexRoute
@@ -266,6 +284,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/api/mcp'
     | '/portal/$slug'
+    | '/thread/$token'
     | '/p/$projectId'
     | '/api/auth/$'
     | '/api/v1/files'
@@ -275,6 +294,7 @@ export interface FileRouteTypes {
     | '/p/$projectId/settings'
     | '/p/$projectId/triage'
     | '/api/v1/github/$projectId'
+    | '/api/v1/my-reports/$'
     | '/p/$projectId/'
     | '/p/$projectId/issues/$number'
     | '/p/$projectId/issues/'
@@ -292,6 +312,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/api/mcp'
     | '/portal/$slug'
+    | '/thread/$token'
     | '/'
     | '/api/auth/$'
     | '/api/v1/files'
@@ -301,6 +322,7 @@ export interface FileRouteTypes {
     | '/p/$projectId/settings'
     | '/p/$projectId/triage'
     | '/api/v1/github/$projectId'
+    | '/api/v1/my-reports/$'
     | '/p/$projectId'
     | '/p/$projectId/issues/$number'
     | '/p/$projectId/issues'
@@ -319,6 +341,7 @@ export interface FileRouteTypes {
     | '/_app/privacy'
     | '/api/mcp'
     | '/portal/$slug'
+    | '/thread/$token'
     | '/_app/'
     | '/_app/p/$projectId'
     | '/api/auth/$'
@@ -329,6 +352,7 @@ export interface FileRouteTypes {
     | '/_app/p/$projectId/settings'
     | '/_app/p/$projectId/triage'
     | '/api/v1/github/$projectId'
+    | '/api/v1/my-reports/$'
     | '/_app/p/$projectId/'
     | '/_app/p/$projectId/issues/$number'
     | '/_app/p/$projectId/issues/'
@@ -345,10 +369,12 @@ export interface RootRouteChildren {
   DotwellKnownSplatRoute: typeof DotwellKnownSplatRoute
   ApiMcpRoute: typeof ApiMcpRoute
   PortalSlugRoute: typeof PortalSlugRoute
+  ThreadTokenRoute: typeof ThreadTokenRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiV1FilesRoute: typeof ApiV1FilesRoute
   ApiV1IngestRoute: typeof ApiV1IngestRoute
   ApiV1GithubProjectIdRoute: typeof ApiV1GithubProjectIdRoute
+  ApiV1MyReportsSplatRoute: typeof ApiV1MyReportsSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -451,6 +477,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/thread/$token': {
+      id: '/thread/$token'
+      path: '/thread/$token'
+      fullPath: '/thread/$token'
+      preLoaderRoute: typeof ThreadTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/p/$projectId': {
       id: '/_app/p/$projectId'
       path: '/p/$projectId'
@@ -519,6 +552,13 @@ declare module '@tanstack/react-router' {
       path: '/api/v1/github/$projectId'
       fullPath: '/api/v1/github/$projectId'
       preLoaderRoute: typeof ApiV1GithubProjectIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/my-reports/$': {
+      id: '/api/v1/my-reports/$'
+      path: '/api/v1/my-reports/$'
+      fullPath: '/api/v1/my-reports/$'
+      preLoaderRoute: typeof ApiV1MyReportsSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/p/$projectId/issues/': {
@@ -591,10 +631,12 @@ const rootRouteChildren: RootRouteChildren = {
   DotwellKnownSplatRoute: DotwellKnownSplatRoute,
   ApiMcpRoute: ApiMcpRoute,
   PortalSlugRoute: PortalSlugRoute,
+  ThreadTokenRoute: ThreadTokenRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiV1FilesRoute: ApiV1FilesRoute,
   ApiV1IngestRoute: ApiV1IngestRoute,
   ApiV1GithubProjectIdRoute: ApiV1GithubProjectIdRoute,
+  ApiV1MyReportsSplatRoute: ApiV1MyReportsSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

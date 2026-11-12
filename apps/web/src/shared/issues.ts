@@ -27,8 +27,51 @@ export const WEBHOOK_EVENTS = [
 	"issue.created",
 	"issue.updated",
 	"comment.created",
+	"message.created",
 ] as const;
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
+
+/**
+ * An issue's status as the person who reported it sees it, in the widget and
+ * on the reply page: never the team's internal stages.
+ */
+export const REPORTER_STATUSES = [
+	"received",
+	"planned",
+	"in_progress",
+	"fixed",
+	"wont_fix",
+] as const;
+export type ReporterStatus = (typeof REPORTER_STATUSES)[number];
+
+export const reporterStatus = (status: IssueStatus): ReporterStatus => {
+	switch (status) {
+		case "todo":
+			return "planned";
+		case "in_progress":
+		case "in_review":
+			return "in_progress";
+		case "done":
+			return "fixed";
+		case "canceled":
+			return "wont_fix";
+		default:
+			// Triage and backlog: seen, not promised. A duplicate whose original
+			// is unknown stays "received" too.
+			return "received";
+	}
+};
+
+export const REPORTER_STATUS_LABELS: Record<ReporterStatus, string> = {
+	received: "Received",
+	planned: "Planned",
+	in_progress: "In progress",
+	fixed: "Fixed",
+	wont_fix: "Won't fix",
+};
+
+/** Longest message a reporter or the team can send in a conversation. */
+export const MAX_MESSAGE_LENGTH = 5000;
 
 /** Status names as people read them (dashboard, emails, chat messages). */
 export const STATUS_LABELS: Record<string, string> = {

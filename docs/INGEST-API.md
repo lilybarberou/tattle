@@ -54,7 +54,9 @@ The project's **public key** (`pk_…`, in project settings) authenticates the r
     }
   ],
   "release": "1.4.2 (87)",               // optional, max 100: the app's version, see below
-  "sdk": { "name": "my-ios-app", "version": "1.0.0" } // optional
+  "sdk": { "name": "my-ios-app", "version": "1.0.0" }, // optional
+  "reporterKey": "…",                    // optional: this device's key, see "My reports" below
+  "userHash": "…"                        // optional: identity hash of reporter.id, see below
 }
 ```
 
@@ -110,6 +112,40 @@ Never put passwords, payment details or other secrets in a step: they are stored
 ## Allowed sites
 
 A project's **Allowed sites** only apply to requests that carry an `Origin` header, which browsers always send and pages cannot change. Native apps send none, so the list never blocks them. (Any non-browser client could send any `Origin` anyway: the list stops other websites from using your key, not scripts.)
+
+## My reports: follow-up and replies
+
+A reporter can list their reports, read the team's replies and answer, the way the widgets do under **My reports**. Two things identify them; neither is ever trusted from the request alone.
+
+- **The reporter key**: a random string your app generates once per device (32 to 128 letters, digits, `-` or `_`; the widgets use 32 random bytes in base64url) and keeps there, in the Keychain or Keystore if you can. Send it as `reporterKey` with each report. The server stores only its SHA-256 hash; whoever holds the key follows the reports sent with it.
+- **Verified identity** (optional, per project, in project settings): your server computes `hash = HMAC-SHA256(identity secret, reporter.id)` in hex, and the app sends it as `userHash`. Then that user sees their reports on every device. Reports sent under a verified identity are shown to that user only, not to the device. A `reporter.id` without a valid hash never opens anything.
+
+  ```js
+  // Node
+  createHmac("sha256", process.env.TATTLE_IDENTITY_SECRET).update(String(user.id)).digest("hex")
+  ```
+
+  Any other language: HMAC-SHA256 of the user id with the secret, hex-encoded (PHP: `hash_hmac('sha256', $userId, $secret)`).
+
+The endpoints take the same project key, allowed sites and CORS rules as ingest, with these headers:
+
+| Header | |
+|---|---|
+| `x-tattle-project-key` | Required: `pk_…` |
+| `x-tattle-reporter-key` | The device's key |
+| `x-tattle-user-id`, `x-tattle-user-hash` | `reporter.id` and its hash, when the project verifies identities |
+
+| Request | Response |
+|---|---|
+| `GET /api/v1/my-reports` | `{ "reports": [{ "id", "type", "title", "status", "unread", "createdAt", "updatedAt" }], "unread": 2 }`, newest activity first, at most 50 |
+| `GET /api/v1/my-reports/:id` | `{ "id", "type", "title", "message", "status", "createdAt", "messages": [{ "id", "from": "team" \| "reporter", "name", "body", "createdAt" }] }` |
+| `POST /api/v1/my-reports/:id/messages` with `{ "body": "…" }` (1–5000 characters) | `201` and the message |
+| `POST /api/v1/my-reports/:id/read` | `{ "ok": true }`: the team's messages are read |
+
+- `title` is the first line of the reporter's own message, never the team's issue title. `status` is one of `received`, `planned`, `in_progress`, `fixed`, `wont_fix`; a duplicate shows its original's status. Internal comments and fields never appear.
+- A report that is not the caller's answers `404`, like one that does not exist.
+- Limits per IP: 120 reads and 20 messages per 10 minutes (`REPORTER_READ_LIMIT_PER_IP`, `REPORTER_MESSAGE_LIMIT_PER_IP`), then `429` with `Retry-After`.
+- Check for replies when the app starts and when the user opens your feedback screen, not on a timer.
 
 ## Examples
 

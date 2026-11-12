@@ -104,3 +104,22 @@ export const limitGithub = (ip: string, projectId: string) => {
 		10 * 60_000,
 	);
 };
+
+/**
+ * Reporters following their reports (widget and reply page), per IP: reading
+ * (default 120 per 10 minutes) and sending messages (default 20 per 10 minutes).
+ */
+export const limitReporter = (ip: string, write: boolean) => {
+	sweep();
+	return write
+		? hit(
+				`reporter-write:${ip}`,
+				numberFromEnv("REPORTER_MESSAGE_LIMIT_PER_IP", 20),
+				10 * 60_000,
+			)
+		: hit(
+				`reporter-read:${ip}`,
+				numberFromEnv("REPORTER_READ_LIMIT_PER_IP", 120),
+				10 * 60_000,
+			);
+};

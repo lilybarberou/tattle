@@ -121,6 +121,33 @@ describe("describeEvent", () => {
 		expect(message?.text).toBe("Fixed in #12\n— Bot (agent)");
 	});
 
+	it("tells reporter messages and replies to reporters apart", () => {
+		const fromReporter = describeEvent("message.created", "p1", {
+			issue,
+			message: {
+				from: "reporter",
+				body: "Still broken on Firefox",
+				author: { name: "Jo", type: "reporter" },
+			},
+		});
+		expect(fromReporter?.title).toBe(
+			"Reporter replied on #7 Checkout button does nothing",
+		);
+		expect(fromReporter?.text).toBe("Still broken on Firefox\n— Jo");
+		const toReporter = describeEvent("message.created", "p1", {
+			issue,
+			message: {
+				from: "team",
+				body: "Fixed in 1.4.3",
+				author: { name: "Bot", type: "agent" },
+			},
+		});
+		expect(toReporter?.title).toBe(
+			"Reply to the reporter on #7 Checkout button does nothing",
+		);
+		expect(toReporter?.text).toBe("Fixed in 1.4.3\n— Bot (agent)");
+	});
+
 	it("truncates long text", () => {
 		const message = describeEvent("report.created", "p1", {
 			issue,

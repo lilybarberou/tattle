@@ -40,6 +40,7 @@ import {
 	type Principal,
 } from "./Access";
 import { AiSettings } from "./AiSettings";
+import { Conversations } from "./Conversations";
 import { Database } from "./Database";
 import { DataLifecycle } from "./DataLifecycle";
 import { Duplicates } from "./Duplicates";
@@ -50,7 +51,8 @@ import { Issues } from "./Issues";
 import { mailEnabled, sendMail } from "./mailer";
 import { Overview } from "./Overview";
 import { Portal } from "./Portal";
-import { clientIp, limitPortal } from "./rate-limit";
+import { clientIp, limitPortal, limitReporter } from "./rate-limit";
+import { generateIdentitySecret } from "./reporter-identity";
 import { run } from "./runtime";
 import { Webhooks } from "./Webhooks";
 
@@ -258,6 +260,7 @@ export const getProjectFn = createServerFn({ method: "GET" })
 					allowedOrigins: row.allowedOrigins,
 					portalEnabled: row.portalEnabled,
 					portalSlug: row.portalSlug,
+					identitySecret: row.identitySecret,
 					counts,
 				};
 			}),
@@ -337,6 +340,30 @@ export const updateProjectFn = createServerFn({ method: "POST" })
 						),
 					);
 				return { ok: true };
+			}),
+		),
+	);
+
+/**
+ * Turns identity verification on (with a new secret), rotates the secret, or
+ * turns it off. While off, the widget shows reporters only their device's
+ * reports.
+ */
+export const setIdentityVerificationFn = createServerFn({ method: "POST" })
+	.validator(z.object({ projectId: z.string(), enabled: z.boolean() }))
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				yield* withProject(data.projectId);
+				const database = yield* Database;
+				const identitySecret = data.enabled ? generateIdentitySecret() : null;
+				yield* database.query((db) =>
+					db
+						.update(project)
+						.set({ identitySecret })
+						.where(eq(project.id, data.projectId)),
+				);
+				return { identitySecret };
 			}),
 		),
 	);
@@ -449,6 +476,30 @@ export const addCommentFn = createServerFn({ method: "POST" })
 				return yield* issues.addComment(
 					data.projectId,
 					data.number,
+					data.body,
+					actorOf(p),
+				);
+			}),
+		),
+	);
+
+/** A message the reporter sees, in the widget and by email. */
+export const replyToReporterFn = createServerFn({ method: "POST" })
+	.validator(
+		z.object({
+			projectId: z.string(),
+			reportId: z.string(),
+			body: z.string().min(1).max(5000),
+		}),
+	)
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				const { principal: p } = yield* withProject(data.projectId);
+				const conversations = yield* Conversations;
+				return yield* conversations.reply(
+					data.projectId,
+					data.reportId,
 					data.body,
 					actorOf(p),
 				);
@@ -1310,6 +1361,60 @@ export const portalSuggestFn = createServerFn({ method: "POST" })
 					},
 					voterKey(true) as string,
 				);
+			}),
+		),
+	);
+
+// ---------- A reporter's conversation, from the link in a reply email ----------
+
+const reporterLimit = (write: boolean) => {
+	const limit = limitReporter(clientIp(), write);
+	return limit.ok
+		? Effect.void
+		: Effect.fail(
+				new InvalidInput({
+					message: "Too many messages. Try again in a few minutes.",
+				}),
+			);
+};
+
+const tokenSchema = z.string().max(300);
+
+export const getThreadLinkFn = createServerFn({ method: "GET" })
+	.validator(z.object({ token: tokenSchema }))
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				yield* reporterLimit(false);
+				const conversations = yield* Conversations;
+				return yield* conversations.openLink(data.token);
+			}),
+		),
+	);
+
+export const markThreadLinkReadFn = createServerFn({ method: "POST" })
+	.validator(z.object({ token: tokenSchema }))
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				yield* reporterLimit(false);
+				const conversations = yield* Conversations;
+				yield* conversations.markLinkRead(data.token);
+				return { ok: true };
+			}),
+		),
+	);
+
+export const replyThreadLinkFn = createServerFn({ method: "POST" })
+	.validator(
+		z.object({ token: tokenSchema, body: z.string().min(1).max(5000) }),
+	)
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				yield* reporterLimit(true);
+				const conversations = yield* Conversations;
+				return yield* conversations.postFromLink(data.token, data.body);
 			}),
 		),
 	);

@@ -1,6 +1,13 @@
-import { and, eq, inArray, isNotNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, lt, or, sql } from "drizzle-orm";
 import { Context, Effect, Layer, Schedule } from "effect";
-import { activity, issue, issueVote, project, report } from "#/db/schema";
+import {
+	activity,
+	issue,
+	issueVote,
+	project,
+	report,
+	reportMessage,
+} from "#/db/schema";
 import type { Actor } from "./Access";
 import { Database } from "./Database";
 import { type DbError, NotFound, type StorageError } from "./errors";
@@ -44,7 +51,7 @@ export class DataLifecycle extends Context.Service<
 			organizationId: string,
 			query: string,
 		) => Effect.Effect<
-			{ reports: number; issues: number; votes: number },
+			{ reports: number; messages: number; issues: number; votes: number },
 			DbError | StorageError
 		>;
 		readonly purgeExpired: (
@@ -216,6 +223,21 @@ export class DataLifecycle extends Context.Service<
 								and(inArray(report.projectId, ids), reporterCondition(query)),
 							),
 					);
+					const messages =
+						rows.length === 0
+							? []
+							: yield* database.query((db) =>
+									db
+										.select()
+										.from(reportMessage)
+										.where(
+											inArray(
+												reportMessage.reportId,
+												rows.map((r) => r.id),
+											),
+										)
+										.orderBy(asc(reportMessage.createdAt)),
+								);
 					const votes = yield* database.query((db) =>
 						db
 							.select({ issue: issue.title, votedAt: issueVote.createdAt })
@@ -246,7 +268,19 @@ export class DataLifecycle extends Context.Service<
 							screenshot: r.screenshotKey
 								? storage.signedUrl(r.screenshotKey, 7 * 24 * 3600)
 								: null,
+							// Whether the widget kept a key on their device to follow it;
+							// the key itself is never stored.
+							followedFromDevice: r.reporterKeyHash !== null,
+							identityVerified: r.verifiedUserId !== null,
 							sentAt: r.createdAt.toISOString(),
+							conversation: messages
+								.filter((m) => m.reportId === r.id)
+								.map((m) => ({
+									from: m.authorType === "reporter" ? "you" : m.authorName,
+									message: m.body,
+									sentAt: m.createdAt.toISOString(),
+									readAt: m.readAt?.toISOString() ?? null,
+								})),
 						})),
 						votes: votes.map((v) => ({
 							issue: v.issue,
@@ -263,7 +297,7 @@ export class DataLifecycle extends Context.Service<
 				const projects = yield* orgProjects(organizationId);
 				const ids = projects.map((p) => p.id);
 				if (ids.length === 0 || !query.trim())
-					return { reports: 0, issues: 0, votes: 0 };
+					return { reports: 0, messages: 0, issues: 0, votes: 0 };
 				const rows = yield* database.query((db) =>
 					db
 						.select({
@@ -280,6 +314,21 @@ export class DataLifecycle extends Context.Service<
 				const touched = [
 					...new Set(rows.flatMap((r) => (r.issueId ? [r.issueId] : []))),
 				];
+				// Their conversations with the team go with the reports (cascade).
+				const [conversation] =
+					rows.length === 0
+						? [{ value: 0 }]
+						: yield* database.query((db) =>
+								db
+									.select({ value: sql<number>`count(*)::int` })
+									.from(reportMessage)
+									.where(
+										inArray(
+											reportMessage.reportId,
+											rows.map((r) => r.id),
+										),
+									),
+							);
 				if (rows.length > 0) {
 					yield* database.query((db) =>
 						db.delete(report).where(
@@ -336,20 +385,29 @@ export class DataLifecycle extends Context.Service<
 				);
 				return {
 					reports: rows.length,
+					messages: conversation?.value ?? 0,
 					issues: orphaned.length,
 					votes: deletedVotes.length,
 				};
 			});
 
-			// Keeps the message and who sent it, drops what is heavy and sensitive:
-			// the screenshot, the logs and the steps before the report.
+			// Keeps the message, who sent it and the conversation with them; drops
+			// what is heavy and sensitive: the screenshot, the logs and the steps
+			// before the report. The device's reporter key goes too once the
+			// conversation has been quiet for as long: that device no longer sees
+			// the report in the widget (a verified user still does).
 			const purgeExpired = Effect.fn("DataLifecycle.purgeExpired")(function* (
 				days: number,
 			) {
 				const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000);
+				const quiet = sql`not exists (select 1 from ${reportMessage} where ${reportMessage.reportId} = ${report.id} and ${reportMessage.createdAt} >= ${cutoff.toISOString()}::timestamp)`;
 				const rows = yield* database.query((db) =>
 					db
-						.select({ id: report.id, key: report.screenshotKey })
+						.select({
+							id: report.id,
+							key: report.screenshotKey,
+							heavy: sql<boolean>`(${report.screenshotKey} is not null or jsonb_array_length(${report.console}) > 0 or jsonb_array_length(${report.network}) > 0 or jsonb_array_length(${report.breadcrumbs}) > 0)`,
+						})
 						.from(report)
 						.where(
 							and(
@@ -359,6 +417,7 @@ export class DataLifecycle extends Context.Service<
 									sql`jsonb_array_length(${report.console}) > 0`,
 									sql`jsonb_array_length(${report.network}) > 0`,
 									sql`jsonb_array_length(${report.breadcrumbs}) > 0`,
+									and(isNotNull(report.reporterKeyHash), quiet),
 								),
 							),
 						)
@@ -366,19 +425,32 @@ export class DataLifecycle extends Context.Service<
 				);
 				if (rows.length === 0) return 0;
 				yield* storage.remove(rows.flatMap((r) => (r.key ? [r.key] : [])));
+				const heavy = rows.filter((r) => r.heavy).map((r) => r.id);
+				if (heavy.length > 0) {
+					yield* database.query((db) =>
+						db
+							.update(report)
+							.set({
+								screenshotKey: null,
+								console: [],
+								network: [],
+								breadcrumbs: [],
+							})
+							.where(inArray(report.id, heavy)),
+					);
+				}
 				yield* database.query((db) =>
 					db
 						.update(report)
-						.set({
-							screenshotKey: null,
-							console: [],
-							network: [],
-							breadcrumbs: [],
-						})
+						.set({ reporterKeyHash: null })
 						.where(
-							inArray(
-								report.id,
-								rows.map((r) => r.id),
+							and(
+								inArray(
+									report.id,
+									rows.map((r) => r.id),
+								),
+								isNotNull(report.reporterKeyHash),
+								quiet,
 							),
 						),
 				);

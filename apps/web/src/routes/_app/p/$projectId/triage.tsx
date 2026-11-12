@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import * as z from "zod";
 import { DuplicateSuggestion } from "#/components/duplicate-suggestion";
 import {
+	AwaitingReply,
 	Face,
 	IssueNumber,
 	StatusIcon,
@@ -137,6 +138,7 @@ function InboxRow({
 				</span>
 				<span className="truncate text-ink/80">{item.title}</span>
 				<span className="flex items-center gap-1.5 text-muted-foreground">
+					{item.awaitingReply && <AwaitingReply />}
 					{report?.hasScreenshot && (
 						<ImageIcon className="size-3.5" aria-label="Has a screenshot" />
 					)}

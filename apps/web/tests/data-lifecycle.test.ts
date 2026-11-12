@@ -1,9 +1,17 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { db } from "#/db";
-import { activity, issue, issueVote, project, report } from "#/db/schema";
+import {
+	activity,
+	issue,
+	issueVote,
+	project,
+	report,
+	reportMessage,
+} from "#/db/schema";
+import { Conversations } from "#/server/Conversations";
 import { DataLifecycle } from "#/server/DataLifecycle";
 import { Ingest } from "#/server/Ingest";
 import { Issues } from "#/server/Issues";
@@ -222,7 +230,7 @@ describe("reporters (GDPR)", () => {
 		const result = await run(
 			DataLifecycle.use((d) => d.eraseReporter(org.id, "JO@example.com")),
 		);
-		expect(result).toEqual({ reports: 2, issues: 1, votes: 1 });
+		expect(result).toEqual({ reports: 2, messages: 0, issues: 1, votes: 1 });
 
 		expect(await reportRow(onlyJo.id)).toBeUndefined();
 		expect(await reportRow(joToo.id)).toBeUndefined();
@@ -279,6 +287,7 @@ describe("reporters (GDPR)", () => {
 			),
 		).toEqual({
 			reports: 0,
+			messages: 0,
 			issues: 0,
 			votes: 0,
 		});
@@ -291,6 +300,7 @@ describe("reporters (GDPR)", () => {
 			await run(DataLifecycle.use((d) => d.eraseReporter(org.id, "  "))),
 		).toEqual({
 			reports: 0,
+			messages: 0,
 			issues: 0,
 			votes: 0,
 		});
@@ -335,6 +345,98 @@ describe("purgeExpired", () => {
 		});
 		expect(existsSync(fileOf(recentKey))).toBe(true);
 		// Nothing left to purge.
+		expect(await run(DataLifecycle.use((d) => d.purgeExpired(30)))).toBe(0);
+	});
+});
+
+describe("conversations and reporter keys", () => {
+	const KEY = "device-key-for-the-lifecycle-tests-0123";
+	const setup = async () => {
+		const { org, project: p } = await createWorkspace();
+		const sent = await submit(
+			reportPayload(p.publicKey, {
+				reporterKey: KEY,
+				reporter: { email: "jo@example.com", name: "Jo" },
+			}),
+		);
+		await run(
+			Conversations.use((c) =>
+				c.reply(p.id, sent.id, "Which browser?", userActor),
+			),
+		);
+		await run(
+			Conversations.use((c) =>
+				c.postMine(
+					{ projectKey: p.publicKey, origin: null, reporterKey: KEY },
+					sent.id,
+					"Firefox 130",
+				),
+			),
+		);
+		return { org, p, sent };
+	};
+
+	it("exports the conversation with the reports, never the key", async () => {
+		const { org } = await setup();
+		const exported = await run(
+			DataLifecycle.use((d) => d.exportReporter(org.id, "jo@example.com")),
+		);
+		expect(exported).toMatchObject({
+			reports: [
+				{
+					followedFromDevice: true,
+					conversation: [
+						{ from: userActor.name, message: "Which browser?" },
+						{ from: "you", message: "Firefox 130" },
+					],
+				},
+			],
+		});
+		expect(JSON.stringify(exported)).not.toContain(KEY);
+	});
+
+	it("erases the conversation with the reports", async () => {
+		const { org } = await setup();
+		const result = await run(
+			DataLifecycle.use((d) => d.eraseReporter(org.id, "jo@example.com")),
+		);
+		expect(result).toMatchObject({ reports: 1, messages: 2 });
+		expect(await db.select().from(reportMessage)).toEqual([]);
+	});
+
+	it("drops the device key of old, quiet reports and keeps the conversation", async () => {
+		const { p, sent } = await setup();
+		const active = await submit(
+			reportPayload(p.publicKey, { reporterKey: KEY, message: "Still open" }),
+		);
+		const old = new Date(Date.now() - 40 * 24 * 3600 * 1000);
+		await db
+			.update(report)
+			.set({ createdAt: old })
+			.where(inArray(report.id, [sent.id, active.id]));
+		await db
+			.update(reportMessage)
+			.set({ createdAt: old })
+			.where(eq(reportMessage.reportId, sent.id));
+		// A recent message keeps the other conversation open on the device.
+		await run(
+			Conversations.use((c) =>
+				c.reply(p.id, active.id, "We're close", userActor),
+			),
+		);
+
+		expect(await run(DataLifecycle.use((d) => d.purgeExpired(30)))).toBe(1);
+		expect(await reportRow(sent.id)).toMatchObject({
+			reporterKeyHash: null,
+			message: "Checkout button does nothing\nI clicked it three times.",
+		});
+		expect(
+			await db
+				.select()
+				.from(reportMessage)
+				.where(eq(reportMessage.reportId, sent.id)),
+		).toHaveLength(2);
+		expect((await reportRow(active.id))?.reporterKeyHash).not.toBeNull();
 		expect(await run(DataLifecycle.use((d) => d.purgeExpired(30)))).toBe(0);
 	});
 });
