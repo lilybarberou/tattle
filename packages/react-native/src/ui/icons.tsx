@@ -20,6 +20,10 @@ const paths = {
 	),
 	trash: svg('<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/>'),
 	check: svg('<path d="M20 6 9 17l-5-5"/>'),
+	back: svg('<path d="m15 18-6-6 6-6"/>'),
+	chat: svg(
+		'<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
+	),
 	rect: svg('<rect x="3" y="5" width="18" height="14" rx="2"/>'),
 	ellipse: svg('<ellipse cx="12" cy="12" rx="9" ry="7"/>'),
 	arrow: svg('<path d="M5 19 19 5M9 5h10v10"/>'),

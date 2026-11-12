@@ -14,6 +14,7 @@ import {
 import { detectLocale } from "./i18n";
 import { internalState } from "./internal";
 import { cleanRelease, ingestUrl } from "./payload";
+import { myReportsUrl } from "./reporter";
 import {
 	isColor,
 	isColorScheme,
@@ -93,9 +94,11 @@ export function init(options: InitOptions): void {
 	widget?.destroy();
 	startCollectors();
 	const apiUrl = (options.apiUrl || defaultApiUrl()).replace(/\/+$/, "");
-	const endpoint = new URL(ingestUrl(apiUrl), location.href).href;
-	if (!internalState.ignoredUrls.includes(endpoint))
-		internalState.ignoredUrls.push(endpoint);
+	for (const url of [ingestUrl(apiUrl), myReportsUrl(apiUrl)]) {
+		const endpoint = new URL(url, location.href).href;
+		if (!internalState.ignoredUrls.includes(endpoint))
+			internalState.ignoredUrls.push(endpoint);
+	}
 
 	widget = new Widget(
 		{

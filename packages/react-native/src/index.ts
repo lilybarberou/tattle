@@ -2,7 +2,7 @@ import { installBreadcrumbCollector } from "./collectors/breadcrumbs";
 import { installConsoleCollector } from "./collectors/console";
 import { installNetworkCollector } from "./collectors/network";
 import { addBreadcrumb, setScreen, trackNavigation } from "./navigation";
-import { requestClose, requestOpen, state } from "./state";
+import { notify, requestClose, requestOpen, state } from "./state";
 import type { OpenOptions, TattleUser } from "./types";
 
 export {
@@ -46,6 +46,8 @@ installBreadcrumbCollector();
 /** Sets (or clears with `null`) the user attached to reports. */
 export function identify(user: TattleUser | null): void {
 	state.user = user && typeof user === "object" ? { ...user } : null;
+	state.identityVersion++;
+	notify();
 }
 
 /** Merges free-form metadata attached to every report. */

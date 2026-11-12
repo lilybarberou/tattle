@@ -2,13 +2,13 @@
 
 A drop-in bug report and feedback widget for any web app. It has no framework dependency and renders in a Shadow DOM.
 
-Users click a floating button, choose **Report a bug** or **Suggest an idea**, and can take an annotated screenshot of the page (rectangle, circle, arrow, pen, blur, undo, clear). They write a message and send it. Each report also carries the steps the user took before reporting (pages, clicks, field changes), the recent console logs, JS errors, network requests, device info, and the user and context your app provides.
+Users click a floating button, choose **Report a bug** or **Suggest an idea**, and can take an annotated screenshot of the page (rectangle, circle, arrow, pen, blur, undo, clear). They write a message and send it, then follow it under **My reports** and talk with your team there. Each report also carries the steps the user took before reporting (pages, clicks, field changes), the recent console logs, JS errors, network requests, device info, and the user and context your app provides.
 
 - Vanilla TypeScript. UI isolated in a closed Shadow DOM, with light and dark themes that follow `prefers-color-scheme` or your app
 - Themable to look like part of your app: colors, font, corner radius, texts, and extra CSS
 - French and English UI
 - One runtime dependency: [`html-to-image`](https://github.com/bubkoo/html-to-image) (bundled in the script-tag build)
-- About 20 KB gzipped for the script-tag build, `html-to-image` included
+- About 25 KB gzipped for the script-tag build, `html-to-image` included
 
 ## Install
 
@@ -68,7 +68,7 @@ Tattle.init(options: {
 Tattle.setTheme(theme: TattleTheme): void                       // replaces the theme, keeps the open form
 Tattle.setColorScheme(scheme: "light" | "dark" | "system"): void
 
-Tattle.identify(user: { id?: string; email?: string; name?: string; [trait: string]: unknown } | null): void
+Tattle.identify(user: { id?: string; email?: string; name?: string; hash?: string; [trait: string]: unknown } | null): void
 Tattle.setContext(context: Record<string, unknown>): void   // shallow-merged into previous context
 Tattle.addBreadcrumb(step: { message: string; category?: string; data?: Record<string, unknown> }): void
 Tattle.open(options?: { type?: "bug" | "feature" }): void
@@ -82,6 +82,32 @@ Tattle.destroy(): void
 - `addBreadcrumb` adds a step of your own to the trail, for what the page alone does not show: `Tattle.addBreadcrumb({ message: "Applied coupon", category: "cart", data: { code: "SPRING" } })`. `category` defaults to `"custom"`; `data` keeps up to 10 strings, numbers, booleans or nulls. Never put secrets in it.
 - When `identify` gives a user email, the form hides its optional email field.
 - `release` files every report under your app's version. Issues show the releases they were seen in, the dashboard filters by it, and a bug marked done that gets a newer report is reopened as a regression in that release. Set it from your build, e.g. `release: import.meta.env.VITE_APP_VERSION`.
+
+## My reports: follow-up and replies
+
+Once someone has sent a report, the form shows **My reports**: their reports with a status in their words (Received, Planned, In progress, Fixed, Won't fix), the team's replies, and a box to answer. When the team replies, the launcher shows a badge, and opening the widget goes straight to the conversations. The widget checks for replies when the page loads and each time it opens, never in the background.
+
+Who sees what:
+
+- **Each device sees its own reports.** The first report stores a random key in `localStorage` (`tattle:reporter-key:<projectKey>`), sent with each report and each request for replies. The server only keeps its hash. Without `localStorage` (private modes, sandboxed frames), the key lasts until the page reloads.
+- **A signed-in user sees their reports on every device** when the project has **Verified identity** on (project settings). Your server signs the user's id with the project's identity secret, and you pass that signature as `hash`:
+
+  ```js
+  // On your server (Node). Keep the secret there, never in the browser.
+  import { createHmac } from "node:crypto";
+  const tattleHash = createHmac("sha256", process.env.TATTLE_IDENTITY_SECRET)
+    .update(String(user.id))
+    .digest("hex");
+  ```
+
+  ```js
+  // In the page
+  Tattle.identify({ id: user.id, email: user.email, name: user.name, hash: tattleHash });
+  ```
+
+  Any other language: the HMAC-SHA256 of the user id with the secret, in hex (PHP: `hash_hmac('sha256', $userId, $secret)`). A user id without a valid hash never opens anyone's reports. Reports sent under a verified identity are then shown to that user only, not to whoever uses the device next. The hash is never stored.
+
+The team's replies are also emailed when the reporter's email is known and the server has SMTP, with a link to read and answer without the widget.
 
 ## Match your app's design
 
@@ -199,7 +225,9 @@ Submitting a report sends `POST {apiUrl}/api/v1/ingest` with `Content-Type: appl
   console: [{ level, message, timestamp, stack? }],                  // last 200
   network: [{ method, url, status, durationMs, timestamp, error? }],  // last 100
   breadcrumbs: [{ category, message, timestamp, data? }],            // last 50
-  sdk: { name: "@tattle/widget", version: "0.1.0" }
+  sdk: { name: "@tattle/widget", version: "0.1.0" },
+  reporterKey?,            // this device's key, for "My reports"
+  userHash?                // the hash given to identify()
 }
 ```
 
@@ -209,7 +237,7 @@ The server answers `201 { id, issueNumber? }`. On an error status it answers `{ 
 
 - **Console**: wraps `console.log/info/warn/error/debug`. The original methods still run. Arguments are serialized safely: Errors become `name: message` with their stack. Objects are stringified with circular references handled, a depth limit of 4, and strings cut to 1000 chars. Each message is capped at 4000 chars.
 - **Errors**: uncaught errors, unhandled promise rejections and failed resource loads become `error` entries.
-- **Network**: wraps `fetch` and `XMLHttpRequest`. It records only method, URL, status (0 on network failure), duration and timestamp, never bodies or headers. The widget's own requests are not recorded: the ingest call and the assets fetched while taking a screenshot.
+- **Network**: wraps `fetch` and `XMLHttpRequest`. It records only method, URL, status (0 on network failure), duration and timestamp, never bodies or headers. The widget's own requests are not recorded: the ingest call, the "My reports" calls and the assets fetched while taking a screenshot.
 - **Steps before the report** (`breadcrumbs`): the last 50 of these, with their time:
   - `navigation`: every URL change (`pushState`, `replaceState`, back and forward, `#hash` changes), redacted like `pageUrl` and without the origin when it is the page's own.
   - `click`: a short description of what was clicked: its role, accessible name (or up to 40 characters of its text), and id, e.g. `button “Pay now” #pay`. Clicks inside fields are skipped: their changes are recorded instead.

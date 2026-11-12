@@ -2,7 +2,7 @@
 
 Tattle's bug report and feedback widget for React Native and Expo apps.
 
-Users tap a floating button, choose **Report a bug** or **Suggest an idea**, write a message and send it. A bug report comes with a screenshot of the screen they were on. Users can annotate it (rectangle, circle, arrow, pen, blur) or remove it. Each report also carries the screens the user went through before reporting, the recent console logs, uncaught errors, network requests, the device and app version, and the user and context your app provides.
+Users tap a floating button, choose **Report a bug** or **Suggest an idea**, write a message and send it. A bug report comes with a screenshot of the screen they were on. Users can annotate it (rectangle, circle, arrow, pen, blur) or remove it. They then follow their reports under **My reports** and talk with your team there. Each report also carries the screens the user went through before reporting, the recent console logs, uncaught errors, network requests, the device and app version, and the user and context your app provides.
 
 - Works with Expo (including Expo Go) and bare React Native, iOS and Android
 - French and English UI, light and dark themes that follow the system or your app
@@ -117,6 +117,38 @@ The app's name, version and build number are read from `expo-application` when i
 
 Every report is filed under a release: the app's version and build, such as `"1.4.2 (87)"`, unless you pass `release` (for example to tell over-the-air updates apart, with `Updates.updateId` from `expo-updates`). Issues show the releases they were seen in, the dashboard filters by it, and a bug marked done that gets a newer report is reopened as a regression in that release.
 
+## My reports: follow-up and replies
+
+Once someone has sent a report, the form shows **My reports**: their reports with a status in their words (Received, Planned, In progress, Fixed, Won't fix), the team's replies, and a box to answer. When the team replies, the floating button shows a badge, and opening the form goes straight to the conversations. The SDK checks for replies when the provider mounts, when `identify` changes the user and each time the form opens, never in the background.
+
+**Each device sees its own reports.** The first report creates a random key, sent with each report and each request for replies; the server only keeps its hash. The SDK keeps the key with the first of these your app has:
+
+```sh
+npx expo install expo-secure-store      # Keychain / Keystore (recommended)
+npx expo install @react-native-async-storage/async-storage
+```
+
+Without either, the key lives in memory: "My reports" then lasts until the app restarts, and the SDK says so in the console. The key comes from `crypto.getRandomValues`, or `expo-crypto` when installed; without either, the SDK warns that the key could be guessed.
+
+**A signed-in user sees their reports on every device** when the project has **Verified identity** on (project settings). Your server signs the user's id with the project's identity secret and your app passes it as `hash`:
+
+```js
+// On your server (Node). Keep the secret there, never in the app.
+import { createHmac } from "node:crypto";
+const tattleHash = createHmac("sha256", process.env.TATTLE_IDENTITY_SECRET)
+  .update(String(user.id))
+  .digest("hex");
+```
+
+```ts
+// In the app, with what your API returned
+Tattle.identify({ id: user.id, email: user.email, name: user.name, hash: user.tattleHash });
+```
+
+Any other language: the HMAC-SHA256 of the user id with the secret, in hex (PHP: `hash_hmac('sha256', $userId, $secret)`). A user id without a valid hash never opens anyone's reports. Reports sent under a verified identity are then shown to that user only, not to whoever uses the device next. The hash is never stored.
+
+The team's replies are also emailed when the reporter's email is known and the server has SMTP, with a link to read and answer outside the app.
+
 ## Match your app's design
 
 Give the widget your design tokens, and it reads like a screen of your app:
@@ -215,6 +247,7 @@ Submitting a report sends `POST {apiUrl}/api/v1/ingest`, the same endpoint as th
 - **Release**: `release`, or the app's version and build.
 - **Steps** (`breadcrumbs`): the last 50 screens, foreground and background changes, and steps added with `addBreadcrumb`.
 - **Screenshot**: a JPEG of the provider's content, bug reports only, unless the user removed it.
+- **Reporter key**: the device's key for "My reports", and the `hash` given to `identify`, if any.
 
 ## Development
 

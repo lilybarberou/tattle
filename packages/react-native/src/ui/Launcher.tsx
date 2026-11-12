@@ -4,8 +4,10 @@ import {
 	PanResponder,
 	StyleSheet,
 	useWindowDimensions,
+	View,
 } from "react-native";
 import type { Insets } from "../optional";
+import { Badge } from "./Inbox";
 import { Icon } from "./icons";
 import { useInsets } from "./insets";
 import type { Theme } from "./theme";
@@ -43,11 +45,14 @@ export function Launcher({
 	side,
 	label,
 	theme,
+	unread = 0,
 	onPress,
 }: {
 	side: "left" | "right";
 	label: string;
 	theme: Theme;
+	/** Team replies not read yet, shown as a badge. */
+	unread?: number;
 	onPress: () => void;
 }) {
 	const { width, height } = useWindowDimensions();
@@ -145,6 +150,14 @@ export function Launcher({
 			]}
 		>
 			<Icon name="bug" color={theme.accentFg} size={24} />
+			{unread > 0 && (
+				<View
+					style={[styles.badge, { borderColor: theme.accent }]}
+					pointerEvents="none"
+				>
+					<Badge theme={theme} count={unread} inverted />
+				</View>
+			)}
 		</Animated.View>
 	);
 }
@@ -163,5 +176,12 @@ const styles = StyleSheet.create({
 		shadowOpacity: 0.35,
 		shadowRadius: 12,
 		elevation: 6,
+	},
+	badge: {
+		position: "absolute",
+		top: -4,
+		right: -4,
+		borderWidth: 2,
+		borderRadius: 12,
 	},
 });

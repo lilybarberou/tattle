@@ -52,6 +52,68 @@ export function expoDevice(): ExpoDevice | null {
 	return device;
 }
 
+/** Where the reporter key is kept: the first of these the app has. */
+export interface KeyValueStore {
+	getItem(key: string): Promise<string | null>;
+	setItem(key: string, value: string): Promise<void>;
+}
+interface SecureStore {
+	getItemAsync(key: string): Promise<string | null>;
+	setItemAsync(key: string, value: string): Promise<void>;
+}
+
+let keyStore: { store: KeyValueStore; name: string } | null | undefined;
+
+/** expo-secure-store (Keychain / Keystore), else AsyncStorage, else null. */
+export function persistentStore(): {
+	store: KeyValueStore;
+	name: string;
+} | null {
+	if (keyStore !== undefined) return keyStore;
+	keyStore = null;
+	try {
+		const secure = require("expo-secure-store") as SecureStore;
+		if (typeof secure?.getItemAsync === "function")
+			keyStore = {
+				name: "expo-secure-store",
+				store: {
+					getItem: (key) => secure.getItemAsync(key),
+					setItem: (key, value) => secure.setItemAsync(key, value),
+				},
+			};
+	} catch {
+		// not installed
+	}
+	if (keyStore) return keyStore;
+	try {
+		const module = require("@react-native-async-storage/async-storage") as {
+			default?: KeyValueStore;
+		} & KeyValueStore;
+		const asyncStorage = module?.default ?? module;
+		if (typeof asyncStorage?.getItem === "function")
+			keyStore = { name: "async-storage", store: asyncStorage };
+	} catch {
+		// not installed
+	}
+	return keyStore;
+}
+
+interface ExpoCrypto {
+	getRandomBytes(count: number): Uint8Array;
+}
+let expoCryptoModule: ExpoCrypto | null | undefined;
+
+export function expoCrypto(): ExpoCrypto | null {
+	if (expoCryptoModule === undefined) {
+		try {
+			expoCryptoModule = require("expo-crypto") as ExpoCrypto;
+		} catch {
+			expoCryptoModule = null;
+		}
+	}
+	return expoCryptoModule;
+}
+
 let safeArea: SafeAreaContext | null | undefined;
 
 export function safeAreaContext(): SafeAreaContext | null {

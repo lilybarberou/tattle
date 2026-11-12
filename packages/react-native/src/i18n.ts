@@ -37,6 +37,24 @@ const en = {
 	clear: "Clear all",
 	cancel: "Cancel",
 	done: "Done",
+	// My reports
+	myReports: "My reports",
+	back: "Back",
+	unreadReplies: "New replies from the team",
+	typeBug: "Bug",
+	typeFeature: "Idea",
+	statusReceived: "Received",
+	statusPlanned: "Planned",
+	statusInProgress: "In progress",
+	statusFixed: "Fixed",
+	statusShipped: "Available",
+	statusWontFix: "Won't fix",
+	you: "You",
+	team: "Team",
+	replyLabel: "Your reply",
+	replyPlaceholder: "Write to the team…",
+	noReports: "You haven't sent anything yet.",
+	loadFailed: "Could not load your reports.",
 };
 
 export type Strings = typeof en;
@@ -79,6 +97,23 @@ const fr: Strings = {
 	clear: "Tout effacer",
 	cancel: "Annuler",
 	done: "Terminer",
+	myReports: "Mes signalements",
+	back: "Retour",
+	unreadReplies: "Nouvelles réponses de l'équipe",
+	typeBug: "Bug",
+	typeFeature: "Idée",
+	statusReceived: "Reçu",
+	statusPlanned: "Prévu",
+	statusInProgress: "En cours",
+	statusFixed: "Corrigé",
+	statusShipped: "Disponible",
+	statusWontFix: "Non retenu",
+	you: "Vous",
+	team: "L'équipe",
+	replyLabel: "Votre réponse",
+	replyPlaceholder: "Écrire à l'équipe…",
+	noReports: "Vous n'avez encore rien envoyé.",
+	loadFailed: "Impossible de charger vos signalements.",
 };
 
 const STRINGS: Record<Locale, Strings> = { en, fr };

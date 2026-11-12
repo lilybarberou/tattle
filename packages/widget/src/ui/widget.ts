@@ -8,6 +8,17 @@ import {
 	MAX_MESSAGE_LENGTH,
 	sendPayload,
 } from "../payload";
+import {
+	fetchReports,
+	fetchThread,
+	markRead,
+	ReporterApiError,
+	type ReportSummary,
+	reporterHeaders,
+	reporterKey,
+	sendMessage,
+	type Thread,
+} from "../reporter";
 import { resolveScheme, themeVariables } from "../theme";
 import type {
 	ColorScheme,
@@ -19,6 +30,7 @@ import type {
 } from "../types";
 import { h, iconButton, trapTab } from "./dom";
 import { icons } from "./icons";
+import { renderList, renderThread } from "./inbox";
 import { styles } from "./styles";
 
 export interface WidgetConfig {
@@ -65,6 +77,18 @@ export class Widget {
 	private readonly t: Strings;
 	private readonly root: HTMLDivElement;
 	private readonly launcher: HTMLButtonElement | null = null;
+	private readonly launcherIcon: HTMLSpanElement | null = null;
+	private readonly launcherBadge: HTMLSpanElement | null = null;
+	private readonly backBtn: HTMLButtonElement;
+	private readonly titleEl: HTMLHeadingElement;
+	private readonly inboxEntry: HTMLButtonElement;
+	private readonly inboxBadge: HTMLSpanElement;
+	private readonly listView: HTMLDivElement;
+	private readonly threadView: HTMLDivElement;
+	private readonly threadContent: HTMLDivElement;
+	private readonly reply: HTMLTextAreaElement;
+	private readonly replyError: HTMLParagraphElement;
+	private readonly replySubmit: HTMLButtonElement;
 	private readonly backdrop: HTMLDivElement;
 	private readonly panel: HTMLDivElement;
 	private readonly form: HTMLFormElement;
@@ -102,6 +126,13 @@ export class Widget {
 	);
 	private motion: Animation[] = [];
 	private motionId = 0;
+	/** "My reports": the list, one conversation, or the form (default). */
+	private view: "form" | "list" | "thread" = "form";
+	private reports: ReportSummary[] = [];
+	private thread: Thread | null = null;
+	private refreshId = 0;
+	private refreshTimer: ReturnType<typeof setTimeout> | undefined;
+	private replying = false;
 
 	constructor(
 		private readonly config: WidgetConfig,
@@ -124,11 +155,21 @@ export class Widget {
 		if (!config.showButton) this.root.classList.add("fb-no-button");
 
 		if (config.showButton) {
-			this.launcher = iconButton(icons.bug, t.launcher, "fb-launcher", {
+			this.launcher = iconButton("", t.launcher, "fb-launcher", {
 				"aria-haspopup": "dialog",
 				"aria-expanded": "false",
 				"aria-controls": "fb-panel",
 			});
+			this.launcherIcon = h("span", {
+				class: "fb-launcher-icon",
+				html: icons.bug,
+			});
+			this.launcherBadge = h("span", {
+				class: "fb-count-badge",
+				"aria-hidden": "true",
+				hidden: true,
+			});
+			this.launcher.append(this.launcherIcon, this.launcherBadge);
 			this.launcher.addEventListener("click", () =>
 				this.isOpen ? this.close() : this.open(),
 			);
@@ -274,9 +315,65 @@ export class Widget {
 			t.send,
 		);
 
+		// "My reports": shown once this person has sent something.
+		this.inboxBadge = h("span", { class: "fb-count-badge", hidden: true });
+		this.inboxEntry = h(
+			"button",
+			{
+				type: "button",
+				class: "fb-inbox-entry",
+				hidden: true,
+				html: icons.chat,
+			},
+			h("span", { class: "fb-inbox-label" }, t.myReports),
+			this.inboxBadge,
+		);
+		this.inboxEntry.addEventListener("click", () => this.showList());
+		this.listView = h("div", { class: "fb-body", hidden: true });
+		this.threadContent = h("div", { class: "fb-field" });
+		this.reply = h("textarea", {
+			id: "fb-reply",
+			class: "fb-textarea fb-reply",
+			maxlength: MAX_MESSAGE_LENGTH,
+			placeholder: t.replyPlaceholder,
+			"aria-label": t.replyLabel,
+			rows: 3,
+		});
+		this.reply.addEventListener("input", () => {
+			if (!this.replyError.hidden) this.replyError.hidden = true;
+		});
+		this.replyError = h("p", {
+			class: "fb-error",
+			role: "alert",
+			hidden: true,
+		});
+		this.replySubmit = h(
+			"button",
+			{ type: "submit", class: "fb-btn fb-btn-primary fb-submit" },
+			t.send,
+		);
+		const replyForm = h(
+			"form",
+			{ class: "fb-field", novalidate: true },
+			this.reply,
+			this.replyError,
+			this.replySubmit,
+		);
+		replyForm.addEventListener("submit", (event) => {
+			event.preventDefault();
+			void this.sendReply();
+		});
+		this.threadView = h(
+			"div",
+			{ class: "fb-body", hidden: true },
+			this.threadContent,
+			replyForm,
+		);
+
 		this.form = h(
 			"form",
 			{ class: "fb-body", novalidate: true },
+			this.inboxEntry,
 			seg,
 			this.shotSection,
 			messageField,
@@ -298,6 +395,13 @@ export class Widget {
 
 		const closeBtn = iconButton(icons.close, t.close, "fb-icon-btn");
 		closeBtn.addEventListener("click", () => this.close());
+		this.backBtn = iconButton(icons.back, t.back, "fb-icon-btn fb-back", {
+			hidden: true,
+		});
+		this.backBtn.addEventListener("click", () =>
+			this.view === "thread" ? this.showList() : this.setView("form"),
+		);
+		this.titleEl = h("h2", { class: "fb-title", id: "fb-title" }, t.title);
 		this.panel = h(
 			"div",
 			{
@@ -312,11 +416,13 @@ export class Widget {
 			h(
 				"div",
 				{ class: "fb-header" },
-				h("h2", { class: "fb-title", id: "fb-title" }, t.title),
+				h("div", { class: "fb-header-start" }, this.backBtn, this.titleEl),
 				closeBtn,
 			),
 			this.form,
 			this.success,
+			this.listView,
+			this.threadView,
 		);
 		this.panel.addEventListener("keydown", (event) =>
 			trapTab(event, this.panel, this.shadow.activeElement),
@@ -342,6 +448,7 @@ export class Widget {
 		this.darkQuery?.addEventListener?.("change", this.applyTheme);
 		// "inherit" reads the font of <body>, which may not have existed before.
 		if (this.theme.fontFamily === "inherit") this.applyTheme();
+		this.scheduleRefresh();
 	}
 
 	setTheme(theme: TattleTheme): void {
@@ -394,6 +501,8 @@ export class Widget {
 		const hasEmail =
 			typeof user?.email === "string" && user.email.trim() !== "";
 		this.emailField.hidden = hasEmail;
+		// A new user (or their hash) may open other reports.
+		if (this.mounted) this.scheduleRefresh();
 	}
 
 	open(type?: TattleType): void {
@@ -404,18 +513,26 @@ export class Widget {
 		this.isOpen = true;
 		const active = document.activeElement;
 		this.lastFocus = active === this.host ? null : active;
+		// Also fetches "My reports" again.
 		this.refreshIdentity();
 		// Reopened while closing after a sent report: start from a fresh form.
 		if (!this.success.hidden) this.reset();
+		// The team replied: show the conversations first.
+		const replies = !type && this.unread() > 0;
+		if (replies) this.showList();
+		// Reopened while closing from "My reports": back to the form.
+		else if (this.view !== "form") this.setView("form");
 		this.showPanel();
 		this.launcher?.setAttribute("aria-expanded", "true");
 		this.launcher?.setAttribute("aria-label", this.t.closeLauncher);
-		if (this.launcher) this.launcher.innerHTML = icons.close;
+		if (this.launcherIcon) this.launcherIcon.innerHTML = icons.close;
 		const coarse =
 			typeof matchMedia === "function" &&
 			matchMedia("(pointer: coarse)").matches;
 		requestAnimationFrame(() =>
-			(coarse ? this.panel : this.message).focus({ preventScroll: true }),
+			(coarse || replies ? this.panel : this.message).focus({
+				preventScroll: true,
+			}),
 		);
 	}
 
@@ -425,8 +542,8 @@ export class Widget {
 		this.isOpen = false;
 		if (this.launcher) {
 			this.launcher.setAttribute("aria-expanded", "false");
-			this.launcher.setAttribute("aria-label", this.t.launcher);
-			this.launcher.innerHTML = icons.bug;
+			if (this.launcherIcon) this.launcherIcon.innerHTML = icons.bug;
+			this.renderUnread();
 		}
 		const target = this.lastFocus;
 		this.lastFocus = null;
@@ -461,6 +578,180 @@ export class Widget {
 		this.panel.inert = false;
 		this.backdrop.inert = false;
 		if (!this.success.hidden) this.reset();
+		if (this.view !== "form") this.setView("form");
+	}
+
+	// ---------- My reports ----------
+
+	private unread(): number {
+		return this.reports.reduce((sum, r) => sum + (r.unread || 0), 0);
+	}
+
+	private headers(): Record<string, string> | null {
+		return reporterHeaders({
+			projectKey: this.config.projectKey,
+			reporterKey: reporterKey(this.config.projectKey, false),
+			user: this.deps.getUser(),
+		});
+	}
+
+	/** Fetches the list soon; calls in a row (identify, open…) make one request. */
+	private scheduleRefresh(): void {
+		clearTimeout(this.refreshTimer);
+		this.refreshTimer = setTimeout(() => void this.refreshReports(), 30);
+	}
+
+	private async refreshReports(): Promise<void> {
+		if (this.destroyed) return;
+		const id = ++this.refreshId;
+		const headers = this.headers();
+		if (!headers) {
+			this.reports = [];
+			this.renderUnread();
+			return;
+		}
+		try {
+			const result = await fetchReports(this.config.apiUrl, headers);
+			if (id !== this.refreshId || this.destroyed) return;
+			this.reports = Array.isArray(result?.reports) ? result.reports : [];
+			this.renderUnread();
+			if (this.view === "list") this.renderListView();
+		} catch {
+			if (id !== this.refreshId || this.destroyed) return;
+			if (this.view === "list" && this.reports.length === 0)
+				this.listView.replaceChildren(
+					h("p", { class: "fb-error" }, this.t.loadFailed),
+				);
+		}
+	}
+
+	/** The entry in the form and the badge on the launcher. */
+	private renderUnread(): void {
+		const unread = this.unread();
+		this.inboxEntry.hidden = this.reports.length === 0;
+		this.inboxBadge.hidden = unread === 0;
+		this.inboxBadge.textContent = String(unread);
+		this.inboxEntry.setAttribute(
+			"aria-label",
+			unread > 0
+				? `${this.t.myReports} · ${this.t.unreadReplies}: ${unread}`
+				: this.t.myReports,
+		);
+		if (!this.launcher || !this.launcherBadge) return;
+		const showBadge = unread > 0 && !this.isOpen;
+		this.launcherBadge.hidden = !showBadge;
+		this.launcherBadge.textContent = unread > 9 ? "9+" : String(unread);
+		if (!this.isOpen)
+			this.launcher.setAttribute(
+				"aria-label",
+				showBadge
+					? `${this.t.launcher} · ${this.t.unreadReplies}: ${unread}`
+					: this.t.launcher,
+			);
+	}
+
+	private setView(view: "form" | "list" | "thread"): void {
+		this.view = view;
+		this.form.hidden = view !== "form";
+		this.listView.hidden = view !== "list";
+		this.threadView.hidden = view !== "thread";
+		this.backBtn.hidden = view === "form";
+		this.titleEl.textContent =
+			view === "form" ? this.t.title : this.t.myReports;
+		if (view !== "thread") this.thread = null;
+		if (this.isOpen && !this.panel.hidden)
+			(view === "form" ? this.message : this.backBtn).focus({
+				preventScroll: true,
+			});
+	}
+
+	private renderListView(): void {
+		this.listView.replaceChildren(
+			renderList(
+				this.t,
+				this.config.locale,
+				this.reports,
+				(id) => void this.openThread(id),
+			),
+		);
+	}
+
+	private showList(): void {
+		this.setView("list");
+		this.renderListView();
+		this.scheduleRefresh();
+	}
+
+	private async openThread(id: string): Promise<void> {
+		const headers = this.headers();
+		if (!headers) return;
+		this.setView("thread");
+		this.replyError.hidden = true;
+		this.threadContent.replaceChildren(
+			h("span", { class: "fb-spinner", "aria-hidden": "true" }),
+		);
+		try {
+			const thread = await fetchThread(this.config.apiUrl, headers, id);
+			if (this.view !== "thread" || this.destroyed) return;
+			this.thread = thread;
+			this.renderThreadView();
+			const report = this.reports.find((r) => r.id === id);
+			if (report?.unread) {
+				await markRead(this.config.apiUrl, headers, id);
+				report.unread = 0;
+				this.renderUnread();
+			}
+		} catch {
+			if (this.view === "thread")
+				this.threadContent.replaceChildren(
+					h("p", { class: "fb-error" }, this.t.loadFailed),
+				);
+		}
+	}
+
+	private renderThreadView(): void {
+		if (!this.thread) return;
+		this.threadContent.replaceChildren(
+			renderThread(this.t, this.config.locale, this.thread),
+		);
+		const last = this.threadContent.querySelector(".fb-msg:last-child");
+		last?.scrollIntoView?.({ block: "nearest" });
+	}
+
+	private async sendReply(): Promise<void> {
+		const thread = this.thread;
+		const headers = this.headers();
+		if (!thread || !headers || this.replying) return;
+		const text = this.reply.value.trim();
+		const fail = (message: string) => {
+			this.replyError.textContent = message;
+			this.replyError.hidden = false;
+		};
+		if (!text) return fail(this.t.emptyMessage);
+		if (text.length > MAX_MESSAGE_LENGTH) return fail(this.t.tooLong);
+		this.replying = true;
+		this.replySubmit.disabled = true;
+		try {
+			const message = await sendMessage(
+				this.config.apiUrl,
+				headers,
+				thread.id,
+				text,
+			);
+			if (this.thread !== thread) return;
+			thread.messages.push(message);
+			this.reply.value = "";
+			this.renderThreadView();
+		} catch (error) {
+			fail(
+				error instanceof ReporterApiError && error.status === 0
+					? this.t.networkError
+					: (error instanceof Error && error.message) || this.t.genericError,
+			);
+		} finally {
+			this.replying = false;
+			this.replySubmit.disabled = false;
+		}
 	}
 
 	/**
@@ -513,6 +804,7 @@ export class Widget {
 		this.editor?.cancel();
 		this.stopMotion();
 		clearTimeout(this.successTimer);
+		clearTimeout(this.refreshTimer);
 		document.removeEventListener("keydown", this.onDocumentKey, true);
 		this.darkQuery?.removeEventListener?.("change", this.applyTheme);
 		this.host.remove();
@@ -667,8 +959,11 @@ export class Widget {
 				user: this.deps.getUser(),
 				context: this.deps.getContext(),
 				release: this.config.release,
+				reporterKey: reporterKey(this.config.projectKey, true),
 			});
 			await sendPayload(this.config.apiUrl, payload);
+			// "My reports" appears with this first report.
+			this.scheduleRefresh();
 		} catch (error) {
 			this.setSending(false);
 			if (this.destroyed) return;

@@ -139,6 +139,12 @@ export interface TattleUser {
 	id?: string;
 	email?: string;
 	name?: string;
+	/**
+	 * Identity verification: HMAC-SHA256 of `id` with the project's identity
+	 * secret, in hex, computed by your server. With it, the user sees their
+	 * reports on every device. Never sent as a trait.
+	 */
+	hash?: string;
 	[trait: string]: unknown;
 }
 
@@ -228,6 +234,10 @@ export interface IngestPayload {
 	/** `release`, or the app's version and build. */
 	release?: string;
 	sdk: { name: string; version: string };
+	/** This device's key, to follow the report in "My reports". */
+	reporterKey?: string;
+	/** `TattleUser.hash`, when the app gives one. */
+	userHash?: string;
 }
 
 export interface IngestSuccess {

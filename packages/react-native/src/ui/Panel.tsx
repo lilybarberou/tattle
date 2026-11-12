@@ -21,9 +21,11 @@ import {
 	MAX_MESSAGE_LENGTH,
 	sendPayload,
 } from "../payload";
+import { type ReportSummary, reporterKey } from "../reporter";
 import { state } from "../state";
-import type { AppInfo, TattleType } from "../types";
+import type { AppInfo, Locale, TattleType } from "../types";
 import { type Annotation, Annotator } from "./Annotator";
+import { ReportList, ReportsEntry, ThreadScreen } from "./Inbox";
 import { Icon } from "./icons";
 import { useInsets } from "./insets";
 import { useSheetMotion } from "./motion";
@@ -47,6 +49,15 @@ export interface PanelConfig {
 	release?: string | undefined;
 }
 
+/** "My reports", kept by the provider so the launcher can show the unread badge. */
+export interface Inbox {
+	reports: ReportSummary[];
+	failed: boolean;
+	refresh: () => Promise<void>;
+	headers: () => Promise<Record<string, string> | null>;
+	markLocalRead: (id: string) => void;
+}
+
 /**
  * The feedback form in a modal: bug or idea, screenshot, message and email.
  * For bugs, the screen under the modal is captured as it opens and attached;
@@ -55,7 +66,10 @@ export interface PanelConfig {
 export function Panel({
 	visible,
 	initialType,
+	initialView,
 	config,
+	locale,
+	inbox,
 	t,
 	theme,
 	captureScreen,
@@ -64,7 +78,11 @@ export function Panel({
 }: {
 	visible: boolean;
 	initialType: TattleType;
+	/** "list" opens on "My reports" (the team replied). */
+	initialView: "form" | "list";
 	config: PanelConfig;
+	locale: Locale;
+	inbox: Inbox;
 	t: Strings;
 	theme: Theme;
 	captureScreen: () => Promise<string>;
@@ -73,7 +91,11 @@ export function Panel({
 }) {
 	const insets = useInsets();
 	const window = useWindowDimensions();
-	const [view, setView] = useState<"form" | "editor" | "success">("form");
+	const [view, setView] = useState<
+		"form" | "editor" | "success" | "list" | "thread"
+	>("form");
+	const [threadId, setThreadId] = useState<string | null>(null);
+	const unread = inbox.reports.reduce((sum, r) => sum + (r.unread || 0), 0);
 	const [type, setType] = useState<TattleType>(initialType);
 	const [shot, setShot] = useState<Shot | null>(null);
 	const [capturing, setCapturing] = useState(false);
@@ -109,12 +131,13 @@ export function Panel({
 		if (!visible) return;
 		const id = ++openId.current;
 		setType(initialType);
-		setView("form");
+		setView(initialView);
+		setThreadId(null);
 		setError(null);
 		setShot(null);
 		lastCapture.current = null;
 		void capture(id);
-	}, [visible, initialType]);
+	}, [visible, initialType, initialView]);
 
 	// Close on its own a moment after a report was sent.
 	useEffect(() => {
@@ -149,12 +172,15 @@ export function Panel({
 					screen: state.screen,
 					app: config.app,
 					release: config.release,
+					reporterKey: await reporterKey(config.projectKey, true),
 				}),
 			);
 			setMessage("");
 			setEmail("");
 			setShot(null);
 			setView("success");
+			// "My reports" appears with this first report.
+			void inbox.refresh();
 		} catch (err) {
 			setError(
 				err instanceof IngestError && err.status === 0
@@ -166,10 +192,18 @@ export function Panel({
 		}
 	};
 
+	const back = () => {
+		if (view === "thread") setView("list");
+		else setView("form");
+	};
+
+	// Android's back button steps back before it closes.
 	const close = () => {
-		if (view === "editor") setView("form");
+		if (view === "editor" || view === "list" || view === "thread") back();
 		else onClose();
 	};
+
+	const inboxView = view === "list" || view === "thread";
 
 	const shotSize =
 		screenSize.width > 0
@@ -237,12 +271,29 @@ export function Panel({
 					>
 						<View style={[styles.grabber, { backgroundColor: theme.border }]} />
 						<View style={styles.header}>
-							<Text
-								style={[styles.title, theme.title, { color: theme.fg }]}
-								accessibilityRole="header"
-							>
-								{t.title}
-							</Text>
+							<View style={styles.headerStart}>
+								{inboxView && (
+									<Pressable
+										onPress={back}
+										hitSlop={8}
+										accessibilityRole="button"
+										accessibilityLabel={t.back}
+										style={[
+											styles.iconButton,
+											styles.backButton,
+											{ borderRadius: offset(theme.buttonRadius, -2) },
+										]}
+									>
+										<Icon name="back" color={theme.fg} />
+									</Pressable>
+								)}
+								<Text
+									style={[styles.title, theme.title, { color: theme.fg }]}
+									accessibilityRole="header"
+								>
+									{inboxView ? t.myReports : t.title}
+								</Text>
+							</View>
 							<Pressable
 								onPress={onClose}
 								hitSlop={8}
@@ -280,6 +331,41 @@ export function Panel({
 									{t.success}
 								</Text>
 							</View>
+						) : inboxView ? (
+							<ScrollView
+								style={styles.scroll}
+								contentContainerStyle={styles.body}
+								keyboardShouldPersistTaps="handled"
+								bounces={false}
+							>
+								{view === "thread" && threadId ? (
+									<ThreadScreen
+										t={t}
+										theme={theme}
+										locale={locale}
+										apiUrl={config.apiUrl}
+										headers={inbox.headers}
+										reportId={threadId}
+										unread={
+											(inbox.reports.find((r) => r.id === threadId)?.unread ??
+												0) > 0
+										}
+										onRead={() => inbox.markLocalRead(threadId)}
+									/>
+								) : (
+									<ReportList
+										t={t}
+										theme={theme}
+										locale={locale}
+										reports={inbox.reports}
+										failed={inbox.failed}
+										onOpen={(id) => {
+											setThreadId(id);
+											setView("thread");
+										}}
+									/>
+								)}
+							</ScrollView>
 						) : (
 							<ScrollView
 								style={styles.scroll}
@@ -287,6 +373,17 @@ export function Panel({
 								keyboardShouldPersistTaps="handled"
 								bounces={false}
 							>
+								{inbox.reports.length > 0 && (
+									<ReportsEntry
+										t={t}
+										theme={theme}
+										unread={unread}
+										onPress={() => {
+											setView("list");
+											void inbox.refresh();
+										}}
+									/>
+								)}
 								<View
 									style={[
 										styles.segment,
@@ -641,7 +738,14 @@ const styles = StyleSheet.create({
 		paddingLeft: 20,
 		paddingRight: 12,
 	},
-	title: { letterSpacing: -0.2 },
+	title: { letterSpacing: -0.2, flexShrink: 1 },
+	headerStart: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 2,
+		flexShrink: 1,
+	},
+	backButton: { marginLeft: -10 },
 	iconButton: {
 		width: 36,
 		height: 36,

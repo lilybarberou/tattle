@@ -18,8 +18,10 @@ export const state = {
 	masking: false,
 	/** Number of mounted `<TattleMask>`, so capture skips the wait when none. */
 	masks: 0,
-	/** URL prefixes never recorded: the ingest endpoint. */
+	/** URL prefixes never recorded: the SDK's own endpoints. */
 	ignoredUrls: [] as string[],
+	/** Bumped by `identify`, so the provider fetches "My reports" again. */
+	identityVersion: 0,
 };
 
 const listeners = new Set<Listener>();

@@ -25,6 +25,7 @@ export interface PayloadInput {
 	user: TattleUser | null;
 	context: Record<string, unknown> | null;
 	release?: string | undefined;
+	reporterKey?: string | null | undefined;
 }
 
 function asString(value: unknown): string | undefined {
@@ -64,7 +65,7 @@ export function buildReporter(
 ): Reporter | undefined {
 	const reporter: Reporter = {};
 	if (user) {
-		const { id, email, name, ...traits } = user;
+		const { id, email, name, hash: _hash, ...traits } = user;
 		const sId = asString(id);
 		const sEmail = asString(email);
 		const sName = asString(name);
@@ -100,6 +101,9 @@ export function buildPayload(input: PayloadInput): IngestPayload {
 		payload.context = toPlainObject(input.context);
 	const release = cleanRelease(input.release);
 	if (release) payload.release = release;
+	if (input.reporterKey) payload.reporterKey = input.reporterKey;
+	const hash = asString(input.user?.hash);
+	if (hash && reporter?.id) payload.userHash = hash.slice(0, 128);
 	return payload;
 }
 
