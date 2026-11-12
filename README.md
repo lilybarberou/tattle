@@ -218,7 +218,7 @@ apps/web            TanStack Start app (dashboard + API), Drizzle + Postgres, Be
                     screenshots), /api/v1/github/<project> (GitHub webhook), /api/mcp
   src/routes/       dashboard, /portal/$slug and /thread/$token (public), /login, /consent (OAuth),
                     /.well-known/*
-packages/widget     Browser SDK, no framework, Shadow DOM, ~25 KB gzipped
+packages/widget     Browser SDK, no framework, Shadow DOM, ~27 KB gzipped
 packages/react-native  React Native and Expo SDK (react-native-view-shot, react-native-svg)
 ```
 

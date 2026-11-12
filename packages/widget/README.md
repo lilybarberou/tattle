@@ -8,7 +8,7 @@ Users click a floating button, choose **Report a bug** or **Suggest an idea**, a
 - Themable to look like part of your app: colors, font, corner radius, texts, and extra CSS
 - French and English UI
 - One runtime dependency: [`html-to-image`](https://github.com/bubkoo/html-to-image) (bundled in the script-tag build)
-- About 25 KB gzipped for the script-tag build, `html-to-image` included
+- About 27 KB gzipped for the script-tag build, `html-to-image` included
 
 ## Install
 
