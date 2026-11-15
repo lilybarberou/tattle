@@ -39,6 +39,10 @@ export const Route = createFileRoute("/login")({
 		throw redirect({ to: "/" });
 	},
 	loaderDeps: ({ search }) => ({ email: search.email, invite: search.invite }),
+	// Never shown from the cache: whether this is the first account changes
+	// once it is created. A cached "no account yet" made the page open on
+	// "Create your account" after the admin signed out, in the same tab.
+	gcTime: 0,
 	loader: ({ deps }) =>
 		getSignupStateFn({ data: { email: deps.email, invite: deps.invite } }),
 	component: LoginPage,

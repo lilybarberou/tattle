@@ -86,6 +86,8 @@ Create an account (the setup code is printed in the `pnpm dev` output), then a p
 
 `pnpm test` runs the test suites (Postgres from the dev compose file must be up). `pnpm check` lints and formats.
 
+`pnpm test:e2e` runs the end-to-end suite (Playwright) against a production build, with its own Postgres and Mailpit containers on other ports, so it never touches the dev data; `pnpm --filter web e2e:down` removes them. See [apps/web/e2e/README.md](apps/web/e2e/README.md).
+
 **Releases**: every push to `main` publishes `ghcr.io/lilybarberou/tattle:main`. A version tag publishes the release and moves `latest`:
 
 ```bash

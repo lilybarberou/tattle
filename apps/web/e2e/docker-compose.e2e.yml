@@ -1,0 +1,28 @@
+# End-to-end tests only (pnpm test:e2e): a throwaway Postgres and a mail
+# catcher, on their own ports so they never meet the dev stack
+# (docker-compose.dev.yml) or its data. Nothing is kept: the database lives in
+# memory (tmpfs) and is recreated by every run.
+name: tattle-e2e
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: tattle
+      POSTGRES_PASSWORD: tattle
+      POSTGRES_DB: tattle_e2e
+    ports:
+      - "127.0.0.1:54329:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tattle -d tattle_e2e"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
+  # Catches every email the app sends; the tests read it through its API.
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "127.0.0.1:11025:1025"
+      - "127.0.0.1:18025:8025"

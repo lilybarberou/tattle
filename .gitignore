@@ -10,3 +10,5 @@ storage
 **/public/widget.js
 .taste-skill
 coverage
+test-results
+playwright-report
