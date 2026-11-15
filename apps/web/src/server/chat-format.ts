@@ -183,6 +183,8 @@ export function describeEvent(
 export function toDiscord(message: ChatMessage): JsonObject {
 	return {
 		username: "Tattle",
+		// Reporters write part of the text: "@everyone" or a role must not ping.
+		allowed_mentions: { parse: [] },
 		embeds: [
 			{
 				title: truncate(message.title, 256),
@@ -199,14 +201,23 @@ export function toDiscord(message: ChatMessage): JsonObject {
 	};
 }
 
+/**
+ * Slack's control characters: reporters write part of the text, and
+ * "<!channel>" or "<https://evil.example|your invoice>" must stay plain text.
+ */
+const slackEscape = (text: string) =>
+	text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
 export function toSlack(message: ChatMessage): JsonObject {
 	const fields = message.fields
-		.map(([name, value]) => `*${name}:* ${value}`)
+		.map(([name, value]) => `*${slackEscape(name)}:* ${slackEscape(value)}`)
 		.join("\n");
 	// Slack's mrkdwn uses single asterisks for bold.
-	const text = message.text.replace(/\*\*(.+?)\*\*/g, "*$1*");
+	const text = slackEscape(message.text).replace(/\*\*(.+?)\*\*/g, "*$1*");
+	// A "|" in the title would end the link's label early.
+	const title = slackEscape(message.title).replace(/\|/g, "¦");
 	return {
-		text: `<${message.url}|${message.title}>\n${text}${fields ? `\n${fields}` : ""}`,
+		text: `<${message.url}|${title}>\n${text}${fields ? `\n${fields}` : ""}`,
 		unfurl_links: false,
 	};
 }
