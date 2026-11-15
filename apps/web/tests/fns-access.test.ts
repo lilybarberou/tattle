@@ -228,6 +228,18 @@ describe("owner and admin only actions", () => {
 		const projectId = p.id;
 		const organizationId = org.id;
 		const refused = [
+			() =>
+				fns.setIdentityVerificationFn({ data: { projectId, enabled: true } }),
+			() =>
+				fns.createWebhookFn({
+					data: {
+						projectId,
+						url: "https://hooks.example.com/x",
+						events: [],
+						format: "json",
+					},
+				}),
+			() => fns.deleteWebhookFn({ data: { projectId, endpointId: "x" } }),
 			() => fns.setGithubEnabledFn({ data: { projectId, enabled: true } }),
 			() => fns.regenerateGithubSecretFn({ data: { projectId } }),
 			() => fns.deleteProjectFn({ data: { projectId, confirmName: p.name } }),
@@ -245,9 +257,78 @@ describe("owner and admin only actions", () => {
 				fns.eraseReporterFn({
 					data: { organizationId, query: "x@example.com" },
 				}),
+			() => fns.updateProjectFn({ data: { projectId, name: "Renamed" } }),
+			() => fns.updateProjectFn({ data: { projectId, allowedOrigins: ["*"] } }),
+			() =>
+				fns.updateProjectFn({
+					data: { projectId, portalEnabled: true, portalSlug: "mine-now" },
+				}),
+			() => fns.deleteIssueFn({ data: { projectId, number: 1 } }),
+			() => fns.deleteReportFn({ data: { projectId, reportId: "x" } }),
 		];
 		for (const call of refused) expect(await statusOf(call())).toBe(403);
+		const [still] = await db.select().from(project).where(eq(project.id, p.id));
+		expect(still?.identitySecret).toBeNull();
+		expect(still).toMatchObject({
+			name: p.name,
+			allowedOrigins: [],
+			portalEnabled: false,
+		});
 		expect(await db.select().from(invitation)).toEqual([]);
+	});
+
+	it("tell the dashboard whether the person manages the project", async () => {
+		const { project: p, admin, plain } = await roles();
+		as(plain);
+		expect(
+			(await fns.getProjectFn({ data: { projectId: p.id } })).canManage,
+		).toBe(false);
+		as(admin);
+		expect(
+			(await fns.getProjectFn({ data: { projectId: p.id } })).canManage,
+		).toBe(true);
+	});
+
+	it("let a member revoke their own token only, and an admin anyone's", async () => {
+		const { org, admin, plain } = await roles();
+		const organizationId = org.id;
+		as(admin);
+		await fns.createTokenFn({
+			data: { organizationId, name: "Admin's agent", canWrite: true },
+		});
+		as(plain);
+		await fns.createTokenFn({
+			data: { organizationId, name: "My agent", canWrite: true },
+		});
+		const listed = await fns.listTokensFn({ data: { organizationId } });
+		const byName = (name: string) =>
+			listed.find((t) => t.name === name) as (typeof listed)[number];
+		expect(byName("My agent").canRevoke).toBe(true);
+		expect(byName("Admin's agent").canRevoke).toBe(false);
+
+		expect(
+			await statusOf(
+				fns.revokeTokenFn({
+					data: { organizationId, tokenId: byName("Admin's agent").id },
+				}),
+			),
+		).toBe(403);
+		await fns.revokeTokenFn({
+			data: { organizationId, tokenId: byName("My agent").id },
+		});
+		expect(
+			(await fns.listTokensFn({ data: { organizationId } })).map((t) => t.name),
+		).toEqual(["Admin's agent"]);
+
+		await fns.createTokenFn({
+			data: { organizationId, name: "Another of mine", canWrite: false },
+		});
+		as(admin);
+		const all = await fns.listTokensFn({ data: { organizationId } });
+		expect(all.every((t) => t.canRevoke)).toBe(true);
+		for (const t of all)
+			await fns.revokeTokenFn({ data: { organizationId, tokenId: t.id } });
+		expect(await fns.listTokensFn({ data: { organizationId } })).toEqual([]);
 	});
 
 	it("are allowed to an admin", async () => {
@@ -283,5 +364,103 @@ describe("owner and admin only actions", () => {
 			data: { projectId: p.id, confirmName: "  Web app " },
 		});
 		expect(await db.select().from(project)).toEqual([]);
+	});
+});
+
+describe("secrets are for owners and admins", () => {
+	it("hide the identity secret from members, and never put it in the project", async () => {
+		const { org, project: p } = await createWorkspace();
+		const admin = await signedInMember(org.id, "admin");
+		const plain = await signedInMember(org.id, "member");
+		as(admin);
+		const { identitySecret } = await fns.setIdentityVerificationFn({
+			data: { projectId: p.id, enabled: true },
+		});
+
+		expect(
+			await fns.getIdentitySettingsFn({ data: { projectId: p.id } }),
+		).toEqual({ enabled: true, secret: identitySecret, canManage: true });
+
+		as(plain);
+		expect(
+			await fns.getIdentitySettingsFn({ data: { projectId: p.id } }),
+		).toEqual({ enabled: true, secret: null, canManage: false });
+		const seen = await fns.getProjectFn({ data: { projectId: p.id } });
+		expect(seen.identityVerification).toBe(true);
+		expect(JSON.stringify(seen)).not.toContain(identitySecret as string);
+	});
+
+	it("hide the GitHub secret from members", async () => {
+		const { org, project: p } = await createWorkspace();
+		const admin = await signedInMember(org.id, "owner");
+		const plain = await signedInMember(org.id, "member");
+		as(admin);
+		await fns.setGithubEnabledFn({ data: { projectId: p.id, enabled: true } });
+		const forAdmin = await fns.getGithubSettingsFn({
+			data: { projectId: p.id },
+		});
+		expect(forAdmin.canManage).toBe(true);
+		expect(forAdmin.secret).toEqual(expect.any(String));
+
+		as(plain);
+		const forMember = await fns.getGithubSettingsFn({
+			data: { projectId: p.id },
+		});
+		expect(forMember).toMatchObject({ canManage: false, secret: null });
+		expect(JSON.stringify(forMember)).not.toContain(forAdmin.secret as string);
+	});
+
+	it("show members a webhook's origin only, without its path or secret", async () => {
+		const { org, project: p } = await createWorkspace();
+		await createWebhookEndpoint(
+			p.id,
+			"https://hooks.slack.com/services/T000/B000/very-secret",
+			{ format: "slack", secret: "whsec_hidden" },
+		);
+		const admin = await signedInMember(org.id, "admin");
+		const plain = await signedInMember(org.id, "member");
+
+		as(plain);
+		const forMember = await fns.listWebhooksFn({ data: { projectId: p.id } });
+		expect(forMember.canManage).toBe(false);
+		expect(forMember.endpoints).toMatchObject([
+			{ url: "https://hooks.slack.com/…", secret: null, format: "slack" },
+		]);
+		expect(JSON.stringify(forMember)).not.toContain("very-secret");
+		expect(JSON.stringify(forMember)).not.toContain("whsec_hidden");
+
+		as(admin);
+		const forAdmin = await fns.listWebhooksFn({ data: { projectId: p.id } });
+		expect(forAdmin.endpoints).toMatchObject([
+			{
+				url: "https://hooks.slack.com/services/T000/B000/very-secret",
+				secret: "whsec_hidden",
+			},
+		]);
+	});
+
+	it("never return an API token's hash, and show a new token once", async () => {
+		const { org } = await createWorkspace();
+		const me = await signedInMember(org.id, "member");
+		as(me);
+		const { token } = await fns.createTokenFn({
+			data: { organizationId: org.id, name: "  CI bot ", canWrite: false },
+		});
+		expect(token).toMatch(/^tat_/);
+		const listed = await fns.listTokensFn({ data: { organizationId: org.id } });
+		expect(listed).toMatchObject([
+			{ name: "CI bot", canWrite: false, prefix: token.slice(0, 12) },
+		]);
+		expect(JSON.stringify(listed)).not.toContain(token);
+		const [stored] = await db.select().from(apiToken);
+		expect(stored?.tokenHash).not.toBe(token);
+		expect(JSON.stringify(listed)).not.toContain(stored?.tokenHash as string);
+
+		await fns.revokeTokenFn({
+			data: { organizationId: org.id, tokenId: listed[0]?.id as string },
+		});
+		expect(
+			await fns.listTokensFn({ data: { organizationId: org.id } }),
+		).toEqual([]);
 	});
 });

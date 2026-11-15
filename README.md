@@ -28,6 +28,8 @@ On a hosting panel (EasyPanel, Coolify, Dokploy…), run the image `ghcr.io/lily
 
 The first account is the admin: creating it takes the **setup code** printed in the logs (`docker compose logs app | grep setup`), so nobody else can claim a fresh server. Sign-up then closes; invite the rest of your team from **Members** (they open the invitation link, sign up with the invited email and join right away; the link is the proof, so share it only with them). Set `ALLOW_SIGNUP=true` to let anyone create an account.
 
+**Roles**: owners and admins manage the workspace: members and invitations, project settings (name, allowed sites, public page), verified identity, webhooks, the GitHub sync and duplicate suggestions, deleting issues, reports and projects, and exporting or erasing a person's data. Members triage, comment, reply to reporters, merge duplicates, and create API tokens of their own, which they can revoke; owners and admins can revoke anyone's.
+
 What runs:
 
 | Service | Role | Data |

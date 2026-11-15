@@ -1,5 +1,6 @@
 import {
 	createFileRoute,
+	getRouteApi,
 	Link,
 	useNavigate,
 	useRouter,
@@ -127,7 +128,8 @@ function ReportBlock({
 }: {
 	report: ReportDto;
 	defaultOpen: boolean;
-	onDelete: () => Promise<void>;
+	/** Only for owners and admins: deleting cannot be undone. */
+	onDelete?: () => Promise<void>;
 }) {
 	const [open, setOpen] = useState(defaultOpen);
 	const [confirming, setConfirming] = useState(false);
@@ -179,35 +181,37 @@ function ReportBlock({
 			{open && (
 				<div className="grid gap-6 border-t px-4 py-4 lg:grid-cols-[minmax(0,1fr)_260px]">
 					<div className="min-w-0 space-y-4">
-						<div className="flex flex-wrap items-center justify-end gap-2 text-xs">
-							{confirming ? (
-								<>
-									<span className="text-muted-foreground">
-										Delete this report, its screenshot and logs?
-									</span>
-									<Button size="xs" variant="destructive" onClick={onDelete}>
-										Delete
-									</Button>
+						{onDelete && (
+							<div className="flex flex-wrap items-center justify-end gap-2 text-xs">
+								{confirming ? (
+									<>
+										<span className="text-muted-foreground">
+											Delete this report, its screenshot and logs?
+										</span>
+										<Button size="xs" variant="destructive" onClick={onDelete}>
+											Delete
+										</Button>
+										<Button
+											size="xs"
+											variant="ghost"
+											onClick={() => setConfirming(false)}
+										>
+											Keep
+										</Button>
+									</>
+								) : (
 									<Button
 										size="xs"
 										variant="ghost"
-										onClick={() => setConfirming(false)}
+										className="text-muted-foreground"
+										onClick={() => setConfirming(true)}
 									>
-										Keep
+										<Trash2Icon />
+										Delete report
 									</Button>
-								</>
-							) : (
-								<Button
-									size="xs"
-									variant="ghost"
-									className="text-muted-foreground"
-									onClick={() => setConfirming(true)}
-								>
-									<Trash2Icon />
-									Delete report
-								</Button>
-							)}
-						</div>
+								)}
+							</div>
+						)}
 						<p className="max-w-[70ch] text-[15px] leading-6 whitespace-pre-wrap">
 							{report.message}
 						</p>
@@ -456,8 +460,11 @@ function PropertyRow({
 	);
 }
 
+const projectRoute = getRouteApi("/_app/p/$projectId");
+
 function IssuePage() {
 	const detail = Route.useLoaderData();
+	const { canManage } = projectRoute.useLoaderData();
 	const { projectId } = Route.useParams();
 	const router = useRouter();
 	const { issue } = detail;
@@ -659,19 +666,25 @@ function IssuePage() {
 								key={report.id}
 								report={report}
 								defaultOpen={index === 0 || report.awaitingReply}
-								onDelete={async () => {
-									try {
-										await deleteReportFn({
-											data: { projectId, reportId: report.id },
-										});
-										toast.success("Report deleted");
-										await router.invalidate();
-									} catch (error) {
-										toast.error(
-											error instanceof Error ? error.message : "Not deleted",
-										);
-									}
-								}}
+								onDelete={
+									canManage
+										? async () => {
+												try {
+													await deleteReportFn({
+														data: { projectId, reportId: report.id },
+													});
+													toast.success("Report deleted");
+													await router.invalidate();
+												} catch (error) {
+													toast.error(
+														error instanceof Error
+															? error.message
+															: "Not deleted",
+													);
+												}
+											}
+										: undefined
+								}
 							/>
 						))}
 					</section>
@@ -890,59 +903,61 @@ function IssuePage() {
 							</Button>
 						</div>
 					)}
-					<div className="mt-1">
-						{deleting ? (
-							<div className="space-y-2 rounded-lg border border-negative/30 p-3">
-								<p>
-									Delete #{issue.number} with its {issue.reportCount}{" "}
-									{issue.reportCount === 1 ? "report" : "reports"}, screenshots
-									and comments? This cannot be undone.
-								</p>
-								<div className="flex gap-2">
-									<Button
-										size="sm"
-										variant="destructive"
-										onClick={async () => {
-											try {
-												await deleteIssueFn({
-													data: { projectId, number: issue.number },
-												});
-												toast.success(`#${issue.number} deleted`);
-												await navigate({
-													to: "/p/$projectId/issues",
-													params: { projectId },
-												});
-											} catch (error) {
-												toast.error(
-													error instanceof Error
-														? error.message
-														: "Not deleted",
-												);
-											}
-										}}
-									>
-										Delete
-									</Button>
-									<Button
-										size="sm"
-										variant="ghost"
-										onClick={() => setDeleting(false)}
-									>
-										Keep it
-									</Button>
+					{canManage && (
+						<div className="mt-1">
+							{deleting ? (
+								<div className="space-y-2 rounded-lg border border-negative/30 p-3">
+									<p>
+										Delete #{issue.number} with its {issue.reportCount}{" "}
+										{issue.reportCount === 1 ? "report" : "reports"},
+										screenshots and comments? This cannot be undone.
+									</p>
+									<div className="flex gap-2">
+										<Button
+											size="sm"
+											variant="destructive"
+											onClick={async () => {
+												try {
+													await deleteIssueFn({
+														data: { projectId, number: issue.number },
+													});
+													toast.success(`#${issue.number} deleted`);
+													await navigate({
+														to: "/p/$projectId/issues",
+														params: { projectId },
+													});
+												} catch (error) {
+													toast.error(
+														error instanceof Error
+															? error.message
+															: "Not deleted",
+													);
+												}
+											}}
+										>
+											Delete
+										</Button>
+										<Button
+											size="sm"
+											variant="ghost"
+											onClick={() => setDeleting(false)}
+										>
+											Keep it
+										</Button>
+									</div>
 								</div>
-							</div>
-						) : (
-							<Button
-								variant="ghost"
-								className="-ml-2 text-muted-foreground"
-								onClick={() => setDeleting(true)}
-							>
-								<Trash2Icon className="size-4" />
-								Delete issue…
-							</Button>
-						)}
-					</div>
+							) : (
+								<Button
+									variant="ghost"
+									className="-ml-2 text-muted-foreground"
+									onClick={() => setDeleting(true)}
+								>
+									<Trash2Icon className="size-4" />
+									Delete issue…
+								</Button>
+							)}
+						</div>
+					)}
 				</div>
 			</aside>
 

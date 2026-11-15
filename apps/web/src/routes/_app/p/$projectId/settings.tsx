@@ -23,6 +23,7 @@ import {
 	deleteProjectFn,
 	deleteWebhookFn,
 	getGithubSettingsFn,
+	getIdentitySettingsFn,
 	listWebhooksFn,
 	pingWebhookFn,
 	regenerateGithubSecretFn,
@@ -37,11 +38,12 @@ const appRoute = getRouteApi("/_app");
 
 export const Route = createFileRoute("/_app/p/$projectId/settings")({
 	loader: async ({ params }) => {
-		const [webhooks, github] = await Promise.all([
+		const [webhooks, github, identity] = await Promise.all([
 			listWebhooksFn({ data: { projectId: params.projectId } }),
 			getGithubSettingsFn({ data: { projectId: params.projectId } }),
+			getIdentitySettingsFn({ data: { projectId: params.projectId } }),
 		]);
-		return { webhooks, github };
+		return { webhooks, github, identity };
 	},
 	component: SettingsPage,
 });
@@ -64,7 +66,7 @@ const INSTALL_TABS: Array<{ id: InstallTab; label: string }> = [
 function SettingsPage() {
 	const project = projectRoute.useLoaderData();
 	const { baseUrl } = appRoute.useLoaderData();
-	const { webhooks, github } = Route.useLoaderData();
+	const { webhooks, github, identity } = Route.useLoaderData();
 	const router = useRouter();
 	const [name, setName] = useState(project.name);
 	const [origins, setOrigins] = useState(project.allowedOrigins.join("\n"));
@@ -163,16 +165,20 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 								onChange={(e) => setName(e.target.value)}
 								required
 								maxLength={80}
+								readOnly={!project.canManage}
 							/>
 						</div>
-						<Button
-							type="submit"
-							variant="outline"
-							disabled={!name.trim() || name === project.name}
-						>
-							Save
-						</Button>
+						{project.canManage && (
+							<Button
+								type="submit"
+								variant="outline"
+								disabled={!name.trim() || name === project.name}
+							>
+								Save
+							</Button>
+						)}
 					</form>
+					{!project.canManage && <OwnersAndAdminsOnly />}
 				</SettingsSection>
 
 				<SettingsSection
@@ -282,11 +288,16 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 								rows={3}
 								placeholder="https://shop.atelier-nord.fr"
 								className="font-mono text-xs"
+								readOnly={!project.canManage}
 							/>
 						</div>
-						<Button type="submit" variant="outline">
-							Save sites
-						</Button>
+						{project.canManage ? (
+							<Button type="submit" variant="outline">
+								Save sites
+							</Button>
+						) : (
+							<OwnersAndAdminsOnly />
+						)}
 					</form>
 				</SettingsSection>
 
@@ -317,11 +328,11 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 						</>
 					}
 				>
-					{project.identitySecret ? (
+					{identity.secret ? (
 						<>
 							<CodeBlock
 								label="Identity secret: keep it on your server"
-								code={project.identitySecret}
+								code={identity.secret}
 							/>
 							<CodeBlock
 								label="On your server, for the signed-in user (Node)"
@@ -364,7 +375,7 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 								</Button>
 							</div>
 						</>
-					) : (
+					) : identity.canManage ? (
 						<Button
 							variant="outline"
 							onClick={() =>
@@ -376,6 +387,11 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 						>
 							Turn on verified identity
 						</Button>
+					) : (
+						<p className="text-muted-foreground">
+							Verified identity is {identity.enabled ? "on" : "off"}. Only
+							owners and admins can see the secret or change this.
+						</p>
 					)}
 				</SettingsSection>
 
@@ -420,89 +436,99 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 								<SendIcon className="size-3.5" />
 								Send a test
 							</Button>
-							<Button
-								size="icon-sm"
-								variant="ghost"
-								aria-label="Remove this channel"
-								onClick={async () => {
-									await deleteWebhookFn({
-										data: { projectId: project.id, endpointId: endpoint.id },
-									});
-									toast.success("Channel removed");
-									await router.invalidate();
-								}}
-							>
-								<Trash2Icon className="size-4" />
-							</Button>
+							{webhooks.canManage && (
+								<Button
+									size="icon-sm"
+									variant="ghost"
+									aria-label="Remove this channel"
+									onClick={async () => {
+										await deleteWebhookFn({
+											data: { projectId: project.id, endpointId: endpoint.id },
+										});
+										toast.success("Channel removed");
+										await router.invalidate();
+									}}
+								>
+									<Trash2Icon className="size-4" />
+								</Button>
+							)}
 						</div>
 					))}
-					<form
-						className="space-y-3 rounded-lg bg-raised p-4"
-						onSubmit={async (event) => {
-							event.preventDefault();
-							const form = event.currentTarget;
-							const url = String(new FormData(form).get("chat-url"));
-							try {
-								await createWebhookFn({
-									data: {
-										projectId: project.id,
-										url,
-										format: chatService,
-										events: [
-											"report.created",
-											"issue.created",
-											"issue.updated",
-											"comment.created",
-											"message.created",
-										],
-									},
-								});
-								form.reset();
-								toast.success(
-									`${chatService === "discord" ? "Discord" : "Slack"} channel added`,
-								);
-								await router.invalidate();
-							} catch (error) {
-								toast.error(
-									error instanceof Error
-										? error.message
-										: "Could not add the channel",
-								);
-							}
-						}}
-					>
-						<div className="flex rounded-md border border-control bg-surface p-0.5 w-fit">
-							{(["discord", "slack"] as const).map((service) => (
-								<button
-									key={service}
-									type="button"
-									aria-pressed={chatService === service}
-									onClick={() => setChatService(service)}
-									className={cn(
-										"rounded px-3 py-1 text-muted-foreground hover:text-ink",
-										chatService === service && "bg-active font-medium text-ink",
-									)}
-								>
-									{service === "discord" ? "Discord" : "Slack"}
-								</button>
-							))}
-						</div>
-						<div className="space-y-2">
-							<Label htmlFor="chat-url">Webhook URL</Label>
-							<Input
-								id="chat-url"
-								name="chat-url"
-								type="url"
-								required
-								placeholder={
-									chatService === "discord"
-										? "https://discord.com/api/webhooks/…"
-										: "https://hooks.slack.com/services/…"
+					{!webhooks.canManage && (
+						<p className="text-muted-foreground">
+							Only owners and admins can add or remove channels.
+						</p>
+					)}
+					{webhooks.canManage && (
+						<form
+							className="space-y-3 rounded-lg bg-raised p-4"
+							onSubmit={async (event) => {
+								event.preventDefault();
+								const form = event.currentTarget;
+								const url = String(new FormData(form).get("chat-url"));
+								try {
+									await createWebhookFn({
+										data: {
+											projectId: project.id,
+											url,
+											format: chatService,
+											events: [
+												"report.created",
+												"issue.created",
+												"issue.updated",
+												"comment.created",
+												"message.created",
+											],
+										},
+									});
+									form.reset();
+									toast.success(
+										`${chatService === "discord" ? "Discord" : "Slack"} channel added`,
+									);
+									await router.invalidate();
+								} catch (error) {
+									toast.error(
+										error instanceof Error
+											? error.message
+											: "Could not add the channel",
+									);
 								}
-							/>
-						</div>
-						<Button type="submit">Add channel</Button>
-					</form>
+							}}
+						>
+							<div className="flex rounded-md border border-control bg-surface p-0.5 w-fit">
+								{(["discord", "slack"] as const).map((service) => (
+									<button
+										key={service}
+										type="button"
+										aria-pressed={chatService === service}
+										onClick={() => setChatService(service)}
+										className={cn(
+											"rounded px-3 py-1 text-muted-foreground hover:text-ink",
+											chatService === service &&
+												"bg-active font-medium text-ink",
+										)}
+									>
+										{service === "discord" ? "Discord" : "Slack"}
+									</button>
+								))}
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="chat-url">Webhook URL</Label>
+								<Input
+									id="chat-url"
+									name="chat-url"
+									type="url"
+									required
+									placeholder={
+										chatService === "discord"
+											? "https://discord.com/api/webhooks/…"
+											: "https://hooks.slack.com/services/…"
+									}
+								/>
+							</div>
+							<Button type="submit">Add channel</Button>
+						</form>
+					)}
 				</SettingsSection>
 
 				<SettingsSection
@@ -553,99 +579,116 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 										<SendIcon className="size-3.5" />
 										Send a test
 									</Button>
-									<Button
-										size="icon-sm"
-										variant="ghost"
-										aria-label="Delete this webhook"
-										onClick={async () => {
-											await deleteWebhookFn({
-												data: {
-													projectId: project.id,
-													endpointId: endpoint.id,
-												},
-											});
-											toast.success("Webhook deleted");
-											await router.invalidate();
-										}}
-									>
-										<Trash2Icon className="size-4" />
-									</Button>
+									{webhooks.canManage && (
+										<Button
+											size="icon-sm"
+											variant="ghost"
+											aria-label="Delete this webhook"
+											onClick={async () => {
+												await deleteWebhookFn({
+													data: {
+														projectId: project.id,
+														endpointId: endpoint.id,
+													},
+												});
+												toast.success("Webhook deleted");
+												await router.invalidate();
+											}}
+										>
+											<Trash2Icon className="size-4" />
+										</Button>
+									)}
 								</div>
 								<p className="text-muted-foreground">
 									{endpoint.events.length
 										? endpoint.events.join(", ")
 										: "Every event"}
 								</p>
-								<CodeBlock label="Signing secret" code={endpoint.secret} />
+								{endpoint.secret && (
+									<CodeBlock label="Signing secret" code={endpoint.secret} />
+								)}
 							</div>
 						))}
 
-					<form
-						className="space-y-4 rounded-lg bg-raised p-4"
-						onSubmit={async (event) => {
-							event.preventDefault();
-							const form = event.currentTarget;
-							const url = String(new FormData(form).get("url"));
-							try {
-								await createWebhookFn({
-									data: { projectId: project.id, url, events, format: "json" },
-								});
-								form.reset();
-								setEvents([]);
-								toast.success("Webhook added");
-								await router.invalidate();
-							} catch (error) {
-								toast.error(
-									error instanceof Error
-										? error.message
-										: "Could not add the webhook",
-								);
-							}
-						}}
-					>
-						<div className="space-y-2">
-							<Label htmlFor="webhook-url">Add an endpoint</Label>
-							<Input
-								id="webhook-url"
-								name="url"
-								type="url"
-								required
-								placeholder="https://bot.atelier-nord.fr/hooks/tattle"
-							/>
-						</div>
-						<fieldset className="space-y-2">
-							<legend className="mb-2 text-muted-foreground">
-								Events, or none for every event
-							</legend>
-							{webhooks.events.map((event) => (
-								<label
-									key={event}
-									htmlFor={`event-${event}`}
-									className="relative flex items-start gap-2.5"
-								>
-									<Checkbox
-										id={`event-${event}`}
-										className="mt-0.5"
-										checked={events.includes(event)}
-										onCheckedChange={(checked) =>
-											setEvents(
-												checked
-													? [...events, event]
-													: events.filter((e) => e !== event),
-											)
-										}
-									/>
-									<span>
-										<span className="font-mono text-xs">{event}</span>
-										<span className="block text-muted-foreground">
-											{EVENT_HELP[event]}
+					{!webhooks.canManage && (
+						<p className="text-muted-foreground">
+							Only owners and admins can add, remove or see the secret of a
+							webhook.
+						</p>
+					)}
+					{webhooks.canManage && (
+						<form
+							className="space-y-4 rounded-lg bg-raised p-4"
+							onSubmit={async (event) => {
+								event.preventDefault();
+								const form = event.currentTarget;
+								const url = String(new FormData(form).get("url"));
+								try {
+									await createWebhookFn({
+										data: {
+											projectId: project.id,
+											url,
+											events,
+											format: "json",
+										},
+									});
+									form.reset();
+									setEvents([]);
+									toast.success("Webhook added");
+									await router.invalidate();
+								} catch (error) {
+									toast.error(
+										error instanceof Error
+											? error.message
+											: "Could not add the webhook",
+									);
+								}
+							}}
+						>
+							<div className="space-y-2">
+								<Label htmlFor="webhook-url">Add an endpoint</Label>
+								<Input
+									id="webhook-url"
+									name="url"
+									type="url"
+									required
+									placeholder="https://bot.atelier-nord.fr/hooks/tattle"
+								/>
+							</div>
+							<fieldset className="space-y-2">
+								<legend className="mb-2 text-muted-foreground">
+									Events, or none for every event
+								</legend>
+								{webhooks.events.map((event) => (
+									<label
+										key={event}
+										htmlFor={`event-${event}`}
+										className="relative flex items-start gap-2.5"
+									>
+										<Checkbox
+											id={`event-${event}`}
+											className="mt-0.5"
+											checked={events.includes(event)}
+											onCheckedChange={(checked) =>
+												setEvents(
+													checked
+														? [...events, event]
+														: events.filter((e) => e !== event),
+												)
+											}
+										/>
+										<span>
+											<span className="font-mono text-xs">{event}</span>
+											<span className="block text-muted-foreground">
+												{EVENT_HELP[event]}
+											</span>
 										</span>
-									</span>
-								</label>
-							))}
-						</fieldset>
-						<Button type="submit">Add webhook</Button>
-					</form>
+									</label>
+								))}
+							</fieldset>
+							<Button type="submit">Add webhook</Button>
+						</form>
+					)}
 
 					{webhooks.deliveries.length > 0 && (
 						<div>
@@ -746,6 +789,7 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 								id="portal-enabled"
 								checked={portalEnabled}
 								onCheckedChange={(v) => setPortalEnabled(v === true)}
+								disabled={!project.canManage}
 							/>
 							Publish the page
 						</label>
@@ -762,13 +806,18 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 									className="h-8 min-w-0 flex-1 bg-transparent pr-3 outline-none"
 									pattern="[a-z0-9][a-z0-9-]{2,39}"
 									required
+									readOnly={!project.canManage}
 								/>
 							</div>
 						</div>
 						<div className="flex flex-wrap items-center gap-3">
-							<Button type="submit" variant="outline">
-								Save
-							</Button>
+							{project.canManage ? (
+								<Button type="submit" variant="outline">
+									Save
+								</Button>
+							) : (
+								<OwnersAndAdminsOnly />
+							)}
 							{project.portalEnabled && project.portalSlug && (
 								<Link
 									to="/portal/$slug"
@@ -783,50 +832,61 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 					</form>
 				</SettingsSection>
 
-				<SettingsSection
-					id="danger"
-					title="Delete this project"
-					description="Deletes every issue, report, screenshot, webhook and vote of this project. The widget stops accepting reports. This cannot be undone."
-				>
-					<form
-						className="max-w-md space-y-3 rounded-lg border border-negative/30 p-4"
-						onSubmit={async (e) => {
-							e.preventDefault();
-							try {
-								await deleteProjectFn({
-									data: { projectId: project.id, confirmName },
-								});
-								toast.success(`${project.name} was deleted`);
-								await router.invalidate();
-								await navigate({ to: "/" });
-							} catch (error) {
-								toast.error(
-									error instanceof Error ? error.message : "Could not delete",
-								);
-							}
-						}}
+				{project.canManage && (
+					<SettingsSection
+						id="danger"
+						title="Delete this project"
+						description="Deletes every issue, report, screenshot, webhook and vote of this project. The widget stops accepting reports. This cannot be undone."
 					>
-						<Label htmlFor="confirm-name">
-							Type <span className="font-semibold">{project.name}</span> to
-							confirm
-						</Label>
-						<Input
-							id="confirm-name"
-							value={confirmName}
-							onChange={(e) => setConfirmName(e.target.value)}
-							autoComplete="off"
-						/>
-						<Button
-							type="submit"
-							variant="destructive"
-							disabled={confirmName.trim() !== project.name}
+						<form
+							className="max-w-md space-y-3 rounded-lg border border-negative/30 p-4"
+							onSubmit={async (e) => {
+								e.preventDefault();
+								try {
+									await deleteProjectFn({
+										data: { projectId: project.id, confirmName },
+									});
+									toast.success(`${project.name} was deleted`);
+									await router.invalidate();
+									await navigate({ to: "/" });
+								} catch (error) {
+									toast.error(
+										error instanceof Error ? error.message : "Could not delete",
+									);
+								}
+							}}
 						>
-							Delete {project.name}
-						</Button>
-					</form>
-				</SettingsSection>
+							<Label htmlFor="confirm-name">
+								Type <span className="font-semibold">{project.name}</span> to
+								confirm
+							</Label>
+							<Input
+								id="confirm-name"
+								value={confirmName}
+								onChange={(e) => setConfirmName(e.target.value)}
+								autoComplete="off"
+							/>
+							<Button
+								type="submit"
+								variant="destructive"
+								disabled={confirmName.trim() !== project.name}
+							>
+								Delete {project.name}
+							</Button>
+						</form>
+					</SettingsSection>
+				)}
 			</div>
 		</>
+	);
+}
+
+/** In place of a setting's Save button, for plain members. */
+function OwnersAndAdminsOnly() {
+	return (
+		<p className="text-muted-foreground">
+			Only owners and admins can change this.
+		</p>
 	);
 }
 

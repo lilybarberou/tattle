@@ -14,6 +14,7 @@ import {
 	findReporterFn,
 	getPrivacySettingsFn,
 	getWorkspaceFn,
+	listMembersFn,
 } from "#/server/fns";
 
 export const Route = createFileRoute("/_app/privacy")({
@@ -24,7 +25,11 @@ export const Route = createFileRoute("/_app/privacy")({
 		]);
 		const organization = organizations[0];
 		if (!organization) throw new Error("No organization");
-		return { organization, ...settings };
+		// Export and erasure are for owners and admins (the server says 403).
+		const { canManage } = await listMembersFn({
+			data: { organizationId: organization.id },
+		});
+		return { organization, canManage, ...settings };
 	},
 	component: PrivacyPage,
 });
@@ -54,7 +59,7 @@ const COLLECTED: Array<[string, string]> = [
 ];
 
 function PrivacyPage() {
-	const { organization, retentionDays } = Route.useLoaderData();
+	const { organization, canManage, retentionDays } = Route.useLoaderData();
 	const router = useRouter();
 	const [query, setQuery] = useState("");
 	const [match, setMatch] = useState<
@@ -68,7 +73,14 @@ function PrivacyPage() {
 	};
 
 	const download = async () => {
-		const json = await exportReporterFn({ data });
+		let json: string;
+		try {
+			json = await exportReporterFn({ data });
+		} catch (error) {
+			// A member is refused: say so instead of doing nothing.
+			toast.error(error instanceof Error ? error.message : "Export failed");
+			return;
+		}
 		const url = URL.createObjectURL(
 			new Blob([json], { type: "application/json" }),
 		);
@@ -144,54 +156,61 @@ function PrivacyPage() {
 										, <span className="num">{match.votes}</span>{" "}
 										{match.votes === 1 ? "vote" : "votes"} on public pages.
 									</p>
-									<div className="flex flex-wrap gap-2">
-										<Button variant="outline" onClick={download}>
-											<DownloadIcon className="size-4" />
-											Download as JSON
-										</Button>
-										{!confirming ? (
-											<Button
-												variant="ghost"
-												className="text-negative"
-												onClick={() => setConfirming(true)}
-											>
-												<Trash2Icon className="size-4" />
-												Erase…
+									{!canManage && (
+										<p className="text-muted-foreground">
+											Only owners and admins can export or erase someone's data.
+										</p>
+									)}
+									{canManage && (
+										<div className="flex flex-wrap gap-2">
+											<Button variant="outline" onClick={download}>
+												<DownloadIcon className="size-4" />
+												Download as JSON
 											</Button>
-										) : (
-											<Button
-												variant="destructive"
-												disabled={busy}
-												onClick={async () => {
-													setBusy(true);
-													try {
-														const result = await eraseReporterFn({ data });
-														toast.success(
-															`Erased ${result.reports} reports, ${result.messages} messages and ${result.votes} votes; ${result.issues} issues they opened were deleted`,
-														);
-														setMatch({
-															...match,
-															reports: 0,
-															votes: 0,
-															projects: [],
-														});
-														setConfirming(false);
-														await router.invalidate();
-													} catch (error) {
-														toast.error(
-															error instanceof Error
-																? error.message
-																: "Not erased",
-														);
-													} finally {
-														setBusy(false);
-													}
-												}}
-											>
-												Erase {match.reports + match.votes} items for good
-											</Button>
-										)}
-									</div>
+											{!confirming ? (
+												<Button
+													variant="ghost"
+													className="text-negative"
+													onClick={() => setConfirming(true)}
+												>
+													<Trash2Icon className="size-4" />
+													Erase…
+												</Button>
+											) : (
+												<Button
+													variant="destructive"
+													disabled={busy}
+													onClick={async () => {
+														setBusy(true);
+														try {
+															const result = await eraseReporterFn({ data });
+															toast.success(
+																`Erased ${result.reports} reports, ${result.messages} messages and ${result.votes} votes; ${result.issues} issues they opened were deleted`,
+															);
+															setMatch({
+																...match,
+																reports: 0,
+																votes: 0,
+																projects: [],
+															});
+															setConfirming(false);
+															await router.invalidate();
+														} catch (error) {
+															toast.error(
+																error instanceof Error
+																	? error.message
+																	: "Not erased",
+															);
+														} finally {
+															setBusy(false);
+														}
+													}}
+												>
+													Erase {match.reports + match.votes} items for good
+												</Button>
+											)}
+										</div>
+									)}
 									{confirming && (
 										<p className="text-muted-foreground">
 											Their reports, screenshots and votes are deleted. An issue
