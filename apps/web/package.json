@@ -23,6 +23,10 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
+    "e2e:up": "docker compose -f e2e/docker-compose.e2e.yml up -d --wait",
+    "e2e:down": "docker compose -f e2e/docker-compose.e2e.yml down --volumes",
+    "e2e:build": "pnpm --filter @tattle/widget build && pnpm run build",
+    "test:e2e": "pnpm e2e:up && pnpm e2e:build && playwright test",
     "predev": "node scripts/copy-widget.mjs",
     "prebuild": "node scripts/copy-widget.mjs",
     "build:migrate": "esbuild scripts/migrate.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/migrate.mjs --external:pg-native --banner:js=\"import{createRequire}from'node:module';const require=createRequire(import.meta.url);\""
@@ -67,7 +71,9 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@biomejs/biome": "2.6.7",
+    "@playwright/test": "1.64.1",
     "@tailwindcss/typography": "^0.5.16",
     "@tanstack/devtools-vite": "0.8.6",
     "@types/node": "^24.19.2",

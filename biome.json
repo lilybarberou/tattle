@@ -11,12 +11,16 @@
 			"**/src/**/*",
 			"**/tests/**/*",
 			"**/scripts/**/*",
+			"**/e2e/**/*",
+			"**/playwright.config.ts",
 			"**/.vscode/**/*",
 			"**/vite.config.ts",
 			"**/vitest.config.ts",
 			"!**/src/routeTree.gen.ts",
 			"!**/src/styles.css",
-			"!**/.taste-skill"
+			"!**/.taste-skill",
+			"!**/test-results",
+			"!**/playwright-report"
 		]
 	},
 	"formatter": {
@@ -34,11 +38,29 @@
 		"enabled": true,
 		"rules": {
 			"preset": "recommended"
+		},
+		"domains": {
+			"playwright": "none"
 		}
 	},
 	"javascript": {
 		"formatter": {
 			"quoteStyle": "double"
 		}
-	}
+	},
+	"overrides": [
+		{
+			"includes": ["**/e2e/**/*"],
+			"linter": {
+				"rules": {
+					"correctness": {
+						"noEmptyPattern": "off"
+					}
+				},
+				"domains": {
+					"playwright": "recommended"
+				}
+			}
+		}
+	]
 }
