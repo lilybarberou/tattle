@@ -7,6 +7,8 @@ import {
 	project,
 	report,
 	reportMessage,
+	webhookDelivery,
+	webhookEndpoint,
 } from "#/db/schema";
 import type { Actor } from "./Access";
 import { errorKind } from "./background";
@@ -378,6 +380,31 @@ export class DataLifecycle extends Context.Service<
 						),
 					);
 				}
+				// A webhook delivery still waiting to be sent holds a copy of the
+				// report (message, email, name): it is not sent any more. Finished
+				// deliveries hold none (Webhooks.ts).
+				const needles = [query.trim().toLowerCase(), ...rows.map((r) => r.id)];
+				yield* database.query((db) =>
+					db
+						.update(webhookDelivery)
+						.set({
+							status: "failed",
+							payload: {},
+							lastError: "Not sent: the reporter's data was erased",
+						})
+						.where(
+							and(
+								eq(webhookDelivery.status, "pending"),
+								sql`${webhookDelivery.endpointId} in (select ${webhookEndpoint.id} from ${webhookEndpoint} where ${webhookEndpoint.projectId} in ${ids})`,
+								or(
+									...needles.map(
+										(needle) =>
+											sql`position(${needle} in lower(${webhookDelivery.payload}::text)) > 0`,
+									),
+								),
+							),
+						),
+				);
 				const gone = new Set(orphaned.map((o) => o.id));
 				yield* recount(
 					[
