@@ -334,6 +334,13 @@ function AppLayout() {
 
 	return (
 		<AppActionsContext.Provider value={actions}>
+			{/* First Tab stop: jumps past the sidebar. Hidden until focused. */}
+			<a
+				href="#content"
+				className="fixed top-2 left-2 z-50 -translate-y-[200%] rounded-md border bg-surface px-3 py-2 font-medium text-ink shadow-md focus:translate-y-0 focus-visible:outline-2"
+			>
+				Skip to content
+			</a>
 			<div className="grid min-h-dvh md:h-dvh md:grid-cols-[var(--sidebar-width)_minmax(0,1fr)] md:grid-rows-[48px_minmax(0,1fr)]">
 				<aside aria-label="Sidebar" className="row-span-2 max-md:hidden">
 					<SidebarContent />
@@ -383,8 +390,10 @@ function AppLayout() {
 
 				{/* The sheet: white, inset 8px right and bottom, 16px corners, 1px edge, no shadow. */}
 				<main
+					id="content"
+					tabIndex={-1}
 					className={cn(
-						"min-w-0 overflow-y-auto bg-surface",
+						"min-w-0 overflow-y-auto bg-surface outline-none",
 						"md:mr-[var(--sheet-inset)] md:mb-[var(--sheet-inset)] md:rounded-[var(--radius-sheet)] md:border",
 					)}
 				>
