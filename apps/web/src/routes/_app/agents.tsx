@@ -3,9 +3,10 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { AiSettingsForm } from "#/components/ai-settings";
 import { CodeBlock } from "#/components/code-block";
-import { Face, relativeTime } from "#/components/issue-meta";
+import { Face } from "#/components/issue-meta";
 import { PageHeader } from "#/components/page-header";
 import { SettingsSection } from "#/components/settings-section";
+import { RelativeTime } from "#/components/time";
 import { Button } from "#/components/ui/button";
 import { Checkbox } from "#/components/ui/checkbox";
 import { Input } from "#/components/ui/input";
@@ -85,9 +86,13 @@ function AgentsPage() {
 										<p className="text-muted-foreground">
 											<span className="font-mono text-xs">{t.prefix}…</span> ·{" "}
 											{t.canWrite ? "Reads and changes issues" : "Read only"} ·{" "}
-											{t.lastUsedAt
-												? `active ${relativeTime(t.lastUsedAt)}`
-												: "never used"}
+											{t.lastUsedAt ? (
+												<>
+													active <RelativeTime iso={t.lastUsedAt} />
+												</>
+											) : (
+												"never used"
+											)}
 										</p>
 									</div>
 									{t.canRevoke && (
@@ -204,7 +209,7 @@ function AgentsPage() {
 									<div className="min-w-0 flex-1">
 										<p className="font-medium">{app.name ?? "Unnamed app"}</p>
 										<p className="text-muted-foreground">
-											Connected {relativeTime(app.connectedAt)}
+											Connected <RelativeTime iso={app.connectedAt} />
 											{app.uri ? ` · ${app.uri}` : ""}
 										</p>
 									</div>

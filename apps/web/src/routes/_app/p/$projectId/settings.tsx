@@ -9,9 +9,9 @@ import { RefreshCwIcon, SendIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CodeBlock } from "#/components/code-block";
-import { relativeTime } from "#/components/issue-meta";
 import { PageHeader } from "#/components/page-header";
 import { SettingsSection } from "#/components/settings-section";
+import { RelativeTime } from "#/components/time";
 import { Button } from "#/components/ui/button";
 import { Checkbox } from "#/components/ui/checkbox";
 import { Input } from "#/components/ui/input";
@@ -32,6 +32,7 @@ import {
 	updateProjectFn,
 } from "#/server/fns";
 import type { WebhookEvent } from "#/shared/issues";
+import { PORTAL_SLUG_PATTERN } from "#/shared/portal-slug";
 
 const projectRoute = getRouteApi("/_app/p/$projectId");
 const appRoute = getRouteApi("/_app");
@@ -727,7 +728,7 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 											</td>
 											<td className="num py-2 text-right">{d.attempts}</td>
 											<td className="py-2 text-right text-muted-foreground">
-												{relativeTime(d.createdAt)}
+												<RelativeTime iso={d.createdAt} />
 											</td>
 										</tr>
 									))}
@@ -804,7 +805,7 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 									value={portalSlug}
 									onChange={(e) => setPortalSlug(e.target.value.toLowerCase())}
 									className="h-8 min-w-0 flex-1 bg-transparent pr-3 outline-none"
-									pattern="[a-z0-9][a-z0-9-]{2,39}"
+									pattern={PORTAL_SLUG_PATTERN}
 									required
 									readOnly={!project.canManage}
 								/>
@@ -991,7 +992,7 @@ function GithubSettings({
 			)}
 			{settings.lastDeliveryAt && (
 				<p className="text-muted-foreground">
-					Last delivery {relativeTime(settings.lastDeliveryAt)}:{" "}
+					Last delivery <RelativeTime iso={settings.lastDeliveryAt} />:{" "}
 					{settings.lastDelivery}
 				</p>
 			)}

@@ -36,6 +36,10 @@ const STORAGE_DIR = fileURLToPath(
 /** The app's environment: production build, every outside call kept local. */
 export const appEnv: Record<string, string> = {
 	NODE_ENV: "production",
+	// The server's time zone, as in the Docker image; the browser is in
+	// Europe/Paris (playwright.config.ts). Dates the server renders in its own
+	// time zone then differ from the browser's, and hydration errors show.
+	TZ: "UTC",
 	HOST: "127.0.0.1",
 	PORT: String(APP_PORT),
 	DATABASE_URL,

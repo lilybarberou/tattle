@@ -2,9 +2,10 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CodeBlock } from "#/components/code-block";
-import { Face, relativeTime } from "#/components/issue-meta";
+import { Face } from "#/components/issue-meta";
 import { PageHeader } from "#/components/page-header";
 import { SettingsSection } from "#/components/settings-section";
+import { RelativeTime } from "#/components/time";
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
@@ -154,7 +155,7 @@ function MembersPage() {
 											<p className="truncate">{invite.email}</p>
 											<p className="text-muted-foreground">
 												{roleLabel(invite.role)} · expires{" "}
-												{relativeTime(invite.expiresAt)}
+												<RelativeTime iso={invite.expiresAt} />
 											</p>
 										</div>
 										{canManage && (

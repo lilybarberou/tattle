@@ -3,7 +3,7 @@ import { SendIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { BrandMark } from "#/components/brand";
-import { relativeTime } from "#/components/issue-meta";
+import { RelativeTime } from "#/components/time";
 import { Button } from "#/components/ui/button";
 import { Textarea } from "#/components/ui/textarea";
 import { cn } from "#/lib/utils";
@@ -128,7 +128,7 @@ function ThreadPage() {
 				</div>
 				<p className="mt-1 text-muted-foreground">
 					{thread.type === "bug" ? "Bug report" : "Idea"} sent{" "}
-					{relativeTime(thread.createdAt)}
+					<RelativeTime iso={thread.createdAt} />
 				</p>
 
 				<section className="mt-6 rounded-2xl border bg-surface p-5 sm:p-6">
@@ -136,7 +136,7 @@ function ThreadPage() {
 						<li className="ml-auto max-w-[85%] rounded-lg bg-raised px-3 py-2">
 							<p className="text-xs text-muted-foreground">
 								<span className="font-medium text-ink">You</span> ·{" "}
-								{relativeTime(thread.createdAt)}
+								<RelativeTime iso={thread.createdAt} />
 							</p>
 							<p className="mt-0.5 break-words whitespace-pre-wrap">
 								{thread.message}
@@ -158,7 +158,7 @@ function ThreadPage() {
 											? "You"
 											: (message.name ?? project)}
 									</span>{" "}
-									· {relativeTime(message.createdAt)}
+									· <RelativeTime iso={message.createdAt} />
 								</p>
 								<p className="mt-0.5 break-words whitespace-pre-wrap">
 									{message.body}

@@ -358,33 +358,3 @@ export function Face({
 		</span>
 	);
 }
-
-const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-export function relativeTime(iso: string) {
-	const seconds = (new Date(iso).getTime() - Date.now()) / 1000;
-	const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-		["year", 31536000],
-		["month", 2592000],
-		["week", 604800],
-		["day", 86400],
-		["hour", 3600],
-		["minute", 60],
-	];
-	for (const [unit, size] of units) {
-		if (Math.abs(seconds) >= size)
-			return rtf.format(Math.round(seconds / size), unit);
-	}
-	return "just now";
-}
-
-/** "9 min", "3 h", "Yesterday", "Nov 3" for dense rows. */
-export function shortTime(iso: string) {
-	const date = new Date(iso);
-	const minutes = Math.round((Date.now() - date.getTime()) / 60000);
-	if (minutes < 1) return "now";
-	if (minutes < 60) return `${minutes} min`;
-	const hours = Math.round(minutes / 60);
-	if (hours < 24) return `${hours} h`;
-	if (hours < 48) return "Yesterday";
-	return date.toLocaleDateString("en", { month: "short", day: "numeric" });
-}

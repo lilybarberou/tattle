@@ -39,7 +39,7 @@ E2E_WORKERS=4 pnpm exec playwright test  # more workers on a quiet machine (defa
 
 These ports differ from `docker-compose.dev.yml` (5434, 1026, 8026, 9030) and from `pnpm dev` (3000), so the suite can run next to a dev server without touching its data. `playwright.config.ts` refuses to start if any URL in `e2e/config.ts` is not on this machine.
 
-The app runs with sign-up closed (as in production), `PASSWORD_BREACH_CHECK=false`, `ALLOW_PRIVATE_URLS=true` (webhooks to the fixtures server), `TRUST_PROXY=true`, raised ingest limits and a fixed `SETUP_CODE`.
+The app runs in UTC (`TZ=UTC`, as in the Docker image) while the browser is in Europe/Paris, with sign-up closed (as in production), `PASSWORD_BREACH_CHECK=false`, `ALLOW_PRIVATE_URLS=true` (webhooks to the fixtures server), `TRUST_PROXY=true`, raised ingest limits and a fixed `SETUP_CODE`.
 
 ## How the tests are written
 
@@ -69,6 +69,7 @@ The app runs with sign-up closed (as in production), `PASSWORD_BREACH_CHECK=fals
 | `conversation-email.spec.ts` | Reporter answers from the emailed link; stopping emails                                                                                |
 | `auth.spec.ts`               | Password reset by email, other sessions signed out                                                                                     |
 | `github-sync.spec.ts`        | Pull requests that fix issues, from signed deliveries: In review, then Done when merged                                                |
+| `console-errors.spec.ts`     | Triage, an issue, the issue list and settings log no console error; server in UTC, browser in Europe/Paris                             |
 
 ## Troubleshooting
 

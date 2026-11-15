@@ -34,6 +34,7 @@ import {
 	WEBHOOK_FORMATS,
 } from "#/shared/issues";
 import { NOTIFICATION_TYPES } from "#/shared/notifications";
+import { isPortalSlug } from "#/shared/portal-slug";
 import {
 	Access,
 	actorOf,
@@ -334,10 +335,7 @@ export const updateProjectFn = createServerFn({ method: "POST" })
 				// settings, like identity and webhooks.
 				yield* requireProjectAdmin(data.projectId);
 				const portalSlug = data.portalSlug?.trim().toLowerCase();
-				if (
-					portalSlug !== undefined &&
-					!/^[a-z0-9][a-z0-9-]{2,39}$/.test(portalSlug)
-				) {
+				if (portalSlug !== undefined && !isPortalSlug(portalSlug)) {
 					return yield* new InvalidInput({
 						message:
 							"The address takes 3 to 40 lowercase letters, digits or dashes.",

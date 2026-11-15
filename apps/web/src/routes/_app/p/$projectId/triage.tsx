@@ -23,7 +23,6 @@ import {
 	Face,
 	IssueNumber,
 	StatusIcon,
-	shortTime,
 	TypeIcon,
 } from "#/components/issue-meta";
 import { Markdown } from "#/components/markdown";
@@ -35,6 +34,7 @@ import {
 	ReportLogs,
 	Screenshot,
 } from "#/components/report-evidence";
+import { ShortTime } from "#/components/time";
 import { Button } from "#/components/ui/button";
 import { lenient } from "#/lib/search-params";
 import { cn } from "#/lib/utils";
@@ -144,7 +144,7 @@ function InboxRow({
 				/>
 				<span className="truncate font-semibold">{reporterName(item)}</span>
 				<span className="num text-xs text-muted-foreground">
-					{shortTime(item.createdAt)}
+					<ShortTime iso={item.createdAt} />
 				</span>
 				<span className="truncate text-ink/80">{item.title}</span>
 				<span className="flex items-center gap-1.5 text-muted-foreground">
@@ -380,7 +380,7 @@ function TriagePage() {
 													{item.title}
 												</span>
 												<span className="num text-xs">
-													{shortTime(item.updatedAt)}
+													<ShortTime iso={item.updatedAt} />
 												</span>
 											</Link>
 										</li>
