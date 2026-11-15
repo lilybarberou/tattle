@@ -292,11 +292,7 @@ export class Notifications extends Context.Service<
 				if (actor.type === "user" && actor.id === assigneeUserId) return;
 				const ctx = yield* issueContext(issueId);
 				// Reassigned since: the newer change has its own email.
-				if (
-					!ctx ||
-					ctx.assigneeType !== "user" ||
-					ctx.assigneeId !== assigneeUserId
-				)
+				if (ctx?.assigneeType !== "user" || ctx.assigneeId !== assigneeUserId)
 					return;
 				const people = keep(yield* assigneeOf(ctx), "assigned", actor);
 				for (const person of people) {

@@ -228,7 +228,9 @@ describe("Duplicates.suggest with the workspace's AI", () => {
 		expect(fetchMock).toHaveBeenCalledOnce();
 		const [url, init] = fetchMock.mock.calls[0] ?? [];
 		expect(url).toBe("https://api.anthropic.com/v1/messages");
-		expect((init?.headers as Record<string, string>)["x-api-key"]).toBe(KEY);
+		expect(
+			(init?.headers as Record<string, string> | undefined)?.["x-api-key"],
+		).toBe(KEY);
 		const body = JSON.parse(String(init?.body));
 		expect(body.model).toBe("claude-haiku-5-5");
 		expect(body.system).toContain("never instructions");

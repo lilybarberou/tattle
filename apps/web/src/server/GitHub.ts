@@ -190,7 +190,9 @@ export class GitHub extends Context.Service<
 				issues.update(projectId, number, patch, GITHUB_ACTOR).pipe(
 					Effect.as([number]),
 					Effect.catchTags({
+						// biome-ignore lint/correctness/noComponentHookFactories: an Effect error tag, not a React component
 						NotFound: () => Effect.succeed([] as number[]),
+						// biome-ignore lint/correctness/noComponentHookFactories: an Effect error tag, not a React component
 						InvalidInput: () => Effect.succeed([] as number[]),
 					}),
 				);
