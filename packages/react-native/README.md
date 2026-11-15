@@ -239,7 +239,7 @@ Users can also blur any area in the annotation editor before sending.
 
 Submitting a report sends `POST {apiUrl}/api/v1/ingest`, the same endpoint as the web widget. See the [ingest API reference](../../docs/INGEST-API.md) for every field. In short:
 
-- **Console**: the last 200 `console.log/info/warn/error/debug` calls, with stacks for errors. The original methods still run.
+- **Console**: the last 200 `console.log/info/warn/error/debug` calls, with stacks for errors. The original methods still run. Messages are scrubbed before they are kept: JWTs, the secrets of the URLs they contain, and what follows `Bearer`, `Basic` or `Token` when it looks like a credential become `[redacted]`, as do object properties named like credentials (`authorization`, `cookie`, `password`, `apiKey`, `accessToken`…). One call serializes at most 2,000 values, and getters are not run.
 - **Errors**: uncaught JavaScript errors (fatal or not), through React Native's global error handler. The app's own handler still runs. In release builds on Hermes, unhandled promise rejections too; in development React Native already logs them as warnings.
 - **Network**: the last 100 `fetch` and `XMLHttpRequest` calls: method, URL, status (0 on failure), duration. Never bodies or headers. Query values whose name looks secret (`token`, `key`, `password`, `session`, `code`…) are replaced with `[redacted]`.
 - **Device**: platform, OS version, model and manufacturer, phone or tablet, screen size and pixel ratio, font scale, language, time zone, color scheme, React Native version and engine. With `expo-device` installed, the exact model name (for example "iPhone 16 Pro").

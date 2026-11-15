@@ -235,7 +235,7 @@ The server answers `201 { id, issueNumber? }`. On an error status it answers `{ 
 
 ### Collectors
 
-- **Console**: wraps `console.log/info/warn/error/debug`. The original methods still run. Arguments are serialized safely: Errors become `name: message` with their stack. Objects are stringified with circular references handled, a depth limit of 4, and strings cut to 1000 chars. Each message is capped at 4000 chars.
+- **Console**: wraps `console.log/info/warn/error/debug`. The original methods still run. Arguments are serialized safely: Errors become `name: message` with their stack. Objects are stringified with circular references handled, a depth limit of 4, and strings cut to 1000 chars; one call serializes at most 2,000 values, and getters are not run. Each message is capped at 4000 chars and scrubbed (see [Privacy](#privacy)).
 - **Errors**: uncaught errors, unhandled promise rejections and failed resource loads become `error` entries.
 - **Network**: wraps `fetch` and `XMLHttpRequest`. It records only method, URL, status (0 on network failure), duration and timestamp, never bodies or headers. The widget's own requests are not recorded: the ingest call, the "My reports" calls and the assets fetched while taking a screenshot.
 - **Steps before the report** (`breadcrumbs`): the last 50 of these, with their time:
@@ -251,6 +251,7 @@ The server answers `201 { id, issueNumber? }`. On an error status it answers `{ 
 ## Privacy
 
 - **URL redaction.** Query (and `#fragment`) parameters whose key matches `/token|key|secret|password|auth|session|code/i` have their value replaced with `[redacted]`. This applies to network entries, navigation steps and `pageUrl`.
+- **Console scrubbing.** Console messages lose JWTs, the secrets of the URLs they contain, and what follows `Bearer`, `Basic` or `Token` when it looks like a credential (a digit, a symbol, mixed case, or 16 characters or more), or comes after `token:` or `token=`. Object properties named like credentials (`authorization`, `cookie`, `password`, `secret`, `apiKey`, `accessToken`…) become `[redacted]`; counts such as `maxTokens` or `tokenCount` are kept.
 - **Steps.** Field values are never recorded. Inside an element with `data-tattle-mask`, a click is described by its role and label (`aria-label`, `title`) only, never by its text.
 - **Screenshot masking.** Elements matching any of these selectors are covered with a solid block in the screenshot:
   - `input[type=password]`

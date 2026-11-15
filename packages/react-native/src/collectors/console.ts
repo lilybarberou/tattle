@@ -1,3 +1,4 @@
+import { scrubText } from "../redact";
 import type { ConsoleEntry, ConsoleLevel } from "../types";
 
 const MAX_ENTRIES = 200;
@@ -5,6 +6,15 @@ const MAX_DEPTH = 4;
 const MAX_STRING = 1000;
 const MAX_MESSAGE = 4000;
 const MAX_KEYS = 100;
+/** Values one console call may serialize, however its objects are shaped. */
+const MAX_NODES = 2000;
+/**
+ * Object keys whose value is a credential: never sent. `token` but not the
+ * counts and kinds that carry the word (`maxTokens`, `tokenCount`,
+ * `token_type`, `tokenizer`).
+ */
+const SENSITIVE_PROPERTY =
+	/token(?!s|_?count|_?type|izer)|secret|passw(or)?d|authorization|cookie|api[-_]?key|credential|jwt|^auth$/i;
 const LEVELS: ConsoleLevel[] = ["log", "info", "warn", "error", "debug"];
 
 type GlobalHandler = (error: unknown, isFatal?: boolean) => void;
@@ -47,7 +57,10 @@ function describeError(error: Error): string {
 /** Circular-safe JSON stringify with depth, key and string limits. */
 export function safeStringify(value: unknown): string {
 	const seen = new WeakSet<object>();
+	let budget = MAX_NODES;
 	const walk = (val: unknown, depth: number): unknown => {
+		// A global budget: depth and key limits alone allow 100⁴ values.
+		if (budget-- <= 0) return "[…]";
 		if (typeof val === "string") return truncate(val, MAX_STRING);
 		if (typeof val === "number")
 			return Number.isFinite(val) ? val : String(val);
@@ -81,11 +94,20 @@ export function safeStringify(value: unknown): string {
 			let count = 0;
 			for (const key in val) {
 				if (!Object.hasOwn(val, key)) continue;
-				if (count++ >= MAX_KEYS) {
+				if (count++ >= MAX_KEYS || budget <= 0) {
 					out["…"] = "more keys";
 					break;
 				}
 				try {
+					if (SENSITIVE_PROPERTY.test(key)) {
+						out[key] = "[redacted]";
+						continue;
+					}
+					// A getter runs the host's code, maybe slow or with side effects.
+					if (Object.getOwnPropertyDescriptor(val, key)?.get) {
+						out[key] = "[Getter]";
+						continue;
+					}
 					out[key] = walk((val as Record<string, unknown>)[key], depth + 1);
 				} catch {
 					out[key] = "[Unreadable]";
@@ -108,7 +130,7 @@ export function safeStringify(value: unknown): string {
 }
 
 function serializeArg(arg: unknown): string {
-	if (typeof arg === "string") return arg;
+	if (typeof arg === "string") return truncate(arg, MAX_MESSAGE);
 	if (arg instanceof Error) return describeError(arg);
 	if (arg === null || (typeof arg !== "object" && typeof arg !== "function"))
 		return String(arg);
@@ -120,12 +142,14 @@ export function pushConsoleEntry(
 	message: string,
 	stack?: string,
 ): void {
+	// Credentials in the text (a logged header, a token in a URL) never
+	// leave the page.
 	const entry: ConsoleEntry = {
 		level,
-		message: truncate(message, MAX_MESSAGE),
+		message: scrubText(truncate(message, MAX_MESSAGE)),
 		timestamp: Date.now(),
 	};
-	if (stack) entry.stack = truncate(stack, MAX_MESSAGE);
+	if (stack) entry.stack = scrubText(truncate(stack, MAX_MESSAGE));
 	buffer.push(entry);
 	if (buffer.length > MAX_ENTRIES)
 		buffer.splice(0, buffer.length - MAX_ENTRIES);
