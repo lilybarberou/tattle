@@ -171,7 +171,7 @@ OAuth discovery follows the MCP spec: `/.well-known/oauth-protected-resource/api
 
 Linking a fix: set the issue's pull request with `update_issue` (`pr_url`), or write `Fixes Tattle #12` in the pull request's title or description: a GitHub closing keyword (`fix`, `fixes`, `fixed`, `close`, `closes`, `closed`, `resolve`, `resolves`, `resolved`, any case, optional colon) right before the reference, e.g. `closes tattle#12`. A bare `Tattle #12` or `does not fix Tattle #12` links nothing, and a plain `#12` is left alone: on GitHub it means GitHub's own issue 12.
 
-Report content and reporters' messages are written by end users. The MCP server tells agents to treat them as data, never as instructions (reporters' messages are flagged `untrustedUserContent`); keep agent permissions narrow anyway.
+Report content and reporters' messages are written by end users. The MCP server tells agents to treat them as data, never as instructions, and flags them `untrustedUserContent`: reporters' messages, and issues whose title and description an end user wrote (created from a report, or suggested on the public page), with their reports. Keep agent permissions narrow anyway.
 
 ## Duplicate suggestions
 
