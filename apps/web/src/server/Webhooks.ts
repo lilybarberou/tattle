@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { and, eq, isNotNull, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, lt, ne, sql } from "drizzle-orm";
 import { Context, Effect, Layer, Schedule, Schema } from "effect";
 import {
 	type JsonObject,
@@ -58,6 +58,26 @@ const retrySchedule = Schedule.exponential(
 	process.env.NODE_ENV === "test" ? "10 millis" : "2 seconds",
 ).pipe(Schedule.upTo({ times: 5 }));
 
+/** A finished delivery is listed for this long, then deleted. */
+export const DELIVERY_LOG_DAYS = 30;
+/**
+ * A delivery still pending after this long will not be sent: its endpoint
+ * was turned off (only active endpoints are retried) or the server was down
+ * for a day. Its copy of the report is dropped.
+ */
+export const PENDING_DELIVERY_HOURS = 24;
+const SWEEP_BATCH = 1_000;
+const SWEEP_BATCHES_PER_RUN = 50;
+
+export type DeliverySweep = {
+	/** Finished deliveries whose copy of the report was dropped. */
+	cleared: number;
+	/** Pending deliveries given up on. */
+	abandoned: number;
+	/** Finished deliveries older than DELIVERY_LOG_DAYS, deleted. */
+	deleted: number;
+};
+
 export class Webhooks extends Context.Service<
 	Webhooks,
 	{
@@ -80,6 +100,12 @@ export class Webhooks extends Context.Service<
 			projectId: string,
 			endpointId: string,
 		) => Effect.Effect<{ ok: boolean; status?: number; error?: string }>;
+		/**
+		 * Housekeeping, every 6 hours: no delivery keeps a copy of a report once
+		 * it will not be sent again (deliveries from before that rule
+		 * included), and the delivery log keeps DELIVERY_LOG_DAYS days.
+		 */
+		readonly sweepDeliveries: Effect.Effect<DeliverySweep, DbError>;
 	}
 >()("tattle/server/Webhooks") {
 	static readonly layer = Layer.effect(
@@ -197,6 +223,9 @@ export class Webhooks extends Context.Service<
 					Effect.result,
 				);
 
+				// The payload is kept only while the delivery may be sent again: it
+				// holds what reporters wrote, their email and name, which erasure
+				// and retention must not leave behind in this table.
 				yield* database
 					.query((db) =>
 						db
@@ -209,8 +238,9 @@ export class Webhooks extends Context.Service<
 											responseStatus: result.success,
 											lastError: null,
 											deliveredAt: new Date(),
+											payload: {},
 										}
-									: { status: "failed" },
+									: { status: "failed", payload: {} },
 							)
 							.where(eq(webhookDelivery.id, deliveryId)),
 					)
@@ -293,6 +323,124 @@ export class Webhooks extends Context.Service<
 			yield* resumePending.pipe(
 				Effect.delay("10 seconds"),
 				Effect.repeat(Schedule.spaced("1 minute")),
+				Effect.forkScoped,
+			);
+
+			/** Runs `update` on batches of ids until a batch comes back short. */
+			const inBatches = (
+				pick: () => Effect.Effect<Array<{ id: string }>, DbError>,
+				apply: (ids: string[]) => Effect.Effect<unknown, DbError>,
+			) =>
+				Effect.gen(function* () {
+					let total = 0;
+					for (let batch = 0; batch < SWEEP_BATCHES_PER_RUN; batch++) {
+						const rows = yield* pick();
+						if (rows.length > 0) yield* apply(rows.map((r) => r.id));
+						total += rows.length;
+						if (rows.length < SWEEP_BATCH) break;
+					}
+					return total;
+				});
+
+			const sweepDeliveries = Effect.gen(function* () {
+				const now = Date.now();
+				const empty = sql`'{}'::jsonb`;
+				// Finished deliveries from before payloads were dropped on finishing.
+				const cleared = yield* inBatches(
+					() =>
+						database.query((db) =>
+							db
+								.select({ id: webhookDelivery.id })
+								.from(webhookDelivery)
+								.where(
+									and(
+										ne(webhookDelivery.status, "pending"),
+										sql`${webhookDelivery.payload} <> ${empty}`,
+									),
+								)
+								.limit(SWEEP_BATCH),
+						),
+					(ids) =>
+						database.query((db) =>
+							db
+								.update(webhookDelivery)
+								.set({ payload: {} })
+								.where(inArray(webhookDelivery.id, ids)),
+						),
+				);
+				const abandoned = yield* inBatches(
+					() =>
+						database.query((db) =>
+							db
+								.select({ id: webhookDelivery.id })
+								.from(webhookDelivery)
+								.where(
+									and(
+										eq(webhookDelivery.status, "pending"),
+										lt(
+											webhookDelivery.createdAt,
+											new Date(now - PENDING_DELIVERY_HOURS * 3_600_000),
+										),
+									),
+								)
+								.limit(SWEEP_BATCH),
+						),
+					(ids) =>
+						database.query((db) =>
+							db
+								.update(webhookDelivery)
+								.set({
+									status: "failed",
+									payload: {},
+									lastError: `Not sent within ${PENDING_DELIVERY_HOURS} hours`,
+								})
+								.where(
+									and(
+										inArray(webhookDelivery.id, ids),
+										eq(webhookDelivery.status, "pending"),
+									),
+								),
+						),
+				);
+				const deleted = yield* inBatches(
+					() =>
+						database.query((db) =>
+							db
+								.select({ id: webhookDelivery.id })
+								.from(webhookDelivery)
+								.where(
+									and(
+										ne(webhookDelivery.status, "pending"),
+										lt(
+											webhookDelivery.createdAt,
+											new Date(now - DELIVERY_LOG_DAYS * 24 * 3_600_000),
+										),
+									),
+								)
+								.limit(SWEEP_BATCH),
+						),
+					(ids) =>
+						database.query((db) =>
+							db
+								.delete(webhookDelivery)
+								.where(inArray(webhookDelivery.id, ids)),
+						),
+				);
+				return { cleared, abandoned, deleted };
+			});
+			yield* sweepDeliveries.pipe(
+				Effect.tap(({ cleared, abandoned, deleted }) =>
+					cleared + abandoned + deleted > 0
+						? Effect.logInfo(
+								`Webhook deliveries: ${cleared} copies of reports dropped, ${abandoned} stale deliveries given up, ${deleted} old deliveries deleted`,
+							)
+						: Effect.void,
+				),
+				Effect.catch((error) =>
+					Effect.logError(`Webhook delivery sweep failed: ${errorKind(error)}`),
+				),
+				Effect.delay("1 minute"),
+				Effect.repeat(Schedule.spaced("6 hours")),
 				Effect.forkScoped,
 			);
 
@@ -428,7 +576,7 @@ export class Webhooks extends Context.Service<
 				),
 			);
 
-			return Webhooks.of({ emit, create, ping });
+			return Webhooks.of({ emit, create, ping, sweepDeliveries });
 		}),
 	);
 }

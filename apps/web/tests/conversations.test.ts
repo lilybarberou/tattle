@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { Effect } from "effect";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { db } from "#/db";
 import { project, report, reportMessage, webhookDelivery } from "#/db/schema";
 import {
@@ -20,6 +20,7 @@ import {
 	reportPayload,
 	userActor,
 } from "./helpers/factories";
+import { startReceiver } from "./helpers/http";
 import { run, runFailure, setupTestDatabase, waitFor } from "./helpers/runtime";
 
 setupTestDatabase();
@@ -406,7 +407,14 @@ describe("A conversation", () => {
 
 	it("lets the reporter answer, and flags the issue until the team replies", async () => {
 		const { p, sent, auth } = await setup();
-		await createWebhookEndpoint(p.id, "http://127.0.0.1:9/hook", {
+		// The receiver listens on 127.0.0.1.
+		vi.stubEnv("ALLOW_PRIVATE_URLS", "true");
+		const receiver = await startReceiver();
+		onTestFinished(async () => {
+			vi.unstubAllEnvs();
+			await receiver.close();
+		});
+		await createWebhookEndpoint(p.id, receiver.url, {
 			events: ["message.created"],
 		});
 		const posted = await run(
@@ -442,20 +450,25 @@ describe("A conversation", () => {
 		);
 		expect(await awaiting()).toBe(false);
 
-		const deliveries = await waitFor(async () => {
+		await waitFor(async () => {
 			const rows = await db.select().from(webhookDelivery);
-			return rows.length === 2 ? rows : undefined;
+			return rows.length === 2 && rows.every((r) => r.status === "success");
 		});
-		expect(deliveries.map((d) => d.event)).toEqual([
+		const payloads = receiver.requests.map(
+			(r) =>
+				JSON.parse(r.body) as {
+					event: string;
+					data: { message: { from: string } };
+				},
+		);
+		expect(payloads.map((d) => d.event)).toEqual([
 			"message.created",
 			"message.created",
 		]);
-		const payloads = deliveries.map(
-			(d) =>
-				(d.payload as { data: { message: { from: string } } }).data.message
-					.from,
-		);
-		expect(payloads.sort()).toEqual(["reporter", "team"]);
+		expect(payloads.map((d) => d.data.message.from).sort()).toEqual([
+			"reporter",
+			"team",
+		]);
 	});
 
 	it("refuses empty and overlong messages", async () => {

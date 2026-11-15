@@ -88,6 +88,8 @@ describe("JSON endpoints", () => {
 			attempts: 1,
 			responseStatus: 200,
 			lastError: null,
+			// Sent: the copy of the report is not kept.
+			payload: {},
 		});
 		expect(delivery?.deliveredAt).toBeInstanceOf(Date);
 	});
@@ -274,6 +276,7 @@ describe("private addresses", () => {
 		});
 		for (const delivery of deliveries) {
 			expect(delivery.attempts).toBe(1);
+			expect(delivery.payload).toEqual({});
 			expect(delivery.lastError).toContain("Refused");
 			expect(delivery.lastError).toContain("ALLOW_PRIVATE_URLS=true");
 		}
