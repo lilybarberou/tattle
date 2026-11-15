@@ -127,7 +127,6 @@ function RequestRow({
 				onClick={vote}
 				disabled={pending || shipped}
 				aria-pressed={voted}
-				aria-label={voted ? `Remove your vote (${demand})` : `Vote (${demand})`}
 				className={cn(
 					"flex h-14 w-12 flex-none flex-col items-center justify-center rounded-lg border text-sm transition-colors",
 					voted
@@ -136,8 +135,12 @@ function RequestRow({
 					shipped && "cursor-default opacity-70",
 				)}
 			>
-				<ChevronUpIcon className="size-4" />
+				<ChevronUpIcon className="size-4" aria-hidden />
+				{/* The name includes the visible count, so "click 13" works too.
+				    It stays the same when voted: aria-pressed tells that. */}
+				<span className="sr-only">Vote, </span>
 				<span className="num font-semibold">{demand}</span>
+				<span className="sr-only">{demand === 1 ? " vote" : " votes"}</span>
 			</button>
 			<div className="min-w-0 flex-1">
 				<p className="font-medium text-pretty">{request.title}</p>

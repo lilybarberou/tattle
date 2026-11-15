@@ -165,7 +165,7 @@ export function ReleasePicker({
 			trigger={
 				<Trigger
 					className={cn("border border-control", className)}
-					aria-label="Filter by release"
+					aria-label={`Filter by release: ${value ?? "All releases"}`}
 				>
 					<PackageIcon className="size-4 flex-none text-muted-foreground" />
 					<span className={cn("truncate", !value && "text-muted-foreground")}>
