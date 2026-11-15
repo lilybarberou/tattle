@@ -2,6 +2,7 @@ import {
 	createFileRoute,
 	getRouteApi,
 	Link,
+	notFound,
 	useNavigate,
 	useRouter,
 } from "@tanstack/react-router";
@@ -43,7 +44,9 @@ import {
 	Screenshot,
 	SeenIn,
 } from "#/components/report-evidence";
+import { errorStatus } from "#/components/status-page";
 import { Button } from "#/components/ui/button";
+import { useInlineConfirm } from "#/lib/use-inline-confirm";
 import { cn } from "#/lib/utils";
 import {
 	addCommentFn,
@@ -60,10 +63,17 @@ import type { IssueDetail, ReportDto } from "#/server/Issues";
 import type { IssueStatus } from "#/shared/issues";
 
 export const Route = createFileRoute("/_app/p/$projectId/issues/$number")({
-	loader: ({ params }) =>
-		getIssueFn({
-			data: { projectId: params.projectId, number: Number(params.number) },
-		}),
+	loader: async ({ params }) => {
+		try {
+			return await getIssueFn({
+				data: { projectId: params.projectId, number: Number(params.number) },
+			});
+		} catch (error) {
+			// A wrong or deleted number: the "doesn't exist" page, not an error.
+			if (errorStatus(error) === 404) throw notFound();
+			throw error;
+		}
+	},
 	component: IssuePage,
 });
 
@@ -132,7 +142,7 @@ function ReportBlock({
 	onDelete?: () => Promise<void>;
 }) {
 	const [open, setOpen] = useState(defaultOpen);
-	const [confirming, setConfirming] = useState(false);
+	const { confirming, setConfirming, trigger, cancel } = useInlineConfirm();
 	const name = report.reporter?.name || report.reporter?.email || "Anonymous";
 	const { errors, failed } = countErrors(report);
 	const signal = errorSignal(errors, failed);
@@ -192,6 +202,7 @@ function ReportBlock({
 											Delete
 										</Button>
 										<Button
+											ref={cancel}
 											size="xs"
 											variant="ghost"
 											onClick={() => setConfirming(false)}
@@ -201,6 +212,7 @@ function ReportBlock({
 									</>
 								) : (
 									<Button
+										ref={trigger}
 										size="xs"
 										variant="ghost"
 										className="text-muted-foreground"
@@ -280,7 +292,7 @@ function Description({
 
 	return (
 		<form
-			className="mt-2 max-w-[75ch] rounded-lg border focus-within:border-control"
+			className="mt-2 max-w-[75ch] rounded-lg border transition-[color,box-shadow] focus-within:border-control has-focus-visible:border-ring has-focus-visible:ring-[3px] has-focus-visible:ring-ring/50"
 			onSubmit={(event) => {
 				event.preventDefault();
 				void save();
@@ -402,7 +414,7 @@ function ReporterThread({ report, name }: { report: ReportDto; name: string }) {
 			)}
 			{reachable ? (
 				<form
-					className="rounded-lg border border-brand/40 focus-within:border-brand"
+					className="rounded-lg border border-brand/40 transition-[color,box-shadow] focus-within:border-brand has-focus-visible:border-ring has-focus-visible:ring-[3px] has-focus-visible:ring-ring/50"
 					onSubmit={(event) => {
 						event.preventDefault();
 						void send();
@@ -471,7 +483,12 @@ function IssuePage() {
 	const [title, setTitle] = useState(issue.title);
 	const [comment, setComment] = useState("");
 	const [merging, setMerging] = useState(false);
-	const [deleting, setDeleting] = useState(false);
+	const {
+		confirming: deleting,
+		setConfirming: setDeleting,
+		trigger: deleteTrigger,
+		cancel: keepIssue,
+	} = useInlineConfirm();
 	const [checking, setChecking] = useState(false);
 	const navigate = useNavigate();
 	const [prUrl, setPrUrl] = useState(issue.prUrl ?? "");
@@ -637,7 +654,7 @@ function IssuePage() {
 									void update({ title: title.trim() });
 								else setTitle(issue.title);
 							}}
-							className="field-sizing-content w-full resize-none rounded-md bg-transparent text-[22px] leading-8 font-semibold tracking-[-0.01em] outline-none hover:bg-raised focus:bg-raised"
+							className="field-sizing-content w-full resize-none rounded-md bg-transparent text-[22px] leading-8 font-semibold tracking-[-0.01em] outline-none hover:bg-raised focus:bg-raised focus-visible:ring-[3px] focus-visible:ring-ring/50"
 						/>
 					</h1>
 				</div>
@@ -738,7 +755,7 @@ function IssuePage() {
 						)}
 					</ol>
 					<form
-						className="mt-5 rounded-lg border focus-within:border-control"
+						className="mt-5 rounded-lg border transition-[color,box-shadow] focus-within:border-control has-focus-visible:border-ring has-focus-visible:ring-[3px] has-focus-visible:ring-ring/50"
 						onSubmit={(event) => {
 							event.preventDefault();
 							void sendComment();
@@ -774,7 +791,10 @@ function IssuePage() {
 				</section>
 			</div>
 
-			<aside className="border-l bg-surface px-5 py-5 max-lg:order-first max-lg:border-b max-lg:border-l-0">
+			<aside
+				aria-label="Issue properties"
+				className="border-l bg-surface px-5 py-5 max-lg:order-first max-lg:border-b max-lg:border-l-0"
+			>
 				<div className="space-y-1 lg:sticky lg:top-5">
 					<PropertyRow label="Status">
 						<StatusPicker
@@ -847,7 +867,7 @@ function IssuePage() {
 										void update({ prUrl: prUrl.trim() });
 								}}
 								placeholder="Paste a link"
-								className="h-8 w-full rounded-md bg-transparent px-2 outline-none placeholder:text-muted-foreground hover:bg-active focus:bg-active"
+								className="h-8 w-full rounded-md bg-transparent px-2 outline-none placeholder:text-muted-foreground hover:bg-active focus:bg-active focus-visible:ring-[3px] focus-visible:ring-ring/50"
 							/>
 						)}
 					</PropertyRow>
@@ -938,6 +958,7 @@ function IssuePage() {
 											Delete
 										</Button>
 										<Button
+											ref={keepIssue}
 											size="sm"
 											variant="ghost"
 											onClick={() => setDeleting(false)}
@@ -948,6 +969,7 @@ function IssuePage() {
 								</div>
 							) : (
 								<Button
+									ref={deleteTrigger}
 									variant="ghost"
 									className="-ml-2 text-muted-foreground"
 									onClick={() => setDeleting(true)}

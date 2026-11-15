@@ -36,6 +36,7 @@ import {
 	Screenshot,
 } from "#/components/report-evidence";
 import { Button } from "#/components/ui/button";
+import { lenient } from "#/lib/search-params";
 import { cn } from "#/lib/utils";
 import {
 	dismissDuplicateFn,
@@ -49,7 +50,7 @@ import type { IssueListItem } from "#/server/Issues";
 const appRoute = getRouteApi("/_app");
 
 export const Route = createFileRoute("/_app/p/$projectId/triage")({
-	validateSearch: z.object({ selected: z.optional(z.int()) }),
+	validateSearch: z.object({ selected: lenient(z.int()) }),
 	loaderDeps: ({ search }) => ({ selected: search.selected }),
 	loader: async ({ params, deps }) => {
 		const [issues, recent] = await Promise.all([
@@ -528,7 +529,10 @@ function TriagePage() {
 								{latest && <ReportLogs report={latest} />}
 							</div>
 
-							<aside className="space-y-6 xl:border-l xl:pl-6">
+							<aside
+								aria-label="Decision"
+								className="space-y-6 xl:border-l xl:pl-6"
+							>
 								<div className="space-y-1">
 									<p className="text-xs text-muted-foreground">
 										Set before accepting

@@ -1,5 +1,5 @@
 import { ExternalLinkIcon, ImageOffIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { cn } from "#/lib/utils";
 import type { ReportDto, SeenInRelease } from "#/server/Issues";
 import { buildTrail, isFailedRequest } from "#/shared/trail";
@@ -266,15 +266,49 @@ export function ReportLogs({ report }: { report: ReportDto }) {
 		{ id: "device", label: "Device" },
 		{ id: "context", label: "Account" },
 	];
+	const ids = useId();
+	const tabRefs = useRef(new Map<Tab, HTMLButtonElement>());
+	// Arrow keys, Home and End move between tabs (WAI-ARIA tabs pattern): only
+	// the selected tab is in the Tab order, the next Tab stop is its panel.
+	const onTabKeyDown = (event: React.KeyboardEvent) => {
+		const index = tabs.findIndex((t) => t.id === tab);
+		const next =
+			event.key === "ArrowRight"
+				? (index + 1) % tabs.length
+				: event.key === "ArrowLeft"
+					? (index - 1 + tabs.length) % tabs.length
+					: event.key === "Home"
+						? 0
+						: event.key === "End"
+							? tabs.length - 1
+							: null;
+		if (next === null) return;
+		event.preventDefault();
+		const id = tabs[next].id;
+		setTab(id);
+		tabRefs.current.get(id)?.focus();
+	};
 	return (
 		<section aria-label="Logs and context">
-			<div role="tablist" className="flex gap-5 overflow-x-auto border-b">
+			<div
+				role="tablist"
+				aria-label="Logs and context"
+				className="flex gap-5 overflow-x-auto border-b"
+			>
 				{tabs.map((t) => (
 					<button
 						key={t.id}
+						ref={(node) => {
+							if (node) tabRefs.current.set(t.id, node);
+							else tabRefs.current.delete(t.id);
+						}}
+						id={`${ids}-tab-${t.id}`}
 						type="button"
 						role="tab"
 						aria-selected={tab === t.id}
+						aria-controls={`${ids}-panel`}
+						tabIndex={tab === t.id ? 0 : -1}
+						onKeyDown={onTabKeyDown}
 						onClick={() => setTab(t.id)}
 						className={cn(
 							"-mb-px flex h-9 flex-none items-center gap-1.5 border-b-2 border-transparent text-muted-foreground hover:text-ink",
@@ -297,7 +331,15 @@ export function ReportLogs({ report }: { report: ReportDto }) {
 					</button>
 				))}
 			</div>
-			<div className="max-h-80 overflow-auto pt-2 font-mono text-xs leading-5">
+			{/* Focusable, so the logs scroll with the keyboard too. */}
+			<div
+				id={`${ids}-panel`}
+				role="tabpanel"
+				aria-labelledby={`${ids}-tab-${tab}`}
+				// biome-ignore lint/a11y/noNoninteractiveTabindex: a tab panel that scrolls must be reachable from the keyboard
+				tabIndex={0}
+				className="max-h-80 overflow-auto pt-2 font-mono text-xs leading-5 focus-visible:outline-2 focus-visible:outline-offset-2"
+			>
 				{tab === "steps" && <StepsTimeline report={report} />}
 				{tab === "console" &&
 					(report.console.length === 0 ? (

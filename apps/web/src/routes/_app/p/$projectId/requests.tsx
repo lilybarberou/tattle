@@ -5,13 +5,14 @@ import { useAppActions } from "#/components/app-actions";
 import { STATUS_META, StatusIcon } from "#/components/issue-meta";
 import { PageHeader } from "#/components/page-header";
 import { Button } from "#/components/ui/button";
+import { lenient } from "#/lib/search-params";
 import { cn } from "#/lib/utils";
 import { listIssuesFn } from "#/server/fns";
 
 const OPEN = ["triage", "backlog", "todo", "in_progress", "in_review"] as const;
 
 export const Route = createFileRoute("/_app/p/$projectId/requests")({
-	validateSearch: z.object({ shipped: z.optional(z.boolean()) }),
+	validateSearch: z.object({ shipped: lenient(z.boolean()) }),
 	loaderDeps: ({ search }) => ({ shipped: search.shipped ?? false }),
 	loader: async ({ params, deps }) => {
 		const items = await listIssuesFn({

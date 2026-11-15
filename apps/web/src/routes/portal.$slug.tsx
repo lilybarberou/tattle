@@ -20,6 +20,7 @@ import {
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { Textarea } from "#/components/ui/textarea";
+import { lenient } from "#/lib/search-params";
 import { cn } from "#/lib/utils";
 import {
 	getPortalFn,
@@ -33,7 +34,7 @@ import type { PortalRequest } from "#/server/Portal";
 // a visitor is a random id in a cookie, and may leave an email to hear when an
 // idea ships.
 export const Route = createFileRoute("/portal/$slug")({
-	validateSearch: z.object({ shipped: z.optional(z.boolean()) }),
+	validateSearch: z.object({ shipped: lenient(z.boolean()) }),
 	loader: async ({ params }) => {
 		try {
 			return await getPortalFn({ data: { slug: params.slug } });
@@ -127,7 +128,6 @@ function RequestRow({
 				onClick={vote}
 				disabled={pending || shipped}
 				aria-pressed={voted}
-				aria-label={voted ? `Remove your vote (${demand})` : `Vote (${demand})`}
 				className={cn(
 					"flex h-14 w-12 flex-none flex-col items-center justify-center rounded-lg border text-sm transition-colors",
 					voted
@@ -136,8 +136,12 @@ function RequestRow({
 					shipped && "cursor-default opacity-70",
 				)}
 			>
-				<ChevronUpIcon className="size-4" />
+				<ChevronUpIcon className="size-4" aria-hidden />
+				{/* The name includes the visible count, so "click 13" works too.
+				    It stays the same when voted: aria-pressed tells that. */}
+				<span className="sr-only">Vote, </span>
 				<span className="num font-semibold">{demand}</span>
+				<span className="sr-only">{demand === 1 ? " vote" : " votes"}</span>
 			</button>
 			<div className="min-w-0 flex-1">
 				<p className="font-medium text-pretty">{request.title}</p>

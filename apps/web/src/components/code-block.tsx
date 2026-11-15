@@ -10,12 +10,17 @@ export function CodeBlock({ code, label }: { code: string; label?: string }) {
 					{label}
 				</p>
 			)}
-			<pre className="overflow-x-auto p-3 pr-12 font-mono text-xs leading-relaxed">
+			{/* Focusable: a long line scrolls sideways, with the arrow keys too. */}
+			<pre
+				// biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling block must be reachable from the keyboard
+				tabIndex={0}
+				className="overflow-x-auto rounded-lg p-3 pr-12 font-mono text-xs leading-relaxed focus-visible:outline-2 focus-visible:-outline-offset-2"
+			>
 				{code}
 			</pre>
 			<button
 				type="button"
-				aria-label="Copy"
+				aria-label={label ? `Copy: ${label}` : "Copy"}
 				onClick={async () => {
 					await navigator.clipboard.writeText(code);
 					setCopied(true);
@@ -29,6 +34,10 @@ export function CodeBlock({ code, label }: { code: string; label?: string }) {
 					<CopyIcon className="size-4" />
 				)}
 			</button>
+			{/* Screen readers hear that the copy worked; the check mark is visual. */}
+			<span role="status" className="sr-only">
+				{copied ? "Copied" : ""}
+			</span>
 		</div>
 	);
 }

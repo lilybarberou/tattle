@@ -6,9 +6,10 @@ import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { authClient } from "#/lib/auth-client";
+import { lenient } from "#/lib/search-params";
 
 export const Route = createFileRoute("/forgot-password")({
-	validateSearch: z.object({ email: z.optional(z.string()) }),
+	validateSearch: z.object({ email: lenient(z.string()) }),
 	component: ForgotPassword,
 });
 

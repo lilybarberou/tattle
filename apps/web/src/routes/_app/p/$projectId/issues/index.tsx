@@ -16,6 +16,7 @@ import {
 import { PageHeader } from "#/components/page-header";
 import { ReleasePicker } from "#/components/pickers";
 import { Button } from "#/components/ui/button";
+import { lenient } from "#/lib/search-params";
 import { cn } from "#/lib/utils";
 import { listIssuesFn, listReleasesFn } from "#/server/fns";
 import type { IssueListItem } from "#/server/Issues";
@@ -33,10 +34,10 @@ const VIEWS = {
 type View = keyof typeof VIEWS;
 
 const searchSchema = z.object({
-	view: z.optional(z.enum(["open", "progress", "done", "closed"])),
-	type: z.optional(z.enum(["bug", "feature"])),
-	q: z.optional(z.string()),
-	release: z.optional(z.string()),
+	view: lenient(z.enum(["open", "progress", "done", "closed"])),
+	type: lenient(z.enum(["bug", "feature"])),
+	q: lenient(z.string()),
+	release: lenient(z.string()),
 });
 
 export const Route = createFileRoute("/_app/p/$projectId/issues/")({
@@ -197,7 +198,7 @@ function IssuesPage() {
 						value={query}
 						onChange={(e) => setQuery(e.target.value)}
 						placeholder="Search titles"
-						className="h-8 w-full rounded-md border border-control bg-surface pr-3 pl-8 outline-none focus-visible:border-brand"
+						className="h-8 w-full rounded-md border border-control bg-surface pr-3 pl-8 transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
 					/>
 				</label>
 				<div className="flex rounded-md border border-control p-0.5">
