@@ -12,8 +12,15 @@ export const requestContext = {
 	setCookies: [] as { name: string; value: string; options: unknown }[],
 };
 
-/** A fresh, anonymous request from another IP. */
-export const resetRequestContext = (ip = "203.0.113.7") => {
+let lastIp = 0;
+
+/**
+ * A fresh, anonymous request. Each one comes from a new IP unless told
+ * otherwise, so the in-memory rate limits of one test never reach another.
+ */
+export const resetRequestContext = (
+	ip = `2001:db8::${(++lastIp).toString(16)}`,
+) => {
 	requestContext.headers = new Headers();
 	requestContext.ip = ip;
 	requestContext.cookies.clear();

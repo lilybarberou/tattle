@@ -27,6 +27,7 @@
     "dev": "vite build --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "demo": "vite serve . --open /demo/index.html"
   },
@@ -34,6 +35,7 @@
     "html-to-image": "1.11.13"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "5.1.0",
     "typescript": "^6.0.2",
     "vite": "8.3.8",
     "vitest": "5.1.0"
