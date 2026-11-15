@@ -7,6 +7,7 @@ import { SettingsSection } from "#/components/settings-section";
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
+import { useInlineConfirm } from "#/lib/use-inline-confirm";
 import type { ReporterMatch } from "#/server/DataLifecycle";
 import {
 	eraseReporterFn,
@@ -66,7 +67,9 @@ function PrivacyPage() {
 		(ReporterMatch & { query: string }) | null
 	>(null);
 	const [busy, setBusy] = useState(false);
-	const [confirming, setConfirming] = useState(false);
+	// Focus goes to "Keep" while the question shows: pressing Enter twice
+	// on "Erase…" never erases.
+	const { confirming, setConfirming, trigger, cancel } = useInlineConfirm();
 	const data = {
 		organizationId: organization.id,
 		query: match?.query ?? query,
@@ -169,6 +172,7 @@ function PrivacyPage() {
 											</Button>
 											{!confirming ? (
 												<Button
+													ref={trigger}
 													variant="ghost"
 													className="text-negative"
 													onClick={() => setConfirming(true)}
@@ -177,37 +181,46 @@ function PrivacyPage() {
 													Erase…
 												</Button>
 											) : (
-												<Button
-													variant="destructive"
-													disabled={busy}
-													onClick={async () => {
-														setBusy(true);
-														try {
-															const result = await eraseReporterFn({ data });
-															toast.success(
-																`Erased ${result.reports} reports, ${result.messages} messages and ${result.votes} votes; ${result.issues} issues they opened were deleted`,
-															);
-															setMatch({
-																...match,
-																reports: 0,
-																votes: 0,
-																projects: [],
-															});
-															setConfirming(false);
-															await router.invalidate();
-														} catch (error) {
-															toast.error(
-																error instanceof Error
-																	? error.message
-																	: "Not erased",
-															);
-														} finally {
-															setBusy(false);
-														}
-													}}
-												>
-													Erase {match.reports + match.votes} items for good
-												</Button>
+												<>
+													<Button
+														variant="destructive"
+														disabled={busy}
+														onClick={async () => {
+															setBusy(true);
+															try {
+																const result = await eraseReporterFn({ data });
+																toast.success(
+																	`Erased ${result.reports} reports, ${result.messages} messages and ${result.votes} votes; ${result.issues} issues they opened were deleted`,
+																);
+																setMatch({
+																	...match,
+																	reports: 0,
+																	votes: 0,
+																	projects: [],
+																});
+																setConfirming(false);
+																await router.invalidate();
+															} catch (error) {
+																toast.error(
+																	error instanceof Error
+																		? error.message
+																		: "Not erased",
+																);
+															} finally {
+																setBusy(false);
+															}
+														}}
+													>
+														Erase {match.reports + match.votes} items for good
+													</Button>
+													<Button
+														ref={cancel}
+														variant="ghost"
+														onClick={() => setConfirming(false)}
+													>
+														Keep them
+													</Button>
+												</>
 											)}
 										</div>
 									)}

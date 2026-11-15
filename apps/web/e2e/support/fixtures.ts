@@ -211,6 +211,10 @@ export const test = base.extend<Fixtures, { closeDbAfterWorker: undefined }>({
 
 export { expect };
 
+/** A 1×1 PNG, enough to store a screenshot. */
+export const PNG_DATA_URL =
+	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
 /** Sends a report the way an app without the widget would (public ingest API). */
 export async function sendReport(
 	request: APIRequestContext,
@@ -221,6 +225,8 @@ export async function sendReport(
 		reporter?: { id?: string; email?: string; name?: string };
 		reporterKey?: string;
 		release?: string;
+		/** A PNG, JPEG or WebP data URL. */
+		screenshot?: string;
 	},
 ) {
 	const response = await request.post(`${APP_URL}/api/v1/ingest`, {
@@ -240,6 +246,7 @@ export async function sendReport(
 			...(report.reporter ? { reporter: report.reporter } : {}),
 			...(report.reporterKey ? { reporterKey: report.reporterKey } : {}),
 			...(report.release ? { release: report.release } : {}),
+			...(report.screenshot ? { screenshot: report.screenshot } : {}),
 		},
 	});
 	expect(response.status(), await response.text()).toBe(201);
