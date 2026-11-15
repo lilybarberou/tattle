@@ -287,7 +287,8 @@ export const getProjectFn = createServerFn({ method: "GET" })
 					allowedOrigins: row.allowedOrigins,
 					portalEnabled: row.portalEnabled,
 					portalSlug: row.portalSlug,
-					identitySecret: row.identitySecret,
+					// The secret itself: getIdentitySettingsFn, for admins only.
+					identityVerification: row.identitySecret !== null,
 					counts,
 				};
 			}),
@@ -372,16 +373,37 @@ export const updateProjectFn = createServerFn({ method: "POST" })
 	);
 
 /**
+ * Everyone sees whether identity verification is on; only owners and admins
+ * see the secret, which signs any end user's identity.
+ */
+export const getIdentitySettingsFn = createServerFn({ method: "GET" })
+	.validator(z.object({ projectId: z.string() }))
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				const { project: row } = yield* withProject(data.projectId);
+				const canManage = yield* isProjectAdmin(row.organizationId);
+				return {
+					enabled: row.identitySecret !== null,
+					secret: canManage ? row.identitySecret : null,
+					canManage,
+				};
+			}),
+		),
+	);
+
+/**
  * Turns identity verification on (with a new secret), rotates the secret, or
  * turns it off. While off, the widget shows reporters every report sent from
  * their device, including those once sent under a verified identity.
+ * Owners and admins only.
  */
 export const setIdentityVerificationFn = createServerFn({ method: "POST" })
 	.validator(z.object({ projectId: z.string(), enabled: z.boolean() }))
 	.handler(({ data }) =>
 		run(
 			Effect.gen(function* () {
-				yield* withProject(data.projectId);
+				yield* requireProjectAdmin(data.projectId);
 				const database = yield* Database;
 				const identitySecret = data.enabled ? generateIdentitySecret() : null;
 				yield* database.query((db) =>
@@ -1041,12 +1063,24 @@ export const revokeTokenFn = createServerFn({ method: "POST" })
 
 // ---------- Webhooks ----------
 
+/** The scheme and host only: what a member sees of an endpoint's URL. */
+const maskUrl = (url: string) => {
+	try {
+		return `${new URL(url).origin}/…`;
+	} catch {
+		return "…";
+	}
+};
+
 export const listWebhooksFn = createServerFn({ method: "GET" })
 	.validator(z.object({ projectId: z.string() }))
 	.handler(({ data }) =>
 		run(
 			Effect.gen(function* () {
-				yield* withProject(data.projectId);
+				const { project: row } = yield* withProject(data.projectId);
+				// Signing secrets and URLs (a Slack or Discord URL is a secret
+				// too) are for owners and admins, who manage the endpoints.
+				const canManage = yield* isProjectAdmin(row.organizationId);
 				const database = yield* Database;
 				const endpoints = yield* database.query((db) =>
 					db
@@ -1072,12 +1106,13 @@ export const listWebhooksFn = createServerFn({ method: "GET" })
 									.limit(20),
 							);
 				return {
+					canManage,
 					events: WEBHOOK_EVENTS,
 					endpoints: endpoints.map((e) => ({
 						id: e.id,
-						url: e.url,
+						url: canManage ? e.url : maskUrl(e.url),
 						format: e.format,
-						secret: e.secret,
+						secret: canManage ? e.secret : null,
 						events: e.events,
 						active: e.active,
 					})),
@@ -1108,7 +1143,7 @@ export const createWebhookFn = createServerFn({ method: "POST" })
 	.handler(({ data }) =>
 		run(
 			Effect.gen(function* () {
-				yield* withProject(data.projectId);
+				yield* requireProjectAdmin(data.projectId);
 				const { projectId, ...input } = data;
 				return yield* (yield* Webhooks).create(projectId, input);
 			}),
@@ -1120,7 +1155,7 @@ export const deleteWebhookFn = createServerFn({ method: "POST" })
 	.handler(({ data }) =>
 		run(
 			Effect.gen(function* () {
-				yield* withProject(data.projectId);
+				yield* requireProjectAdmin(data.projectId);
 				const database = yield* Database;
 				yield* database.query((db) =>
 					db

@@ -228,6 +228,18 @@ describe("owner and admin only actions", () => {
 		const projectId = p.id;
 		const organizationId = org.id;
 		const refused = [
+			() =>
+				fns.setIdentityVerificationFn({ data: { projectId, enabled: true } }),
+			() =>
+				fns.createWebhookFn({
+					data: {
+						projectId,
+						url: "https://hooks.example.com/x",
+						events: [],
+						format: "json",
+					},
+				}),
+			() => fns.deleteWebhookFn({ data: { projectId, endpointId: "x" } }),
 			() => fns.setGithubEnabledFn({ data: { projectId, enabled: true } }),
 			() => fns.regenerateGithubSecretFn({ data: { projectId } }),
 			() => fns.deleteProjectFn({ data: { projectId, confirmName: p.name } }),
@@ -247,6 +259,8 @@ describe("owner and admin only actions", () => {
 				}),
 		];
 		for (const call of refused) expect(await statusOf(call())).toBe(403);
+		const [still] = await db.select().from(project).where(eq(project.id, p.id));
+		expect(still?.identitySecret).toBeNull();
 		expect(await db.select().from(invitation)).toEqual([]);
 	});
 
@@ -283,5 +297,103 @@ describe("owner and admin only actions", () => {
 			data: { projectId: p.id, confirmName: "  Web app " },
 		});
 		expect(await db.select().from(project)).toEqual([]);
+	});
+});
+
+describe("secrets are for owners and admins", () => {
+	it("hide the identity secret from members, and never put it in the project", async () => {
+		const { org, project: p } = await createWorkspace();
+		const admin = await signedInMember(org.id, "admin");
+		const plain = await signedInMember(org.id, "member");
+		as(admin);
+		const { identitySecret } = await fns.setIdentityVerificationFn({
+			data: { projectId: p.id, enabled: true },
+		});
+
+		expect(
+			await fns.getIdentitySettingsFn({ data: { projectId: p.id } }),
+		).toEqual({ enabled: true, secret: identitySecret, canManage: true });
+
+		as(plain);
+		expect(
+			await fns.getIdentitySettingsFn({ data: { projectId: p.id } }),
+		).toEqual({ enabled: true, secret: null, canManage: false });
+		const seen = await fns.getProjectFn({ data: { projectId: p.id } });
+		expect(seen.identityVerification).toBe(true);
+		expect(JSON.stringify(seen)).not.toContain(identitySecret as string);
+	});
+
+	it("hide the GitHub secret from members", async () => {
+		const { org, project: p } = await createWorkspace();
+		const admin = await signedInMember(org.id, "owner");
+		const plain = await signedInMember(org.id, "member");
+		as(admin);
+		await fns.setGithubEnabledFn({ data: { projectId: p.id, enabled: true } });
+		const forAdmin = await fns.getGithubSettingsFn({
+			data: { projectId: p.id },
+		});
+		expect(forAdmin.canManage).toBe(true);
+		expect(forAdmin.secret).toEqual(expect.any(String));
+
+		as(plain);
+		const forMember = await fns.getGithubSettingsFn({
+			data: { projectId: p.id },
+		});
+		expect(forMember).toMatchObject({ canManage: false, secret: null });
+		expect(JSON.stringify(forMember)).not.toContain(forAdmin.secret as string);
+	});
+
+	it("show members a webhook's origin only, without its path or secret", async () => {
+		const { org, project: p } = await createWorkspace();
+		await createWebhookEndpoint(
+			p.id,
+			"https://hooks.slack.com/services/T000/B000/very-secret",
+			{ format: "slack", secret: "whsec_hidden" },
+		);
+		const admin = await signedInMember(org.id, "admin");
+		const plain = await signedInMember(org.id, "member");
+
+		as(plain);
+		const forMember = await fns.listWebhooksFn({ data: { projectId: p.id } });
+		expect(forMember.canManage).toBe(false);
+		expect(forMember.endpoints).toMatchObject([
+			{ url: "https://hooks.slack.com/…", secret: null, format: "slack" },
+		]);
+		expect(JSON.stringify(forMember)).not.toContain("very-secret");
+		expect(JSON.stringify(forMember)).not.toContain("whsec_hidden");
+
+		as(admin);
+		const forAdmin = await fns.listWebhooksFn({ data: { projectId: p.id } });
+		expect(forAdmin.endpoints).toMatchObject([
+			{
+				url: "https://hooks.slack.com/services/T000/B000/very-secret",
+				secret: "whsec_hidden",
+			},
+		]);
+	});
+
+	it("never return an API token's hash, and show a new token once", async () => {
+		const { org } = await createWorkspace();
+		const me = await signedInMember(org.id, "member");
+		as(me);
+		const { token } = await fns.createTokenFn({
+			data: { organizationId: org.id, name: "  CI bot ", canWrite: false },
+		});
+		expect(token).toMatch(/^tat_/);
+		const listed = await fns.listTokensFn({ data: { organizationId: org.id } });
+		expect(listed).toMatchObject([
+			{ name: "CI bot", canWrite: false, prefix: token.slice(0, 12) },
+		]);
+		expect(JSON.stringify(listed)).not.toContain(token);
+		const [stored] = await db.select().from(apiToken);
+		expect(stored?.tokenHash).not.toBe(token);
+		expect(JSON.stringify(listed)).not.toContain(stored?.tokenHash as string);
+
+		await fns.revokeTokenFn({
+			data: { organizationId: org.id, tokenId: listed[0]?.id as string },
+		});
+		expect(
+			await fns.listTokensFn({ data: { organizationId: org.id } }),
+		).toEqual([]);
 	});
 });
