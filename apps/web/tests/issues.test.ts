@@ -238,6 +238,21 @@ describe("Issues.markDuplicate", () => {
 		});
 	});
 
+	it("never makes a cycle when two merges cross", async () => {
+		const { p } = await twoReportedIssues();
+		const results = await Promise.allSettled([
+			run(markDuplicate(p.id, 2, 1)),
+			run(markDuplicate(p.id, 1, 2)),
+		]);
+		expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+		const [one, two] = [await getIssue(p.id, 1), await getIssue(p.id, 2)];
+		const statuses = [one.issue.status, two.issue.status];
+		expect(statuses.filter((s) => s === "duplicate")).toHaveLength(1);
+		// Every report sits on the issue that is not a duplicate.
+		const kept = one.issue.status === "duplicate" ? two : one;
+		expect(kept.issue.reportCount).toBe(2);
+	});
+
 	it("refuses to mark an issue as a duplicate of itself", async () => {
 		const { p } = await twoReportedIssues();
 		expect((await runFailure(markDuplicate(p.id, 1, 1)))._tag).toBe(

@@ -974,26 +974,40 @@ export class Issues extends Context.Service<
 				}
 				const duplicate = yield* findIssue(projectId, number);
 				const original = yield* findIssue(projectId, duplicateOfNumber);
-				if (original.status === "duplicate") {
-					return yield* new InvalidInput({
-						message: `#${duplicateOfNumber} is itself a duplicate; use its original instead`,
-					});
-				}
-				const moved = yield* database.query((db) =>
-					db
+				const notOriginal = new InvalidInput({
+					message: `#${duplicateOfNumber} is itself a duplicate; use its original instead`,
+				});
+				if (original.status === "duplicate") return yield* notOriginal;
+				// Both issues locked (in id order, so two merges cannot deadlock),
+				// the original checked again, then the reports moved and the issue
+				// marked in one transaction: A→B and B→A at the same time can no
+				// longer make a cycle, and a failure halfway changes nothing.
+				const merged = yield* database.transaction(async (tx) => {
+					const locked = await tx
+						.select({ id: issue.id, status: issue.status })
+						.from(issue)
+						.where(inArray(issue.id, [duplicate.id, original.id]))
+						.orderBy(asc(issue.id))
+						.for("update");
+					const target = locked.find((row) => row.id === original.id);
+					if (!target || target.status === "duplicate") return null;
+					const moved = await tx
 						.update(report)
 						.set({ issueId: original.id })
 						.where(eq(report.issueId, duplicate.id))
-						.returning({ id: report.id }),
-				);
+						.returning({ id: report.id });
+					await tx
+						.update(issue)
+						.set({ status: "duplicate", duplicateOfId: original.id })
+						.where(eq(issue.id, duplicate.id));
+					return { moved };
+				});
+				if (!merged) return yield* notOriginal;
+				const { moved } = merged;
 				// Recount first so the returned issue shows its new (empty) count.
 				yield* recountReports([duplicate.id, original.id]);
 				const [updated] = yield* database.query((db) =>
-					db
-						.update(issue)
-						.set({ status: "duplicate", duplicateOfId: original.id })
-						.where(eq(issue.id, duplicate.id))
-						.returning(),
+					db.select().from(issue).where(eq(issue.id, duplicate.id)),
 				);
 				yield* logActivity(duplicate.id, actor, "marked_duplicate", {
 					duplicateOf: original.number,
