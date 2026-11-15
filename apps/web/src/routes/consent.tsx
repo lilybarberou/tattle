@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { BotIcon } from "lucide-react";
 import { useState } from "react";
-import * as z from "zod";
+import * as z from "zod/mini";
 import { AuthShell } from "#/components/auth-shell";
 import { Button } from "#/components/ui/button";
 import { authClient, followRedirect } from "#/lib/auth-client";
@@ -18,8 +18,8 @@ const SCOPE_TEXT: Record<string, string> = {
 // signed authorization request rides in the query string.
 export const Route = createFileRoute("/consent")({
 	validateSearch: z.looseObject({
-		client_id: z.string().optional(),
-		scope: z.string().optional(),
+		client_id: z.optional(z.string()),
+		scope: z.optional(z.string()),
 	}),
 	beforeLoad: async ({ location }) => {
 		const session = await getSessionFn();

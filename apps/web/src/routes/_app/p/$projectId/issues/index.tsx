@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { PlusIcon, SearchIcon, UsersIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import * as z from "zod";
+import * as z from "zod/mini";
 import { useAppActions } from "#/components/app-actions";
 import {
 	AwaitingReply,
@@ -33,10 +33,10 @@ const VIEWS = {
 type View = keyof typeof VIEWS;
 
 const searchSchema = z.object({
-	view: z.enum(["open", "progress", "done", "closed"]).optional(),
-	type: z.enum(["bug", "feature"]).optional(),
-	q: z.string().optional(),
-	release: z.string().optional(),
+	view: z.optional(z.enum(["open", "progress", "done", "closed"])),
+	type: z.optional(z.enum(["bug", "feature"])),
+	q: z.optional(z.string()),
+	release: z.optional(z.string()),
 });
 
 export const Route = createFileRoute("/_app/p/$projectId/issues/")({

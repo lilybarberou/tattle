@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import * as z from "zod";
+import * as z from "zod/mini";
 import { DuplicateSuggestion } from "#/components/duplicate-suggestion";
 import {
 	AwaitingReply,
@@ -49,7 +49,7 @@ import type { IssueListItem } from "#/server/Issues";
 const appRoute = getRouteApi("/_app");
 
 export const Route = createFileRoute("/_app/p/$projectId/triage")({
-	validateSearch: z.object({ selected: z.number().int().optional() }),
+	validateSearch: z.object({ selected: z.optional(z.int()) }),
 	loaderDeps: ({ search }) => ({ selected: search.selected }),
 	loader: async ({ params, deps }) => {
 		const [issues, recent] = await Promise.all([
