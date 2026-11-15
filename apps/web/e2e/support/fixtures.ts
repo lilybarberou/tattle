@@ -227,6 +227,17 @@ export async function sendReport(
 		release?: string;
 		/** A PNG, JPEG or WebP data URL. */
 		screenshot?: string;
+		/** What the person did before reporting (the widget's steps). */
+		breadcrumbs?: Array<{
+			category: string;
+			message: string;
+			timestamp: number;
+		}>;
+		console?: Array<{
+			level: "log" | "info" | "warn" | "error" | "debug";
+			message: string;
+			timestamp: number;
+		}>;
 	},
 ) {
 	const response = await request.post(`${APP_URL}/api/v1/ingest`, {
@@ -241,8 +252,9 @@ export async function sendReport(
 				os: { name: "Linux" },
 				viewport: { width: 1280, height: 800 },
 			},
-			console: [],
+			console: report.console ?? [],
 			network: [],
+			...(report.breadcrumbs ? { breadcrumbs: report.breadcrumbs } : {}),
 			...(report.reporter ? { reporter: report.reporter } : {}),
 			...(report.reporterKey ? { reporterKey: report.reporterKey } : {}),
 			...(report.release ? { release: report.release } : {}),
