@@ -61,6 +61,7 @@ The app runs with sign-up closed (as in production), `PASSWORD_BREACH_CHECK=fals
 | `csp.spec.ts`                | The widget on a page with a strict Content-Security-Policy: screenshot and report, no violation                                        |
 | `conversation-email.spec.ts` | Reporter answers from the emailed link; stopping emails                                                                                |
 | `auth.spec.ts`               | Password reset by email, other sessions signed out                                                                                     |
+| `github-sync.spec.ts`        | Pull requests that fix issues, from signed deliveries: In review, then Done when merged                                                |
 
 ## Troubleshooting
 
