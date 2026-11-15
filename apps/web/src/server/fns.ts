@@ -1078,7 +1078,7 @@ export const pingWebhookFn = createServerFn({ method: "POST" })
 			Effect.gen(function* () {
 				yield* withProject(data.projectId);
 				const webhooks = yield* Webhooks;
-				return yield* webhooks.ping(data.endpointId);
+				return yield* webhooks.ping(data.projectId, data.endpointId);
 			}),
 		),
 	);

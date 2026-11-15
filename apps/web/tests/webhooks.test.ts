@@ -184,7 +184,7 @@ describe("ping", () => {
 		receiver = await startReceiver();
 		const { project: p } = await createWorkspace();
 		const ok = await createWebhookEndpoint(p.id, receiver.url);
-		expect(await run(Webhooks.use((w) => w.ping(ok.id)))).toEqual({
+		expect(await run(Webhooks.use((w) => w.ping(p.id, ok.id)))).toEqual({
 			ok: true,
 			status: 200,
 		});
@@ -192,13 +192,20 @@ describe("ping", () => {
 
 		const failing = await startReceiver(500);
 		const bad = await createWebhookEndpoint(p.id, failing.url);
-		expect(await run(Webhooks.use((w) => w.ping(bad.id)))).toMatchObject({
+		expect(await run(Webhooks.use((w) => w.ping(p.id, bad.id)))).toMatchObject({
 			ok: false,
 			status: 500,
 		});
 		await failing.close();
 
-		expect(await run(Webhooks.use((w) => w.ping("missing")))).toEqual({
+		expect(await run(Webhooks.use((w) => w.ping(p.id, "missing")))).toEqual({
+			ok: false,
+			error: "Endpoint not found",
+		});
+
+		// Another project's endpoint, even with its id.
+		const { project: other } = await createWorkspace();
+		expect(await run(Webhooks.use((w) => w.ping(other.id, ok.id)))).toEqual({
 			ok: false,
 			error: "Endpoint not found",
 		});
@@ -270,7 +277,9 @@ describe("private addresses", () => {
 			expect(delivery.lastError).toContain("Refused");
 			expect(delivery.lastError).toContain("ALLOW_PRIVATE_URLS=true");
 		}
-		expect(await run(Webhooks.use((w) => w.ping(endpoint.id)))).toMatchObject({
+		expect(
+			await run(Webhooks.use((w) => w.ping(p.id, endpoint.id))),
+		).toMatchObject({
 			ok: false,
 			error: expect.stringContaining("Refused"),
 		});
