@@ -105,7 +105,7 @@ Never put passwords, payment details or other secrets in a step: they are stored
 | `400` | `{ "error": "…" }` | Invalid body, or a website the project does not allow |
 | `404` | `{ "error": "Unknown project key" }` | |
 | `413` | `{ "error": "Report is too large" }` | |
-| `429` | `{ "error": "…" }` and a `Retry-After` header (seconds) | Rate limited: by default 20 reports per 10 minutes per IP, 300 per hour per project |
+| `429` | `{ "error": "…" }` and a `Retry-After` header (seconds) | Rate limited: by default 20 requests per 10 minutes per IP, counted before the body is read (invalid ones included), and 300 reports per hour per project |
 
 `error` messages are written for end users: you can show them as they are.
 

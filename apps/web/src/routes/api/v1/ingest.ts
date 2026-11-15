@@ -1,6 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Ingest } from "#/server/Ingest";
-import { clientIp, limitIngest } from "#/server/rate-limit";
+import {
+	clientIp,
+	limitIngestIp,
+	limitIngestProject,
+} from "#/server/rate-limit";
 import { readLimitedJson } from "#/server/request-body";
 import { runJson } from "#/server/runtime";
 
@@ -16,6 +20,18 @@ const corsHeaders = (request: Request): HeadersInit => ({
 
 const MAX_BODY_BYTES = 12 * 1024 * 1024;
 
+/** The shape of a project's public key (see generatePublicKey). */
+const PUBLIC_KEY = /^pk_[0-9a-f]{32}$/;
+
+const tooMany = (headers: HeadersInit, retryAfter: number) =>
+	Response.json(
+		{ error: "Too many reports. Try again in a few minutes." },
+		{
+			status: 429,
+			headers: { ...headers, "retry-after": String(retryAfter) },
+		},
+	);
+
 export const Route = createFileRoute("/api/v1/ingest")({
 	server: {
 		handlers: {
@@ -23,6 +39,9 @@ export const Route = createFileRoute("/api/v1/ingest")({
 				new Response(null, { status: 204, headers: corsHeaders(request) }),
 			POST: async ({ request }) => {
 				const headers = corsHeaders(request);
+				// Before reading up to 12 MB: every request counts, JSON or not.
+				const perIp = limitIngestIp(clientIp());
+				if (!perIp.ok) return tooMany(headers, perIp.retryAfter);
 				const read = await readLimitedJson(request, MAX_BODY_BYTES);
 				if (!read.ok) {
 					return read.reason === "too_large"
@@ -36,20 +55,18 @@ export const Route = createFileRoute("/api/v1/ingest")({
 							);
 				}
 				const body = read.value;
-				const projectKey =
+				const given =
 					typeof body === "object" && body !== null && "projectKey" in body
-						? String((body as { projectKey: unknown }).projectKey)
-						: "";
-				const limit = limitIngest(clientIp(), projectKey);
-				if (!limit.ok) {
-					return Response.json(
-						{ error: "Too many reports. Try again in a few minutes." },
-						{
-							status: 429,
-							headers: { ...headers, "retry-after": String(limit.retryAfter) },
-						},
-					);
-				}
+						? (body as { projectKey: unknown }).projectKey
+						: null;
+				// A key that cannot exist shares one window, so it never becomes
+				// a new entry, however long, in the limits' memory.
+				const projectKey =
+					typeof given === "string" && PUBLIC_KEY.test(given)
+						? given
+						: "invalid";
+				const perProject = limitIngestProject(projectKey);
+				if (!perProject.ok) return tooMany(headers, perProject.retryAfter);
 				return runJson(
 					Ingest.use((ingest) =>
 						ingest.submit(body, request.headers.get("origin")),

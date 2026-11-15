@@ -94,18 +94,15 @@ export const withClientIp = (request: Request) => {
 	} as RequestInit);
 };
 
-/**
- * Reports per IP (default 20 per 10 minutes) and per project key (default
- * 300 per hour). Returns the seconds to wait when a limit is reached.
- */
-export const limitIngest = (ip: string, projectKey: string) => {
+/** Reports per IP: default 20 per 10 minutes. Checked before the body is read. */
+export const limitIngestIp = (ip: string) => {
 	sweep();
-	const perIp = hit(
-		`ip:${ip}`,
-		numberFromEnv("INGEST_LIMIT_PER_IP", 20),
-		10 * 60_000,
-	);
-	if (!perIp.ok) return perIp;
+	return hit(`ip:${ip}`, numberFromEnv("INGEST_LIMIT_PER_IP", 20), 10 * 60_000);
+};
+
+/** Reports per project key: default 300 per hour. */
+export const limitIngestProject = (projectKey: string) => {
+	sweep();
 	return hit(
 		`project:${projectKey}`,
 		numberFromEnv("INGEST_LIMIT_PER_PROJECT", 300),
@@ -129,11 +126,12 @@ export const limitPortal = (ip: string) => {
  */
 export const limitGithub = (ip: string, projectId: string) => {
 	sweep();
-	return hit(
-		`github:${ip}:${projectId}`,
-		numberFromEnv("GITHUB_LIMIT_PER_IP", 300),
-		10 * 60_000,
-	);
+	const limit = numberFromEnv("GITHUB_LIMIT_PER_IP", 300);
+	// Every project together too, at a few times the limit: a new project id
+	// in the URL on each request would otherwise never be limited.
+	const perIp = hit(`github-ip:${ip}`, limit * 4, 10 * 60_000);
+	if (!perIp.ok) return perIp;
+	return hit(`github:${ip}:${projectId}`, limit, 10 * 60_000);
 };
 
 /**

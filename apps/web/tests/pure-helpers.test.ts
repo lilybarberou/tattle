@@ -5,7 +5,9 @@ import { causeKinds, errorKind } from "#/server/background";
 import { DbError } from "#/server/errors";
 import {
 	forwardedClientIp,
-	limitIngest,
+	limitGithub,
+	limitIngestIp,
+	limitIngestProject,
 	limitPortal,
 	trustedProxyHops,
 } from "#/server/rate-limit";
@@ -19,31 +21,41 @@ afterEach(() => {
 describe("rate limits", () => {
 	it("allows reports per IP up to the limit, then asks to wait", () => {
 		vi.stubEnv("INGEST_LIMIT_PER_IP", "3");
-		const results = Array.from({ length: 4 }, () =>
-			limitIngest("10.0.0.1", "pk_a"),
-		);
+		const results = Array.from({ length: 4 }, () => limitIngestIp("10.0.0.1"));
 		expect(results.map((r) => r.ok)).toEqual([true, true, true, false]);
 		expect(results[3]?.retryAfter).toBeGreaterThan(0);
 		expect(results[3]?.retryAfter).toBeLessThanOrEqual(600);
 		// Another IP has its own window.
-		expect(limitIngest("10.0.0.2", "pk_a").ok).toBe(true);
+		expect(limitIngestIp("10.0.0.2").ok).toBe(true);
 	});
 
 	it("limits a project key across IPs", () => {
 		vi.stubEnv("INGEST_LIMIT_PER_PROJECT", "2");
-		expect(limitIngest("10.1.0.1", "pk_b").ok).toBe(true);
-		expect(limitIngest("10.1.0.2", "pk_b").ok).toBe(true);
-		expect(limitIngest("10.1.0.3", "pk_b").ok).toBe(false);
-		expect(limitIngest("10.1.0.4", "pk_other").ok).toBe(true);
+		expect(limitIngestProject("pk_b").ok).toBe(true);
+		expect(limitIngestProject("pk_b").ok).toBe(true);
+		expect(limitIngestProject("pk_b").ok).toBe(false);
+		expect(limitIngestProject("pk_other").ok).toBe(true);
+	});
+
+	it("limits GitHub deliveries per IP across project ids too", () => {
+		vi.stubEnv("GITHUB_LIMIT_PER_IP", "1");
+		expect(limitGithub("10.3.0.1", "p1").ok).toBe(true);
+		expect(limitGithub("10.3.0.1", "p1").ok).toBe(false);
+		// A new project id each time: still limited, at 4 times the limit.
+		const results = ["p2", "p3", "p4", "p5"].map(
+			(id) => limitGithub("10.3.0.1", id).ok,
+		);
+		expect(results).toEqual([true, true, false, false]);
+		expect(limitGithub("10.3.0.2", "p1").ok).toBe(true);
 	});
 
 	it("opens a new window once the old one has expired", () => {
 		vi.useFakeTimers();
 		vi.stubEnv("INGEST_LIMIT_PER_IP", "1");
-		expect(limitIngest("10.2.0.1", "pk_c").ok).toBe(true);
-		expect(limitIngest("10.2.0.1", "pk_c").ok).toBe(false);
+		expect(limitIngestIp("10.2.0.1").ok).toBe(true);
+		expect(limitIngestIp("10.2.0.1").ok).toBe(false);
 		vi.advanceTimersByTime(10 * 60_000 + 1);
-		expect(limitIngest("10.2.0.1", "pk_c").ok).toBe(true);
+		expect(limitIngestIp("10.2.0.1").ok).toBe(true);
 	});
 
 	it("falls back to the default when the env value is not a positive number", () => {
