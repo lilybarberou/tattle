@@ -1,4 +1,5 @@
-const SENSITIVE_KEY = /token|key|secret|password|auth|session|code/i;
+const SENSITIVE_KEY =
+	/token|key|secret|password|auth|session|code|signature|credential|jwt|^sig$/i;
 const MAX_URL_LENGTH = 2000;
 
 function safeDecode(value: string): string {
@@ -50,5 +51,47 @@ export function redactUrl(input: string): string {
 		// Only touch fragments that look like query strings (e.g. OAuth "#access_token=…").
 		url += `#${hash.includes("=") ? redactPairs(hash) : hash}`;
 	}
+	// "https://user:password@host/": the credentials go, the host stays.
+	url = url.replace(/^([a-z][a-z\d+.-]*:\/\/)[^/?#@]*@/i, "$1[redacted]@");
 	return url.length > MAX_URL_LENGTH ? `${url.slice(0, MAX_URL_LENGTH)}…` : url;
+}
+
+const JWT = /\beyJ[\w-]{4,}\.[\w-]{4,}\.[\w-]*/g;
+const AUTH_SCHEME = /\b(Bearer|Basic|Token)(\s*[:=]\s*|\s+)([\w.~+/=-]{8,})/gi;
+/**
+ * Whether the word after "Bearer", "Basic" or "Token" can be a credential:
+ * one with a digit, a symbol, camel or base64 casing, or 16 characters or
+ * more. "Token refreshed" and "basic configuration" are plain English.
+ */
+const looksLikeSecret = (value: string) =>
+	value.length >= 16 || /[\d.~+/=_-]|[a-z][A-Z]/.test(value);
+const URL_IN_TEXT = /\bhttps?:\/\/[^\s"'<>`]+/gi;
+/**
+ * What follows a URL in a stack frame or a sentence without being part of it:
+ * a ":line:column" position (with the frame's closing parenthesis) or
+ * trailing punctuation. Redacting a parameter's value would swallow it.
+ */
+const AFTER_URL = /(?::\d+){1,2}\)?$|[).,;!?]+$/;
+
+/**
+ * Removes credentials from free text, such as a console message: JWTs,
+ * `Bearer …`/`Basic …`/`Token …` values that look like one, `token: …` and
+ * `token=…`, and the sensitive parameters and user info of the URLs it
+ * contains.
+ */
+export function scrubText(text: string): string {
+	return text
+		.replace(URL_IN_TEXT, (match) => {
+			const after = AFTER_URL.exec(match)?.[0] ?? "";
+			const url = match.slice(0, match.length - after.length);
+			return (/[?#@]/.test(url) ? redactUrl(url) : url) + after;
+		})
+		.replace(JWT, "[redacted]")
+		.replace(
+			AUTH_SCHEME,
+			(match, scheme: string, separator: string, value: string) =>
+				/[:=]/.test(separator) || looksLikeSecret(value)
+					? `${scheme}${separator}[redacted]`
+					: match,
+		);
 }
