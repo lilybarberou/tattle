@@ -4,6 +4,7 @@
  * and from the keyboard shortcuts.
  */
 import { expect, sendReport, test } from "./support/fixtures.ts";
+import { db } from "./support/seed.ts";
 
 test("triage accepts, declines and merges duplicates", async ({
 	workspace,
@@ -137,4 +138,35 @@ test("triage accepts, declines and merges duplicates", async ({
 			"Export to CSV crashes with large files",
 		);
 	});
+});
+
+test("an issue deleted meanwhile opens the missing page, also from inside the app", async ({
+	workspace,
+	dashboard,
+	request,
+}) => {
+	const { project } = workspace;
+	await sendReport(request, project.publicKey, {
+		message: "Invoice PDF has the wrong VAT number",
+	});
+	// Out of Triage, so the issue list shows it.
+	await db().query(
+		"update issue set status = 'todo' where project_id = $1 and number = 1",
+		[project.id],
+	);
+	await dashboard.goto(`/p/${project.id}/issues`);
+	const row = dashboard
+		.getByRole("main")
+		.getByRole("link", { name: /Invoice PDF has the wrong VAT number/ });
+	await expect(row).toBeVisible();
+
+	// Someone else deletes it while this list is open.
+	await db().query("delete from issue where project_id = $1 and number = 1", [
+		project.id,
+	]);
+	await row.click();
+	await expect(
+		dashboard.getByRole("heading", { name: "This page doesn't exist" }),
+	).toBeVisible();
+	await expect(dashboard.getByText("This page couldn't load")).toHaveCount(0);
 });
