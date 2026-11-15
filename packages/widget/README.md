@@ -240,7 +240,7 @@ The server answers `201 { id, issueNumber? }`. On an error status it answers `{ 
 - **Network**: wraps `fetch` and `XMLHttpRequest`. It records only method, URL, status (0 on network failure), duration and timestamp, never bodies or headers. The widget's own requests are not recorded: the ingest call, the "My reports" calls and the assets fetched while taking a screenshot.
 - **Steps before the report** (`breadcrumbs`): the last 50 of these, with their time:
   - `navigation`: every URL change (`pushState`, `replaceState`, back and forward, `#hash` changes), redacted like `pageUrl` and without the origin when it is the page's own.
-  - `click`: a short description of what was clicked: its role, accessible name (or up to 40 characters of its text), and id, e.g. `button “Pay now” #pay`. Clicks inside fields are skipped: their changes are recorded instead.
+  - `click`: a short description of what was clicked: its role, accessible name (or up to 40 characters of its text), and id, e.g. `button “Pay now” #pay`. Clicks inside fields and editable areas (`contenteditable`, `role="textbox"`) are skipped: their changes are recorded instead, and what was typed there is never read.
   - `input`: which field changed, by its label and type, e.g. `Changed “Email” (email)`. Never the value. Password and payment card fields (`autocomplete="cc-…"`) are skipped entirely.
   - `app`: leaving the tab and coming back.
   - Your own steps, from `addBreadcrumb`.

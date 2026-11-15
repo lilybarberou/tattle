@@ -10,6 +10,9 @@ const MAX_NAME = 40;
 /** Inside these, clicks are described by their element only, never by text. */
 const PRIVATE = "[data-tattle-mask], input[autocomplete^='cc-']";
 const WIDGET = "[data-tattle-widget]";
+/** Rich text fields: what is typed there is the field's value. */
+const EDITABLE =
+	"[contenteditable]:not([contenteditable='false']), [role=textbox]";
 /** What a click lands on, from the most to the least specific. */
 const INTERACTIVE =
 	"a, button, summary, label, select, textarea, input, [role=button], [role=link], [role=tab], [role=menuitem], [role=checkbox], [role=radio], [role=switch], [role=option], [onclick]";
@@ -197,6 +200,9 @@ function onClick(event: Event): void {
 	try {
 		const target = eventElement(event);
 		if (!target) return;
+		// Clicking into an editable area is clicking into a field: skipped,
+		// and its text (what the person typed) never read.
+		if (target.closest(EDITABLE)) return;
 		const el = target.closest(INTERACTIVE) ?? target;
 		// Clicking into a field, or ticking a box, says little: the change is
 		// recorded instead.
