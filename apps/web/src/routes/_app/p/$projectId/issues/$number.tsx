@@ -2,6 +2,7 @@ import {
 	createFileRoute,
 	getRouteApi,
 	Link,
+	notFound,
 	useNavigate,
 	useRouter,
 } from "@tanstack/react-router";
@@ -43,6 +44,7 @@ import {
 	Screenshot,
 	SeenIn,
 } from "#/components/report-evidence";
+import { errorStatus } from "#/components/status-page";
 import { Button } from "#/components/ui/button";
 import { cn } from "#/lib/utils";
 import {
@@ -60,10 +62,17 @@ import type { IssueDetail, ReportDto } from "#/server/Issues";
 import type { IssueStatus } from "#/shared/issues";
 
 export const Route = createFileRoute("/_app/p/$projectId/issues/$number")({
-	loader: ({ params }) =>
-		getIssueFn({
-			data: { projectId: params.projectId, number: Number(params.number) },
-		}),
+	loader: async ({ params }) => {
+		try {
+			return await getIssueFn({
+				data: { projectId: params.projectId, number: Number(params.number) },
+			});
+		} catch (error) {
+			// A wrong or deleted number: the "doesn't exist" page, not an error.
+			if (errorStatus(error) === 404) throw notFound();
+			throw error;
+		}
+	},
 	component: IssuePage,
 });
 
