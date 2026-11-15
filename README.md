@@ -159,7 +159,7 @@ OAuth discovery follows the MCP spec: `/.well-known/oauth-protected-resource/api
 
 | Tool | What it does |
 |---|---|
-| `list_projects` | Projects the token can access |
+| `list_projects` | Projects you can access, with their organization (when two have the same slug, use the id) |
 | `list_issues` | Filter by status (`["triage"]` for the inbox), type, keyword, release |
 | `search_issues` | Similar issues by keywords, to spot duplicates, optionally from one release |
 | `get_issue` | Issue, comments, activity (including regressions), the releases it was seen in, report summaries with their conversation, the open duplicate suggestion |

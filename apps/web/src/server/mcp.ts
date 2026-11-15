@@ -3,7 +3,7 @@ import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import { and, eq, inArray, or } from "drizzle-orm";
 import { Effect } from "effect";
 import * as z from "zod";
-import { activity, project } from "#/db/schema";
+import { activity, organization, project } from "#/db/schema";
 import { auth, MCP_RESOURCE } from "#/lib/auth";
 import { MAX_MESSAGE_LENGTH } from "#/shared/issues";
 import { buildTrail, trailLine } from "#/shared/trail";
@@ -11,7 +11,7 @@ import { Access, actorOf, type Principal, TOKEN_PREFIX } from "./Access";
 import { Conversations } from "./Conversations";
 import { Database } from "./Database";
 import { env } from "./env";
-import { NotFound } from "./errors";
+import { InvalidInput, NotFound } from "./errors";
 import { ISSUE_STATUSES, Issues, type MessageDto } from "./Issues";
 import { HttpError, run } from "./runtime";
 import { Storage } from "./Storage";
@@ -139,11 +139,12 @@ const errorResult = (error: unknown) => ({
 	],
 });
 
-const resolveProject = (principal: Principal, idOrSlug: string) =>
+/** A project by id, or by slug when the slug names one project only. */
+export const resolveProject = (principal: Principal, idOrSlug: string) =>
 	Effect.gen(function* () {
 		const database = yield* Database;
 		const access = yield* Access;
-		const [row] = yield* database.query((db) =>
+		const rows = yield* database.query((db) =>
 			db
 				.select({ id: project.id })
 				.from(project)
@@ -154,6 +155,15 @@ const resolveProject = (principal: Principal, idOrSlug: string) =>
 					),
 				),
 		);
+		// An id is unique; a slug is unique within one organization only. Two
+		// organizations of the same person can both have a "web" project: the
+		// agent must say which, never get one of them at random.
+		const exact = rows.find((r) => r.id === idOrSlug);
+		if (!exact && rows.length > 1)
+			return yield* new InvalidInput({
+				message: `Several of your projects are called "${idOrSlug}": use the project id from list_projects`,
+			});
+		const row = exact ?? rows[0];
 		if (!row)
 			return yield* new NotFound({
 				message: `Project "${idOrSlug}" not found`,
@@ -206,7 +216,7 @@ const buildServer = (principal: Principal) => {
 
 	tool(
 		"list_projects",
-		"List the projects you can access.",
+		"List the projects you can access, with their organization. Use the id when two have the same slug.",
 		z.object({}),
 		async () =>
 			text(
@@ -219,8 +229,13 @@ const buildServer = (principal: Principal) => {
 									id: project.id,
 									slug: project.slug,
 									name: project.name,
+									organization: organization.name,
 								})
 								.from(project)
+								.innerJoin(
+									organization,
+									eq(organization.id, project.organizationId),
+								)
 								.where(
 									inArray(project.organizationId, [
 										...principal.organizationIds,

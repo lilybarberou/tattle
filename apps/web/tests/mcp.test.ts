@@ -1,7 +1,11 @@
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import { db } from "#/db";
+import { project } from "#/db/schema";
+import type { Principal } from "#/server/Access";
 import { Conversations } from "#/server/Conversations";
 import { Ingest } from "#/server/Ingest";
-import { handleMcpRequest } from "#/server/mcp";
+import { handleMcpRequest, resolveProject } from "#/server/mcp";
 import { Portal } from "#/server/Portal";
 import {
 	createApiToken,
@@ -9,7 +13,7 @@ import {
 	PNG_DATA_URL,
 	reportPayload,
 } from "./helpers/factories";
-import { run, setupTestDatabase } from "./helpers/runtime";
+import { run, runFailure, setupTestDatabase } from "./helpers/runtime";
 
 setupTestDatabase();
 
@@ -117,7 +121,9 @@ describe("handleMcpRequest", () => {
 		const { token } = await createApiToken(org.id);
 		const message = await call(token, "list_projects", {});
 		const projects = JSON.parse(message.result?.content?.[0]?.text ?? "[]");
-		expect(projects).toEqual([{ id: p.id, slug: p.slug, name: p.name }]);
+		expect(projects).toEqual([
+			{ id: p.id, slug: p.slug, name: p.name, organization: org.name },
+		]);
 	});
 
 	it("get_report returns the report as text and its screenshot as an image", async () => {
@@ -406,6 +412,38 @@ describe("handleMcpRequest", () => {
 		expect(message.result?.isError).toBe(true);
 		expect(message.result?.content?.[0]?.text).toBe(
 			`Project "${theirs.id}" not found`,
+		);
+	});
+});
+
+describe("a project named by its slug", () => {
+	it("is refused when two of the person's organizations have one by that name", async () => {
+		const first = await createWorkspace();
+		const second = await createWorkspace();
+		for (const p of [first.project, second.project])
+			await db.update(project).set({ slug: "web" }).where(eq(project.id, p.id));
+		// Someone in both organizations, as an OAuth client sees them.
+		const person: Principal = {
+			kind: "user",
+			userId: "user-in-two-orgs",
+			name: "Ada",
+			organizationIds: [first.org.id, second.org.id],
+		};
+		const error = await runFailure(resolveProject(person, "web"));
+		expect(error).toMatchObject({
+			_tag: "InvalidInput",
+			message: expect.stringContaining("use the project id"),
+		});
+		// The id always works, and a slug unique to one of them too.
+		expect((await run(resolveProject(person, second.project.id))).id).toBe(
+			second.project.id,
+		);
+		await db
+			.update(project)
+			.set({ slug: "web-2" })
+			.where(eq(project.id, second.project.id));
+		expect((await run(resolveProject(person, "web"))).id).toBe(
+			first.project.id,
 		);
 	});
 });
