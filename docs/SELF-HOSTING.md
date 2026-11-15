@@ -130,8 +130,9 @@ handles the HTTPS certificate, and passes requests to Tattle.
    docker compose --profile https up -d
    ```
 
-Caddy gets a free certificate (Let's Encrypt) and renews it on its own. Open
-`https://tattle.example.org`. From now on, add `--profile https` to every `up` command.
+Caddy gets a free certificate (Let's Encrypt) and renews it on its own, and compresses pages
+(zstd or gzip). Open `https://tattle.example.org`. From now on, add `--profile https` to every
+`up` command.
 
 ### With your own reverse proxy (nginx, Traefik, Caddy…)
 
@@ -139,7 +140,10 @@ Any proxy works if it:
 
 - **forwards to `127.0.0.1:3000`** with the usual `Host`, `X-Forwarded-For` and
   `X-Forwarded-Proto` headers;
-- **accepts request bodies of up to 12 MB** (a report with its screenshot).
+- **accepts request bodies of up to 12 MB** (a report with its screenshot);
+- **compresses responses**, ideally: Tattle compresses its static files itself (Brotli or gzip,
+  with `Vary: Accept-Encoding`), not its pages. In nginx, `gzip on;` with
+  `gzip_types text/html application/json;`; in Caddy, `encode zstd gzip`.
 
 For nginx, inside your `server { … }` block:
 

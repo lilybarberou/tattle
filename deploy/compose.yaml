@@ -38,11 +38,20 @@ services:
 
   # HTTPS for $DOMAIN with a free certificate (Let's Encrypt), renewed by
   # itself. Point the domain at this server first, and set TRUST_PROXY=true.
+  # Pages are compressed (zstd or gzip); static files already are. The
+  # Caddyfile is written when the container starts, so this file stays the
+  # only one to download.
   caddy:
     image: caddy:2-alpine
     profiles: ["https"]
     restart: unless-stopped
-    command: caddy reverse-proxy --from ${DOMAIN:-localhost} --to app:3000
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        printf '%s {\n\tencode zstd gzip\n\treverse_proxy app:3000\n}\n' "$$DOMAIN" > /etc/caddy/Caddyfile
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
     ports:
       - "80:80"
       - "443:443"
