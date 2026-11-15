@@ -3,7 +3,9 @@
  *
  * - GET  /site?key=pk_…        the customer's website: a page that embeds the
  *                              widget from the app, with buttons that log to
- *                              the console and make network requests.
+ *                              the console and make network requests. With
+ *                              &csp=strict, it sends the Content-Security-Policy
+ *                              the widget's README documents.
  * - GET  /api/ok, /api/broken  the website's own API (200 and 500).
  * - POST /hooks/<box>          a webhook receiver: records each delivery.
  * - GET  /hooks/<box>          the deliveries recorded in that box, as JSON.
@@ -32,14 +34,32 @@ const escapeHtml = (value: string) =>
 			] ?? c,
 	);
 
+/** The site's own inline scripts carry it under &csp=strict. */
+const SITE_NONCE = "e2e-site-nonce";
+
+/**
+ * A strict policy plus what packages/widget/README.md says the widget needs:
+ * its script and API on the Tattle server, inline styles for its Shadow
+ * DOM, and data:/blob: images for the screenshot.
+ */
+const strictCsp = [
+	"default-src 'self'",
+	`script-src 'self' 'nonce-${SITE_NONCE}' ${APP_URL}`,
+	`connect-src 'self' ${APP_URL}`,
+	"style-src 'self' 'unsafe-inline'",
+	"img-src 'self' data: blob:",
+	"font-src 'self' data:",
+].join("; ");
+
 const sitePage = (params: URLSearchParams) => {
+	const nonce = params.get("csp") === "strict" ? ` nonce="${SITE_NONCE}"` : "";
 	const key = params.get("key") ?? "";
 	const release = params.get("release") ?? "1.4.2";
 	const email = params.get("email");
 	const name = params.get("name");
 	const identify =
 		email || name
-			? `<script>window.Tattle = window.Tattle || { q: [] };
+			? `<script${nonce}>window.Tattle = window.Tattle || { q: [] };
 Tattle.identify = Tattle.identify || function () { Tattle.q.push(["identify"].concat([].slice.call(arguments))); };
 Tattle.identify(${JSON.stringify({ id: email ?? name, email: email ?? undefined, name: name ?? undefined })});</script>`
 			: "";
@@ -62,7 +82,7 @@ Tattle.identify(${JSON.stringify({ id: email ?? name, email: email ?? undefined,
 <p id="status" role="status"></p>
 </main>
 ${identify}
-<script>
+<script${nonce}>
 document.getElementById("load").addEventListener("click", async () => {
   const response = await fetch("/api/ok");
   console.log("cart loaded", (await response.json()).items);
@@ -106,7 +126,12 @@ const server = createServer((req, res) => {
 		}
 		if (url.pathname === "/site") {
 			res
-				.writeHead(200, { "content-type": "text/html; charset=utf-8" })
+				.writeHead(200, {
+					"content-type": "text/html; charset=utf-8",
+					...(url.searchParams.get("csp") === "strict"
+						? { "content-security-policy": strictCsp }
+						: {}),
+				})
 				.end(sitePage(url.searchParams));
 			return;
 		}

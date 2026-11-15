@@ -96,6 +96,8 @@ export type SiteOptions = {
 	email?: string;
 	name?: string;
 	release?: string;
+	/** Serve the site with a strict Content-Security-Policy. */
+	strictCsp?: boolean;
 	/** Reuse the browser context of a page opened before (same device). */
 	samePageAs?: Page;
 };
@@ -117,6 +119,7 @@ export const siteUrl = (options: SiteOptions) => {
 	if (options.email) query.set("email", options.email);
 	if (options.name) query.set("name", options.name);
 	if (options.release) query.set("release", options.release);
+	if (options.strictCsp) query.set("csp", "strict");
 	return `${SITE_URL}/site?${query}`;
 };
 
@@ -124,6 +127,8 @@ type Fixtures = {
 	workspace: SeededWorkspace;
 	dashboard: Page;
 	signedInPage: (user: SeededUser) => Promise<Page>;
+	/** A signed-out page in a browser context of its own, with its own IP. */
+	freshPage: () => Promise<Page>;
 	openSite: (options: SiteOptions) => Promise<Page>;
 	a11y: (page: Page, label: string, options?: A11yOptions) => Promise<void>;
 };
@@ -155,6 +160,15 @@ export const test = base.extend<Fixtures, { closeDbAfterWorker: undefined }>({
 			const page = await newDashboardPage(browser);
 			pages.push(page);
 			await signIn(page, user);
+			return page;
+		});
+		for (const page of pages) await page.context().close();
+	},
+	freshPage: async ({ browser }, use) => {
+		const pages: Page[] = [];
+		await use(async () => {
+			const page = await newDashboardPage(browser);
+			pages.push(page);
 			return page;
 		});
 		for (const page of pages) await page.context().close();
