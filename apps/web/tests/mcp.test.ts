@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { db } from "#/db";
-import { project } from "#/db/schema";
+import { activity, comment, issue, project, reportMessage } from "#/db/schema";
 import type { Principal } from "#/server/Access";
 import { Conversations } from "#/server/Conversations";
 import { Ingest } from "#/server/Ingest";
@@ -413,6 +413,173 @@ describe("handleMcpRequest", () => {
 		expect(message.result?.content?.[0]?.text).toBe(
 			`Project "${theirs.id}" not found`,
 		);
+	});
+
+	it("refuses every write tool to a read-only token, before doing anything", async () => {
+		const { org, project: p } = await createWorkspace();
+		const first = await run(
+			Ingest.use((ingest) => ingest.submit(reportPayload(p.publicKey), null)),
+		);
+		await run(
+			Ingest.use((ingest) =>
+				ingest.submit(reportPayload(p.publicKey, { message: "Other" }), null),
+			),
+		);
+		const { token } = await createApiToken(org.id, { canWrite: false });
+		const before = {
+			issues: await db.select().from(issue),
+			activity: (await db.select().from(activity)).length,
+		};
+		const writes: Array<[string, object]> = [
+			["create_issue", { project: p.id, type: "bug", title: "Planted" }],
+			["update_issue", { project: p.id, number: 1, title: "Changed" }],
+			["add_comment", { project: p.id, number: 1, body: "Hi" }],
+			[
+				"reply_to_reporter",
+				{ project: p.id, report_id: first.id, body: "Hello" },
+			],
+			["mark_duplicate", { project: p.id, number: 2, duplicate_of: 1 }],
+			["move_report", { project: p.id, report_id: first.id, to_number: 2 }],
+		];
+		for (const [name, args] of writes) {
+			const message = await call(token, name, args);
+			expect(message.result?.isError, name).toBe(true);
+			expect(message.result?.content?.[0]?.text, name).toBe(
+				"This API token is read-only",
+			);
+		}
+		expect(await db.select().from(issue)).toEqual(before.issues);
+		expect(await db.select().from(comment)).toEqual([]);
+		expect(await db.select().from(reportMessage)).toEqual([]);
+		expect((await db.select().from(activity)).length).toBe(before.activity);
+	});
+
+	it("keeps every tool away from another organization's project, by id or slug", async () => {
+		const { org } = await createWorkspace();
+		const { project: theirs } = await createWorkspace();
+		const sent = await run(
+			Ingest.use((ingest) =>
+				ingest.submit(reportPayload(theirs.publicKey), null),
+			),
+		);
+		const { token } = await createApiToken(org.id);
+		const tools: Array<[string, object]> = [
+			["list_issues", {}],
+			["search_issues", { query: "checkout" }],
+			["get_issue", { number: 1 }],
+			["get_report", { report_id: sent.id }],
+			["create_issue", { type: "bug", title: "Planted" }],
+			["update_issue", { number: 1, status: "canceled" }],
+			["add_comment", { number: 1, body: "Hi" }],
+			["reply_to_reporter", { report_id: sent.id, body: "Hello" }],
+			["mark_duplicate", { number: 1, duplicate_of: 1 }],
+			["move_report", { report_id: sent.id, to_number: 1 }],
+		];
+		for (const ref of [theirs.id, theirs.slug]) {
+			for (const [name, args] of tools) {
+				const message = await call(token, name, { project: ref, ...args });
+				expect(message.result?.isError, name).toBe(true);
+				expect(message.result?.content?.[0]?.text, name).toBe(
+					`Project "${ref}" not found`,
+				);
+			}
+		}
+		const [untouched] = await db.select().from(issue);
+		expect(untouched?.status).toBe("triage");
+		expect(await db.select().from(comment)).toEqual([]);
+	});
+
+	it("does not reach a report of another project through one's own project", async () => {
+		const { org, project: mine } = await createWorkspace();
+		const { project: theirs } = await createWorkspace();
+		await run(
+			Ingest.use((ingest) =>
+				ingest.submit(reportPayload(mine.publicKey), null),
+			),
+		);
+		const sent = await run(
+			Ingest.use((ingest) =>
+				ingest.submit(reportPayload(theirs.publicKey), null),
+			),
+		);
+		const { token } = await createApiToken(org.id);
+		for (const [name, args] of [
+			["get_report", { report_id: sent.id }],
+			["reply_to_reporter", { report_id: sent.id, body: "Hello" }],
+			["move_report", { report_id: sent.id, to_number: 1 }],
+		] as const) {
+			const message = await call(token, name, { project: mine.id, ...args });
+			expect(message.result?.isError, name).toBe(true);
+		}
+		expect(await db.select().from(reportMessage)).toEqual([]);
+	});
+
+	it("refuses a pull request URL that is not http(s)", async () => {
+		const { org, project: p } = await createWorkspace();
+		await run(
+			Ingest.use((ingest) => ingest.submit(reportPayload(p.publicKey), null)),
+		);
+		const { token } = await createApiToken(org.id);
+		for (const pr_url of ["javascript:alert(1)", "data:text/html,hi"]) {
+			const message = await call(token, "update_issue", {
+				project: p.id,
+				number: 1,
+				pr_url,
+			});
+			expect(message.result?.isError, pr_url).toBe(true);
+		}
+		const [row] = await db.select().from(issue);
+		expect(row?.prUrl).toBeNull();
+		const ok = await call(token, "update_issue", {
+			project: p.id,
+			number: 1,
+			pr_url: "https://github.com/acme/shop/pull/12",
+		});
+		expect(ok.result?.isError).toBeFalsy();
+	});
+
+	it("refuses input that does not fit the tool's schema", async () => {
+		const { org, project: p } = await createWorkspace();
+		const { token } = await createApiToken(org.id);
+		for (const [name, args] of [
+			["search_issues", { project: p.id, query: "ab" }],
+			["get_issue", { project: p.id, number: 0 }],
+			["create_issue", { project: p.id, type: "task", title: "X" }],
+			["update_issue", { project: p.id, number: 1, status: "duplicate" }],
+			["list_issues", { project: p.id, limit: 500 }],
+		] as const) {
+			const response = await handleMcpRequest(
+				mcpRequest("tools/call", { name, arguments: args }, token),
+			);
+			const message = await readMessage(response);
+			expect(
+				message.error !== undefined || message.result?.isError === true,
+				name,
+			).toBe(true);
+		}
+		expect(await db.select().from(issue)).toEqual([]);
+	});
+
+	it("lets unassign win over assign_to_me", async () => {
+		const { org, project: p } = await createWorkspace();
+		await run(
+			Ingest.use((ingest) => ingest.submit(reportPayload(p.publicKey), null)),
+		);
+		const writer = await createApiToken(org.id, { name: "Bot" });
+		await call(writer.token, "update_issue", {
+			project: p.id,
+			number: 1,
+			assign_to_me: true,
+		});
+		const cleared = await call(writer.token, "update_issue", {
+			project: p.id,
+			number: 1,
+			unassign: true,
+			assign_to_me: true,
+		});
+		expect(
+			JSON.parse(cleared.result?.content?.[0]?.text ?? "{}").assignee,
+		).toBeNull();
 	});
 });
 
