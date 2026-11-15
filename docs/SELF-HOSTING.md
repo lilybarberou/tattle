@@ -342,7 +342,8 @@ Start with the logs: `docker compose logs --tail=100 app`.
 | "Too many reports" (429) behind a proxy, from many people at once | Set `TRUST_PROXY=true`, otherwise Tattle sees every visitor as the proxy's IP. |
 | The address shows nothing, or the panel keeps restarting the app; the logs say `Listening on: http://localhost/` | The panel set `PORT` (to 80). Add `PORT=3000` to the environment, or point the domain at port 80. |
 | Screenshots disappear after a redeploy | Nothing is mounted at `/data`. Add the volume (or use S3). |
-| Invitations aren't emailed | Expected without SMTP: copy the invitation link from **Members**. With SMTP, the logs show the error. |
+| Invitations aren't emailed | Expected without SMTP: copy the invitation link that **Members** shows right after you invite someone. If it gets lost, **Show link** next to the waiting invitation shows it again (owners and admins). With SMTP, the logs show the error. |
+| An invitation link doesn't let the person join | The link is the proof of the invitation: it must be opened as sent, and the account created with the invited email. Links sent before the upgrade that introduced signed links carry no token and no longer work: cancel those invitations and send them again. |
 | A notification email doesn't come | Check **Notifications** under your name. A reporter's answer is emailed about 10 minutes after their first message, and not at all once someone on the team has answered. The digest skips days with nothing new. Failed sends are in the logs. |
 
 ## 12. All settings
