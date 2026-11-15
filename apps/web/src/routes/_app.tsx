@@ -113,7 +113,14 @@ function NavLink({
 	);
 }
 
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarContent({
+	onNavigate,
+	inSheet,
+}: {
+	onNavigate?: () => void;
+	/** In the phone menu: the sheet's close button sits at the top right. */
+	inSheet?: boolean;
+}) {
 	const { organizations, projects, build } = Route.useLoaderData();
 	const { user } = Route.useRouteContext();
 	const navigate = useNavigate();
@@ -126,7 +133,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
 	return (
 		<div className="flex h-full flex-col gap-5 px-3 py-3">
-			<div className="flex items-center justify-between gap-2 px-1">
+			<div
+				className={cn(
+					"flex items-center justify-between gap-2 px-1",
+					inSheet && "pr-8",
+				)}
+			>
 				<Brand />
 				<Button
 					size="icon-sm"
@@ -407,7 +419,7 @@ function AppLayout() {
 					<SheetDescription className="sr-only">
 						Projects and navigation
 					</SheetDescription>
-					<SidebarContent onNavigate={() => setMenuOpen(false)} />
+					<SidebarContent inSheet onNavigate={() => setMenuOpen(false)} />
 				</SheetContent>
 			</Sheet>
 
