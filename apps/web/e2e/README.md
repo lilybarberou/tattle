@@ -54,9 +54,10 @@ The app runs with sign-up closed (as in production), `PASSWORD_BREACH_CHECK=fals
 
 ## Journeys
 
-| File                | Journey                                                                                           |
-| ------------------- | ------------------------------------------------------------------------------------------------- |
-| `first-run.spec.ts` | Setup code, admin account, onboarding (organization and project), closed sign-up, sign out and in |
+| File                | Journey                                                                                                                                |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `first-run.spec.ts` | Setup code, admin account, onboarding (organization and project), closed sign-up, sign out and in                                      |
+| `central.spec.ts`   | Widget report with annotated screenshot, console and network → Triage → accept → comment → reply → email and widget → reporter answers |
 
 ## Troubleshooting
 
