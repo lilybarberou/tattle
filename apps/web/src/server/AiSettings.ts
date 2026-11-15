@@ -64,7 +64,8 @@ const normalizeBaseUrl = (provider: AiProvider, baseUrl?: string | null) =>
 					"Enter the server's base URL, e.g. https://api.mistral.ai/v1 or http://localhost:11434/v1",
 			});
 		}
-		// Checked again before each call, since a name can later resolve elsewhere.
+		// Checked again before each call and on the connection itself (ai.ts),
+		// since a name can later resolve elsewhere.
 		if (
 			!env.allowPrivateUrls &&
 			(yield* Effect.promise(() => checkUrlHost(url.href))) === "private"

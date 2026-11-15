@@ -2,6 +2,7 @@ import { lookup as dnsLookup, type LookupAddress } from "node:dns";
 import http from "node:http";
 import https from "node:https";
 import type { LookupFunction } from "node:net";
+import { Agent } from "undici";
 import { isPrivateAddress } from "./private-address";
 
 /**
@@ -76,3 +77,31 @@ export const postPublic = (
 		);
 		request.end(init.body);
 	});
+
+let publicOnly: Agent | undefined;
+
+/**
+ * A `fetch` dispatcher whose connections go through `publicOnlyLookup`: the
+ * address is checked on the connection itself, like `postPublic` does for
+ * webhooks, so a name cannot answer a public address to an earlier check and
+ * a private one to the connection. A pooled connection stays on the address
+ * that was checked when it was opened. IP literals skip the lookup: check
+ * them with `checkUrlHost` first.
+ */
+export const publicOnlyDispatcher = () => {
+	publicOnly ??= new Agent({ connect: { lookup: publicOnlyLookup } });
+	return publicOnly;
+};
+
+/** True when a fetch failed because its host resolved to a private address. */
+export const isPrivateAddressRefusal = (error: unknown) => {
+	for (
+		let current: unknown = error, depth = 0;
+		current instanceof Error && depth < 5;
+		current = current.cause, depth++
+	) {
+		if ((current as NodeJS.ErrnoException).code === "EPRIVATEADDRESS")
+			return true;
+	}
+	return false;
+};

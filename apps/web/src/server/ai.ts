@@ -8,6 +8,10 @@ import { Effect, Schema } from "effect";
 import type { AiProvider } from "#/shared/ai";
 import { env } from "./env";
 import { checkUrlHost } from "./private-address";
+import {
+	isPrivateAddressRefusal,
+	publicOnlyDispatcher,
+} from "./public-request";
 
 // ---------- API key encryption ----------
 
@@ -143,11 +147,10 @@ const textOf = (provider: AiProvider, body: unknown): string | null => {
 };
 
 /**
- * One request to the provider's HTTP API, with plain fetch and a timeout.
- * Returns the model's text. An OpenAI-compatible base URL is checked again
- * right before the call (its name may now resolve elsewhere), and redirects
- * are refused, so the call never lands on a private address unless
- * ALLOW_PRIVATE_URLS=true.
+ * One request to the provider's HTTP API, with fetch and a timeout. Returns
+ * the model's text. An OpenAI-compatible base URL is checked right before the
+ * call and on the connection itself, and redirects are refused, so the call
+ * never lands on a private address unless ALLOW_PRIVATE_URLS=true.
  */
 export const complete = (
 	config: AiConfig,
@@ -196,7 +199,13 @@ export const complete = (
 							}
 						: { model: config.model, messages, max_tokens: prompt.maxTokens };
 			}
-			if (config.provider === "openai_compatible" && !env.allowPrivateUrls) {
+			// An OpenAI-compatible base URL is typed by an admin: its host is
+			// checked before the call (IP literals never reach a DNS lookup),
+			// then again on the connection itself, so a name that changes its
+			// answer in between (DNS rebinding) is refused too.
+			const publicOnly =
+				config.provider === "openai_compatible" && !env.allowPrivateUrls;
+			if (publicOnly) {
 				const host = await checkUrlHost(url);
 				if (host === "private") throw new AiError({ kind: "private_address" });
 				if (host === "unresolved") throw new AiError({ kind: "unreachable" });
@@ -207,7 +216,8 @@ export const complete = (
 				body: JSON.stringify(body),
 				signal: AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]),
 				redirect: "error",
-			});
+				...(publicOnly ? { dispatcher: publicOnlyDispatcher() } : {}),
+			} as RequestInit);
 			if (!response.ok) {
 				// The body is never read: nothing of it may reach the browser.
 				await response.body?.cancel().catch(() => {});
@@ -236,6 +246,8 @@ export const complete = (
 			if (cause instanceof AiError) return cause;
 			if (cause instanceof Error && cause.name === "TimeoutError")
 				return new AiError({ kind: "timeout" });
+			if (isPrivateAddressRefusal(cause))
+				return new AiError({ kind: "private_address" });
 			// A network error, a refused redirect: its text could tell what sits
 			// at the address, so only the kind is kept.
 			return new AiError({ kind: "unreachable" });
