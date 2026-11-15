@@ -15,6 +15,7 @@ import {
 } from "#/components/issue-meta";
 import { PageHeader } from "#/components/page-header";
 import { ReleasePicker } from "#/components/pickers";
+import { MonthDay } from "#/components/time";
 import { Button } from "#/components/ui/button";
 import { lenient } from "#/lib/search-params";
 import { cn } from "#/lib/utils";
@@ -59,11 +60,6 @@ export const Route = createFileRoute("/_app/p/$projectId/issues/")({
 		return { issues, releases };
 	},
 	component: IssuesPage,
-});
-
-const dateFormat = new Intl.DateTimeFormat("en", {
-	month: "short",
-	day: "numeric",
 });
 
 function IssueRow({
@@ -119,7 +115,7 @@ function IssueRow({
 						)}
 					</span>
 					<span className="num w-12 text-right text-xs max-sm:hidden">
-						{dateFormat.format(new Date(issue.updatedAt))}
+						<MonthDay iso={issue.updatedAt} />
 					</span>
 				</span>
 			</Link>

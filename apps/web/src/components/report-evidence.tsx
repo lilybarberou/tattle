@@ -3,7 +3,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import { cn } from "#/lib/utils";
 import type { ReportDto, SeenInRelease } from "#/server/Issues";
 import { buildTrail, isFailedRequest } from "#/shared/trail";
-import { Face, relativeTime } from "./issue-meta";
+import { Face } from "./issue-meta";
+import { ClockTime, RelativeTime, relativeTime, useHydrated } from "./time";
 
 // Loads an image through fetch(). In development, Nitro hands requests made by
 // <img> (sec-fetch-dest: image) to Vite's static file server instead of the app
@@ -188,7 +189,7 @@ function StepsTimeline({ report }: { report: ReportDto }) {
 					)}
 				>
 					<span className="num text-muted-foreground">
-						{new Date(entry.timestamp).toLocaleTimeString("en-GB")}
+						<ClockTime timestamp={entry.timestamp} />
 					</span>
 					<span className="truncate text-muted-foreground">
 						{entry.kind === "step"
@@ -357,7 +358,7 @@ export function ReportLogs({ report }: { report: ReportDto }) {
 									)}
 								>
 									<span className="num text-muted-foreground">
-										{new Date(entry.timestamp).toLocaleTimeString("en-GB")}
+										<ClockTime timestamp={entry.timestamp} />
 									</span>
 									<span className="text-muted-foreground">{entry.level}</span>
 									<span className="min-w-0 break-words whitespace-pre-wrap">
@@ -431,13 +432,15 @@ export function ReportLogs({ report }: { report: ReportDto }) {
  * differs: "1.4.0 → 1.5.2". Hovering lists every release with its reports.
  */
 export function SeenIn({ releases }: { releases: SeenInRelease[] }) {
+	// "last 2 days ago" depends on the reader's clock: only once hydrated.
+	const hydrated = useHydrated();
 	const first = releases[0];
 	if (!first) return <span className="text-muted-foreground">—</span>;
 	const last = releases.reduce((a, b) => (b.lastSeen > a.lastSeen ? b : a));
 	const details = releases
 		.map(
 			(r) =>
-				`${r.release}: ${plural(r.reports, "report", "reports")}, last ${relativeTime(r.lastSeen)}`,
+				`${r.release}: ${plural(r.reports, "report", "reports")}${hydrated ? `, last ${relativeTime(r.lastSeen)}` : ""}`,
 		)
 		.join("\n");
 	return (
@@ -581,7 +584,7 @@ export function ReportFacts({
 				{plural(failed, "failed request", "failed requests")}
 			</span>,
 		],
-		["Sent", relativeTime(report.createdAt)],
+		["Sent", <RelativeTime key="s" iso={report.createdAt} />],
 	];
 	return (
 		<dl className="grid grid-cols-[88px_minmax(0,1fr)] content-start gap-x-3 gap-y-2.5 self-start">

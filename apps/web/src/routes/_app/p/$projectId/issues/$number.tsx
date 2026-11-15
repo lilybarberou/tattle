@@ -23,7 +23,6 @@ import {
 	Face,
 	IssueNumber,
 	PRIORITY_META,
-	relativeTime,
 	STATUS_META,
 	StatusIcon,
 	TypeIcon,
@@ -45,6 +44,7 @@ import {
 	SeenIn,
 } from "#/components/report-evidence";
 import { errorStatus } from "#/components/status-page";
+import { RelativeTime } from "#/components/time";
 import { Button } from "#/components/ui/button";
 import { useInlineConfirm } from "#/lib/use-inline-confirm";
 import { cn } from "#/lib/utils";
@@ -168,7 +168,7 @@ function ReportBlock({
 					<span className="font-medium">{name}</span>
 					<span className="text-muted-foreground">
 						{" "}
-						· {relativeTime(report.createdAt)}
+						· <RelativeTime iso={report.createdAt} />
 					</span>
 					{!open && (
 						<span className="block truncate text-muted-foreground">
@@ -403,7 +403,7 @@ function ReporterThread({ report, name }: { report: ReportDto; name: string }) {
 								{message.from === "team" &&
 									(message.readAt ? " · Seen" : " · Not seen yet")}
 								{" · "}
-								{relativeTime(message.createdAt)}
+								<RelativeTime iso={message.createdAt} />
 							</p>
 							<p className="mt-0.5 break-words whitespace-pre-wrap">
 								{message.body}
@@ -727,7 +727,7 @@ function IssuePage() {
 											<span className="font-medium text-ink">
 												{entry.item.author.name}
 											</span>{" "}
-											· {relativeTime(entry.at)}
+											· <RelativeTime iso={entry.at} />
 										</p>
 										<Markdown className="mt-1">{entry.item.body}</Markdown>
 									</div>
@@ -749,7 +749,10 @@ function IssuePage() {
 									>
 										{describeActivity(entry.item.action, entry.item.data)}
 									</span>
-									<span> · {relativeTime(entry.at)}</span>
+									<span>
+										{" "}
+										· <RelativeTime iso={entry.at} />
+									</span>
 								</li>
 							),
 						)}
@@ -888,8 +891,8 @@ function IssuePage() {
 											],
 										]
 									: []),
-								["Opened", relativeTime(issue.createdAt)],
-								["Updated", relativeTime(issue.updatedAt)],
+								["Opened", <RelativeTime key="o" iso={issue.createdAt} />],
+								["Updated", <RelativeTime key="u" iso={issue.updatedAt} />],
 							] as Array<[string, React.ReactNode]>
 						).map(([label, value]) => (
 							<div

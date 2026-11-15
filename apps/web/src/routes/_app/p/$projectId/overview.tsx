@@ -1,12 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-	IssueNumber,
-	relativeTime,
-	STATUS_META,
-	StatusIcon,
-} from "#/components/issue-meta";
+import { IssueNumber, STATUS_META, StatusIcon } from "#/components/issue-meta";
 import { PageHeader } from "#/components/page-header";
 import { ReportsChart } from "#/components/reports-chart";
+import { RelativeTime } from "#/components/time";
 import { cn } from "#/lib/utils";
 import { getOverviewFn } from "#/server/fns";
 import type { OverviewIssue } from "#/server/Overview";
@@ -164,9 +160,13 @@ function OverviewPage() {
 							label="In triage"
 							value={statuses.triage.toLocaleString("en")}
 							detail={
-								oldestTriageAt
-									? `Oldest arrived ${relativeTime(oldestTriageAt)}`
-									: "Inbox clear"
+								oldestTriageAt ? (
+									<>
+										Oldest arrived <RelativeTime iso={oldestTriageAt} />
+									</>
+								) : (
+									"Inbox clear"
+								)
 							}
 						/>
 					</Link>

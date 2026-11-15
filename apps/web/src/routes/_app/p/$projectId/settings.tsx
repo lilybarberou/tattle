@@ -9,9 +9,9 @@ import { RefreshCwIcon, SendIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CodeBlock } from "#/components/code-block";
-import { relativeTime } from "#/components/issue-meta";
 import { PageHeader } from "#/components/page-header";
 import { SettingsSection } from "#/components/settings-section";
+import { RelativeTime } from "#/components/time";
 import { Button } from "#/components/ui/button";
 import { Checkbox } from "#/components/ui/checkbox";
 import { Input } from "#/components/ui/input";
@@ -728,7 +728,7 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 											</td>
 											<td className="num py-2 text-right">{d.attempts}</td>
 											<td className="py-2 text-right text-muted-foreground">
-												{relativeTime(d.createdAt)}
+												<RelativeTime iso={d.createdAt} />
 											</td>
 										</tr>
 									))}
@@ -992,7 +992,7 @@ function GithubSettings({
 			)}
 			{settings.lastDeliveryAt && (
 				<p className="text-muted-foreground">
-					Last delivery {relativeTime(settings.lastDeliveryAt)}:{" "}
+					Last delivery <RelativeTime iso={settings.lastDeliveryAt} />:{" "}
 					{settings.lastDelivery}
 				</p>
 			)}
