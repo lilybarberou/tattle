@@ -99,12 +99,32 @@ let warnedMemory = false;
  * only when a report is sent. Kept in expo-secure-store or AsyncStorage when
  * the app has one of them; otherwise in memory, until the app restarts.
  */
-export async function reporterKey(
+export function reporterKey(
 	projectKey: string,
 	create: boolean,
 	store: KeyValueStore | null = persistentStore()?.store ?? null,
 ): Promise<string | null> {
+	// One lookup at a time per project: two first reports sent together each
+	// found no key, made one, and the device kept only the last, so one of
+	// the two reports never showed in "My reports".
 	const name = storageKey(projectKey);
+	const next = (inFlight.get(name) ?? Promise.resolve())
+		.catch(() => undefined)
+		.then(() => readOrCreate(name, create, store));
+	inFlight.set(name, next);
+	void next.finally(() => {
+		if (inFlight.get(name) === next) inFlight.delete(name);
+	});
+	return next;
+}
+
+const inFlight = new Map<string, Promise<string | null>>();
+
+async function readOrCreate(
+	name: string,
+	create: boolean,
+	store: KeyValueStore | null,
+): Promise<string | null> {
 	let key = memory.get(name) ?? null;
 	if (!key && store) {
 		try {

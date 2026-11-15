@@ -68,6 +68,29 @@ describe("reporterKey", () => {
 		);
 	});
 
+	it("makes one key for two first reports sent at the same time", async () => {
+		// A slow store, like AsyncStorage on a busy device: both calls would
+		// read "no key" before either wrote one.
+		const store = mapStore();
+		const slow: KeyValueStore = {
+			getItem: async (name) => {
+				await new Promise((resolve) => setTimeout(resolve, 20));
+				return store.getItem(name);
+			},
+			setItem: async (name, value) => {
+				await new Promise((resolve) => setTimeout(resolve, 20));
+				return store.setItem(name, value);
+			},
+		};
+		const [first, second] = await Promise.all([
+			reporterKey("pk_a", true, slow),
+			reporterKey("pk_a", true, slow),
+		]);
+		expect(first).toMatch(KEY);
+		expect(second).toBe(first);
+		expect(store.data.get(storageKey("pk_a"))).toBe(first);
+	});
+
 	it("survives a storage that fails", async () => {
 		const broken: KeyValueStore = {
 			getItem: () => Promise.reject(new Error("locked")),
