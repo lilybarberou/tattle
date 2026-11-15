@@ -606,11 +606,13 @@ export const createIssueFn = createServerFn({ method: "POST" })
 				);
 				const issues = yield* Issues;
 				const actor = actorOf(p);
-				const created = yield* issues.create(data.projectId, data, actor);
+				// Checked first: an unknown assignee must not leave an issue
+				// behind that a retry would create again.
 				const assignee = yield* resolveAssignee(
 					row.organizationId,
 					data.assignee,
 				);
+				const created = yield* issues.create(data.projectId, data, actor);
 				if (!assignee) return created;
 				return yield* issues.update(
 					data.projectId,
