@@ -27,6 +27,10 @@ export type ReporterMatch = {
  * everything about one end user (GDPR access and erasure), and the automatic
  * purge of old screenshots, logs and steps (REPORT_RETENTION_DAYS).
  */
+/** Reports one purge batch handles, and the batches one run may chain. */
+const PURGE_BATCH = 500;
+const PURGE_BATCHES_PER_RUN = 40;
+
 export class DataLifecycle extends Context.Service<
 	DataLifecycle,
 	{
@@ -449,7 +453,7 @@ export class DataLifecycle extends Context.Service<
 								),
 							),
 						)
-						.limit(500),
+						.limit(PURGE_BATCH),
 				);
 				if (rows.length === 0) return 0;
 				yield* storage.remove(rows.flatMap((r) => (r.key ? [r.key] : [])));
@@ -485,9 +489,24 @@ export class DataLifecycle extends Context.Service<
 				return rows.length;
 			});
 
+			// One batch per run kept up with 2,000 reports a day at most: each
+			// run now goes on while batches come back full, up to a ceiling so a
+			// first purge of a large backlog is spread over a few runs.
+			const purgeBacklog = Effect.fn("DataLifecycle.purgeBacklog")(function* (
+				days: number,
+			) {
+				let total = 0;
+				for (let batch = 0; batch < PURGE_BATCHES_PER_RUN; batch++) {
+					const count = yield* purgeExpired(days);
+					total += count;
+					if (count < PURGE_BATCH) break;
+				}
+				return total;
+			});
+
 			const retentionDays = Number(process.env.REPORT_RETENTION_DAYS);
 			if (Number.isInteger(retentionDays) && retentionDays > 0) {
-				yield* purgeExpired(retentionDays).pipe(
+				yield* purgeBacklog(retentionDays).pipe(
 					Effect.tap((count) =>
 						count > 0
 							? Effect.logInfo(
