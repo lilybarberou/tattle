@@ -138,8 +138,9 @@ describe("AiSettings", () => {
 			model: "llama3.2",
 		});
 		const [, init] = fetchMock.mock.calls[0] ?? [];
+		expect(init?.headers).toBeDefined();
 		expect(
-			(init?.headers as Record<string, string>).authorization,
+			(init?.headers as Record<string, string> | undefined)?.authorization,
 		).toBeUndefined();
 
 		const moved = await save(owner, org.id, {
@@ -310,9 +311,9 @@ describe("AiSettings", () => {
 			});
 			const [url, init] = fetchMock.mock.calls[0] ?? [];
 			expect(url).toBe("https://api.openai.com/v1/chat/completions");
-			expect((init?.headers as Record<string, string>).authorization).toBe(
-				`Bearer ${KEY}`,
-			);
+			expect(
+				(init?.headers as Record<string, string> | undefined)?.authorization,
+			).toBe(`Bearer ${KEY}`);
 		});
 
 		it("reports the kind of error and its status, never what the provider said", async () => {

@@ -113,10 +113,11 @@ describe("the S3 backend", () => {
 			(c) => (c.input.Delete as { Objects: unknown[] }).Objects.length,
 		);
 		expect(sizes).toEqual([1000, 1000, 345]);
-		const first = (deletes[0]?.input.Delete as { Objects: { Key: string }[] })
-			.Objects[0];
-		expect(first?.Key).toBe("prod/k0.png");
-		expect((deletes[0]?.input.Delete as { Quiet: boolean }).Quiet).toBe(true);
+		const batch = deletes[0]?.input.Delete as
+			| { Objects: { Key: string }[]; Quiet: boolean }
+			| undefined;
+		expect(batch?.Objects[0]?.Key).toBe("prod/k0.png");
+		expect(batch?.Quiet).toBe(true);
 	});
 
 	it("sends nothing for no keys", async () => {
