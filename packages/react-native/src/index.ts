@@ -1,6 +1,4 @@
-import { installBreadcrumbCollector } from "./collectors/breadcrumbs";
-import { installConsoleCollector } from "./collectors/console";
-import { installNetworkCollector } from "./collectors/network";
+import { applyCollection } from "./collection";
 import { addBreadcrumb, setScreen, trackNavigation } from "./navigation";
 import { notify, requestClose, requestOpen, state } from "./state";
 import type { OpenOptions, TattleUser } from "./types";
@@ -14,8 +12,10 @@ export {
 export type {
 	AnimationPreset,
 	AppInfo,
+	BeforeSend,
 	Breadcrumb,
 	BreadcrumbInput,
+	CollectOptions,
 	ColorScheme,
 	ConsoleEntry,
 	ConsoleLevel,
@@ -38,10 +38,9 @@ export { TattleMask } from "./ui/Mask";
 export { TattleProvider, type TattleProviderProps } from "./ui/Provider";
 
 // Collectors start as soon as the SDK is imported, so early logs and requests
-// are kept: import it near the top of your entry file.
-installConsoleCollector();
-installNetworkCollector();
-installBreadcrumbCollector();
+// are kept: import it near the top of your entry file. The provider's
+// `collect` then stops the ones the app turned off.
+applyCollection(undefined);
 
 /** Sets (or clears with `null`) the user attached to reports. */
 export function identify(user: TattleUser | null): void {

@@ -14,6 +14,7 @@ import {
 	useWindowDimensions,
 	View,
 } from "react-native";
+import { applyBeforeSend, ReportDropped } from "../collection";
 import type { Strings } from "../i18n";
 import {
 	buildPayload,
@@ -23,7 +24,7 @@ import {
 } from "../payload";
 import { type ReportSummary, reporterKey } from "../reporter";
 import { state } from "../state";
-import type { AppInfo, Locale, TattleType } from "../types";
+import type { AppInfo, BeforeSend, Locale, TattleType } from "../types";
 import { type Annotation, Annotator } from "./Annotator";
 import { ReportList, ReportsEntry, ThreadScreen } from "./Inbox";
 import { Icon } from "./icons";
@@ -47,6 +48,7 @@ export interface PanelConfig {
 	apiUrl: string;
 	app?: AppInfo | undefined;
 	release?: string | undefined;
+	beforeSend?: BeforeSend | undefined;
 }
 
 /** "My reports", kept by the provider so the launcher can show the unread badge. */
@@ -159,21 +161,22 @@ export function Panel({
 		setError(null);
 		setSending(true);
 		try {
+			const payload = buildPayload({
+				projectKey: config.projectKey,
+				type,
+				message: text,
+				screenshot: shot?.dataUrl,
+				email: userEmail ? undefined : typed,
+				user: state.user,
+				context: state.context,
+				screen: state.screen,
+				app: config.app,
+				release: config.release,
+				reporterKey: await reporterKey(config.projectKey, true),
+			});
 			await sendPayload(
 				config.apiUrl,
-				buildPayload({
-					projectKey: config.projectKey,
-					type,
-					message: text,
-					screenshot: shot?.dataUrl,
-					email: userEmail ? undefined : typed,
-					user: state.user,
-					context: state.context,
-					screen: state.screen,
-					app: config.app,
-					release: config.release,
-					reporterKey: await reporterKey(config.projectKey, true),
-				}),
+				await applyBeforeSend(payload, config.beforeSend),
 			);
 			setMessage("");
 			setEmail("");
@@ -185,7 +188,9 @@ export function Panel({
 			setError(
 				err instanceof IngestError && err.status === 0
 					? t.networkError
-					: (err instanceof Error && err.message) || t.genericError,
+					: err instanceof ReportDropped
+						? t.genericError
+						: (err instanceof Error && err.message) || t.genericError,
 			);
 		} finally {
 			setSending(false);

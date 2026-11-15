@@ -109,7 +109,36 @@ export interface InitOptions {
 	 * it was done as a regression in this release.
 	 */
 	release?: string;
+	/**
+	 * What the widget gathers on its own, all on by default. Turning one off
+	 * restores what it patched and forgets what it had kept since the script
+	 * loaded. Script tag: `data-collect="console, network, steps"` lists the
+	 * ones to keep (`"none"` for none).
+	 */
+	collect?: CollectOptions;
+	/**
+	 * Called with a copy of each report right before it is sent. Return it,
+	 * changed or not, to send it; return null to drop it (the person sees
+	 * that it could not be sent). If it throws, the report is dropped.
+	 */
+	beforeSend?: BeforeSend;
 }
+
+export interface CollectOptions {
+	/** Console messages, JavaScript errors and unhandled rejections. Default true. */
+	console?: boolean;
+	/** Requests made with fetch and XMLHttpRequest. Default true. */
+	network?: boolean;
+	/**
+	 * Navigations, clicks, field changes and tab switches. Default true.
+	 * Steps added with `addBreadcrumb` are still recorded.
+	 */
+	steps?: boolean;
+}
+
+export type BeforeSend = (
+	report: IngestPayload,
+) => IngestPayload | null | Promise<IngestPayload | null>;
 
 export interface TattleUser {
 	id?: string;

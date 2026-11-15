@@ -8,6 +8,7 @@ import {
 } from "react";
 import { StyleSheet, useColorScheme, View } from "react-native";
 import { captureView, type ViewRef } from "../capture";
+import { applyCollection } from "../collection";
 import { detectLocale, getStrings, type Strings } from "../i18n";
 import { ingestUrl } from "../payload";
 import {
@@ -94,6 +95,8 @@ export function TattleProvider({
 	backgroundColor,
 	app,
 	release,
+	collect,
+	beforeSend,
 }: TattleProviderProps) {
 	const systemScheme = useColorScheme();
 	const scheme = resolveScheme(colorScheme, themeInput, systemScheme);
@@ -129,6 +132,19 @@ export function TattleProvider({
 			"[tattle] TattleProvider needs `projectKey` and an `apiUrl` starting with http:// or https://",
 		);
 	}
+
+	// Collectors the app turned off stop, restore what they patched and
+	// forget what they kept.
+	const collectConsole = collect?.console;
+	const collectNetwork = collect?.network;
+	const collectSteps = collect?.steps;
+	useEffect(() => {
+		applyCollection({
+			console: collectConsole,
+			network: collectNetwork,
+			steps: collectSteps,
+		});
+	}, [collectConsole, collectNetwork, collectSteps]);
 
 	// The SDK's own requests stay out of the network log.
 	useEffect(() => {
@@ -233,7 +249,7 @@ export function TattleProvider({
 					visible={open}
 					initialType={type}
 					initialView={initialView}
-					config={{ projectKey, apiUrl, app, release }}
+					config={{ projectKey, apiUrl, app, release, beforeSend }}
 					locale={resolvedLocale}
 					inbox={inbox}
 					t={t}

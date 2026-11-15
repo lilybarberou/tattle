@@ -127,7 +127,36 @@ export interface TattleOptions {
 	 * Default: the app's version and build, e.g. "1.4.2 (87)".
 	 */
 	release?: string;
+	/**
+	 * What the SDK gathers on its own, all on by default. Turning one off
+	 * restores what it patched and forgets what it had kept since the app
+	 * started.
+	 */
+	collect?: CollectOptions;
+	/**
+	 * Called with a copy of each report right before it is sent. Return it,
+	 * changed or not, to send it; return null to drop it (the person sees
+	 * that it could not be sent). If it throws, the report is dropped.
+	 */
+	beforeSend?: BeforeSend;
 }
+
+export interface CollectOptions {
+	/** Console messages, uncaught errors and unhandled rejections. Default true. */
+	console?: boolean;
+	/** Requests made with fetch and XMLHttpRequest. Default true. */
+	network?: boolean;
+	/**
+	 * The app going to the background and back. Default true. Screens from
+	 * `setScreen` or `trackNavigation` and steps from `addBreadcrumb` are
+	 * always kept.
+	 */
+	steps?: boolean;
+}
+
+export type BeforeSend = (
+	report: IngestPayload,
+) => IngestPayload | null | Promise<IngestPayload | null>;
 
 export interface AppInfo {
 	name?: string;

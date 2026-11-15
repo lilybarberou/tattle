@@ -1,16 +1,10 @@
+import { applyCollection } from "./collection";
 import {
-	installBreadcrumbCollector,
 	addBreadcrumb as pushCustomBreadcrumb,
 	uninstallBreadcrumbCollector,
 } from "./collectors/breadcrumbs";
-import {
-	installConsoleCollector,
-	uninstallConsoleCollector,
-} from "./collectors/console";
-import {
-	installNetworkCollector,
-	uninstallNetworkCollector,
-} from "./collectors/network";
+import { uninstallConsoleCollector } from "./collectors/console";
+import { uninstallNetworkCollector } from "./collectors/network";
 import { detectLocale } from "./i18n";
 import { internalState } from "./internal";
 import { cleanRelease, ingestUrl } from "./payload";
@@ -33,8 +27,10 @@ import { Widget } from "./ui/widget";
 
 export type {
 	AnimationPreset,
+	BeforeSend,
 	Breadcrumb,
 	BreadcrumbInput,
+	CollectOptions,
 	ColorScheme,
 	ConsoleEntry,
 	ConsoleLevel,
@@ -66,15 +62,10 @@ let pendingOpen: OpenOptions | null = null;
 let pendingTheme: TattleTheme | undefined;
 let pendingScheme: ColorScheme | undefined;
 
-function startCollectors(): void {
-	if (!isBrowser) return;
-	installConsoleCollector();
-	installNetworkCollector();
-	installBreadcrumbCollector();
-}
-
-// Collectors start as soon as the SDK is evaluated so early logs/requests are kept.
-startCollectors();
+// Collectors start as soon as the SDK is evaluated so early logs/requests are
+// kept; `init({ collect })` then stops the ones the app turned off, and they
+// forget what they had kept.
+if (isBrowser) applyCollection(undefined);
 
 function defaultApiUrl(): string {
 	return isBrowser ? location.origin : "";
@@ -92,7 +83,7 @@ export function init(options: InitOptions): void {
 		return;
 	}
 	widget?.destroy();
-	startCollectors();
+	applyCollection(options.collect);
 	const apiUrl = (options.apiUrl || defaultApiUrl()).replace(/\/+$/, "");
 	for (const url of [ingestUrl(apiUrl), myReportsUrl(apiUrl)]) {
 		const endpoint = new URL(url, location.href).href;
@@ -127,6 +118,10 @@ export function init(options: InitOptions): void {
 				? options.maskSelectors.filter((s) => typeof s === "string")
 				: [],
 			release: cleanRelease(options.release),
+			beforeSend:
+				typeof options.beforeSend === "function"
+					? options.beforeSend
+					: undefined,
 		},
 		{ getUser: () => user, getContext: () => context },
 	);

@@ -1,5 +1,7 @@
 // Script-tag entry: exposes `window.Tattle` and auto-initializes from the
 // <script data-project-key="pk_..." data-api-url="https://host"> attributes.
+
+import { parseCollect } from "./collection";
 import {
 	addBreadcrumb,
 	close,
@@ -67,6 +69,8 @@ function readScriptOptions(script: HTMLScriptElement): InitOptions | null {
 		options.showButton = false;
 	const release = script.getAttribute("data-release");
 	if (release) options.release = release;
+	const collect = parseCollect(script.getAttribute("data-collect"));
+	if (collect) options.collect = collect;
 	return options;
 }
 
