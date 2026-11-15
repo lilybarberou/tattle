@@ -13,6 +13,10 @@ const config = defineConfig({
 		devtools(),
 		nitro({
 			rollupConfig: { external: [/^@sentry\//] },
+			// Scripts, styles and fonts are also written as .gz and .br files, and
+			// served compressed to browsers that accept it: the default compose
+			// file and most hosting panels put no compressing proxy in front.
+			compressPublicAssets: { gzip: true, brotli: true },
 			routeRules: {
 				// No page may be shown inside another site's frame, so nobody can
 				// trick a signed-in user into clicking "Allow" on /consent.
