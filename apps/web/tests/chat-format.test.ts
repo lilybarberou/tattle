@@ -176,6 +176,7 @@ describe("toDiscord / toSlack", () => {
 	it("builds a Discord embed", () => {
 		expect(toDiscord(message)).toEqual({
 			username: "Tattle",
+			allowed_mentions: { parse: [] },
 			embeds: [
 				{
 					title: "#7 Checkout",
@@ -195,6 +196,18 @@ describe("toDiscord / toSlack", () => {
 		});
 		expect(toSlack({ ...message, fields: [] }).text).toBe(
 			`<${message.url}|#7 Checkout>\nTodo → *Done*`,
+		);
+	});
+
+	it("keeps what reporters wrote as plain text in Slack", () => {
+		const text = toSlack({
+			...message,
+			title: "#8 a | b",
+			text: "<!channel> see <https://evil.example|your invoice> & pay",
+			fields: [["From", "<@U123>"]],
+		}).text;
+		expect(text).toBe(
+			`<${message.url}|#8 a ¦ b>\n&lt;!channel&gt; see &lt;https://evil.example|your invoice&gt; &amp; pay\n*From:* &lt;@U123&gt;`,
 		);
 	});
 

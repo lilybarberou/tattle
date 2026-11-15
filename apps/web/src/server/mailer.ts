@@ -41,6 +41,11 @@ const getTransporter = () => {
 		auth: process.env.SMTP_USER
 			? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD }
 			: undefined,
+		// Nodemailer waits up to 10 minutes by default: a stuck SMTP server
+		// would hold every background job that sends mail.
+		connectionTimeout: 15_000,
+		greetingTimeout: 15_000,
+		socketTimeout: 30_000,
 	});
 	return transporter;
 };
@@ -127,16 +132,42 @@ const plainText = (mail: Mail) => {
 	return parts.join("\n\n");
 };
 
-/** Sends a message; returns false (and logs it) when SMTP is not configured. */
+const ADDRESS_PART = /^[^\s@,;:<>()"[\]\\]+$/;
+
+/**
+ * One plain email address. Reporters and portal voters type theirs, and
+ * nodemailer would read "a@example.com, b@example.org" as two recipients.
+ */
+export const isSingleAddress = (to: string) => {
+	if (to.length > 320) return false;
+	const at = to.lastIndexOf("@");
+	const local = to.slice(0, at);
+	const domain = to.slice(at + 1);
+	return (
+		at > 0 &&
+		ADDRESS_PART.test(local) &&
+		ADDRESS_PART.test(domain) &&
+		domain.includes(".")
+	);
+};
+
+/**
+ * Sends a message; returns false when SMTP is not configured or the
+ * recipient is not a single address. Logs say so without the address, the
+ * subject or the link: a password reset link in the logs would open the
+ * account to anyone who reads them.
+ */
 export async function sendMail(mail: Mail): Promise<boolean> {
+	if (!isSingleAddress(mail.to)) {
+		console.warn("[mail] Not sending: the recipient is not one email address.");
+		return false;
+	}
 	if (outbox) {
 		outbox.push(mail);
 		return true;
 	}
 	if (!mailEnabled()) {
-		console.info(
-			`[mail] SMTP is not configured, not sending "${mail.subject}" to ${mail.to}.${mail.action ? ` Link: ${mail.action.url}` : ""}`,
-		);
+		console.info("[mail] SMTP is not configured: an email was not sent.");
 		return false;
 	}
 	await getTransporter().sendMail({

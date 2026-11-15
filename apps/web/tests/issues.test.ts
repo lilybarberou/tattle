@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { db } from "#/db";
 import { activity, issueVote, report } from "#/db/schema";
 import { Ingest } from "#/server/Ingest";
 import { Issues } from "#/server/Issues";
+import { captureMail, stopCapturingMail } from "#/server/mailer";
 import {
 	agentActor,
 	createWorkspace,
@@ -414,7 +415,9 @@ describe("shipping a feature request", () => {
 		await db
 			.insert(issueVote)
 			.values({ issueId: row?.issueId ?? "", voterKey: "v1", email: voter });
-		const info = vi.spyOn(console, "info").mockImplementation(() => {});
+		// Without SMTP, the mailer's test outbox gets what would be sent.
+		const outbox = process.env.SMTP_HOST ? null : captureMail();
+		onTestFinished(stopCapturingMail);
 
 		const done = await run(
 			Issues.use((issues) =>
@@ -439,14 +442,13 @@ describe("shipping a feature request", () => {
 				expect(message.Subject).toBe("Shipped: Dark mode");
 			}
 		} else {
-			// Without SMTP the mailer logs what it would have sent.
 			const sent = await waitFor(() => {
-				const lines = info.mock.calls.map((c) => String(c[0]));
-				const shipped = lines.filter((l) => l.includes('"Shipped: Dark mode"'));
+				const shipped = (outbox ?? []).filter(
+					(m) => m.subject === "Shipped: Dark mode",
+				);
 				return shipped.length === 2 && shipped;
 			});
-			expect(sent.some((l) => l.includes(email))).toBe(true);
-			expect(sent.some((l) => l.includes(voter))).toBe(true);
+			expect(sent.map((m) => m.to).sort()).toEqual([email, voter].sort());
 		}
 	});
 
@@ -455,14 +457,15 @@ describe("shipping a feature request", () => {
 		await submit(
 			reportPayload(p.publicKey, { reporter: { email: "jo@example.com" } }),
 		);
-		const info = vi.spyOn(console, "info").mockImplementation(() => {});
+		const outbox = captureMail();
+		onTestFinished(stopCapturingMail);
 		await run(
 			Issues.use((issues) =>
 				issues.update(p.id, 1, { status: "done" }, userActor),
 			),
 		);
 		await new Promise((resolve) => setTimeout(resolve, 200));
-		expect(info.mock.calls.flat().join("\n")).not.toContain("Shipped:");
+		expect(outbox.filter((m) => m.subject.startsWith("Shipped:"))).toEqual([]);
 	});
 });
 

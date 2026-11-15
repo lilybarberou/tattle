@@ -48,6 +48,14 @@ export const REFUSALS_BEFORE_EMAIL = 3;
 
 const needsKey = (provider: AiProvider) => provider !== "openai_compatible";
 
+/** Whether saved settings talk to this provider at this base URL. */
+const sameServer = (
+	saved: { provider: string; baseUrl: string | null },
+	provider: AiProvider,
+	baseUrl: string | null | undefined,
+) =>
+	saved.provider === provider && (saved.baseUrl ?? null) === (baseUrl ?? null);
+
 const normalizeBaseUrl = (provider: AiProvider, baseUrl?: string | null) =>
 	Effect.gen(function* () {
 		if (provider !== "openai_compatible") return null;
@@ -204,13 +212,14 @@ export class AiSettings extends Context.Service<
 				if (typedKey.length > 500)
 					return yield* new InvalidInput({ message: "That key is too long" });
 
-				// A key belongs to one provider: switching provider drops it.
+				// A key belongs to one provider and one server: switching either
+				// drops it, so it is never sent to a host it was not typed for.
 				let apiKeyEncrypted: string | null = null;
 				let apiKeyLast4: string | null = null;
 				if (typedKey) {
 					apiKeyEncrypted = encryptSecret(typedKey, organizationId);
 					apiKeyLast4 = typedKey.slice(-4);
-				} else if (current && current.provider === input.provider) {
+				} else if (current && sameServer(current, input.provider, baseUrl)) {
 					apiKeyEncrypted = current.apiKeyEncrypted;
 					apiKeyLast4 = current.apiKeyLast4;
 				}
@@ -271,7 +280,7 @@ export class AiSettings extends Context.Service<
 				let apiKey = input.apiKey?.trim() || null;
 				if (!apiKey) {
 					const current = yield* load(organizationId);
-					if (current && current.provider === input.provider) {
+					if (current && sameServer(current, input.provider, baseUrl)) {
 						apiKey = savedKey(current);
 						if (current.apiKeyEncrypted && !apiKey)
 							return {
