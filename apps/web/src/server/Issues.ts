@@ -103,9 +103,6 @@ export const messageDto = (row: MessageRow) => ({
 });
 export type MessageDto = ReturnType<typeof messageDto>;
 
-/** Reports whose conversation ends with a message from the reporter. */
-export const awaitingReplySql = sql`(select ${reportMessage.authorType} from ${reportMessage} where ${reportMessage.reportId} = ${report.id} order by ${reportMessage.createdAt} desc limit 1) = 'reporter'`;
-
 export type IssuePatch = {
 	title?: string;
 	description?: string;
@@ -420,10 +417,13 @@ export class Issues extends Context.Service<
 						.offset(filter.offset ?? 0),
 				);
 				if (rows.length === 0) return [];
-				const latest = yield* database.query((db) =>
-					db
-						.selectDistinctOn([report.issueId], {
-							issueId: report.issueId,
+				const ids = rows.map((r) => r.id);
+				// The newest report of each listed issue, one index lookup per issue
+				// (report_issue_created_idx). DISTINCT ON read every report of the
+				// listed issues first: seconds when one has thousands of reports.
+				const latest = yield* database.query((db) => {
+					const last = db
+						.select({
 							id: report.id,
 							message: report.message,
 							reporter: report.reporter,
@@ -431,29 +431,49 @@ export class Issues extends Context.Service<
 							pageUrl: report.pageUrl,
 							release: report.release,
 							createdAt: report.createdAt,
-							consoleErrors: sql<number>`(select count(*) from jsonb_array_elements(${report.console}) as e where e->>'level' = 'error')::int`,
-							failedRequests: sql<number>`(select count(*) from jsonb_array_elements(${report.network}) as n where (n->>'status')::int = 0 or (n->>'status')::int >= 400)::int`,
+							consoleErrors:
+								sql<number>`(select count(*) from jsonb_array_elements(${report.console}) as e where e->>'level' = 'error')::int`.as(
+									"console_errors",
+								),
+							failedRequests:
+								sql<number>`(select count(*) from jsonb_array_elements(${report.network}) as n where (n->>'status')::int = 0 or (n->>'status')::int >= 400)::int`.as(
+									"failed_requests",
+								),
 						})
 						.from(report)
-						.where(
-							inArray(
-								report.issueId,
-								rows.map((r) => r.id),
-							),
-						)
-						.orderBy(report.issueId, desc(report.createdAt)),
-				);
+						.where(eq(report.issueId, issue.id))
+						.orderBy(desc(report.createdAt))
+						.limit(1)
+						.as("last_report");
+					return db
+						.select({
+							issueId: issue.id,
+							id: last.id,
+							message: last.message,
+							reporter: last.reporter,
+							screenshotKey: last.screenshotKey,
+							pageUrl: last.pageUrl,
+							release: last.release,
+							createdAt: last.createdAt,
+							consoleErrors: last.consoleErrors,
+							failedRequests: last.failedRequests,
+						})
+						.from(issue)
+						.innerJoinLateral(last, sql`true`)
+						.where(inArray(issue.id, ids));
+				});
+				// Issues with a conversation whose last message is the reporter's.
+				// Driven from the messages, far fewer than the reports.
 				const waiting = yield* database.query((db) =>
 					db
 						.selectDistinct({ issueId: report.issueId })
-						.from(report)
+						.from(reportMessage)
+						.innerJoin(report, eq(report.id, reportMessage.reportId))
 						.where(
 							and(
-								inArray(
-									report.issueId,
-									rows.map((r) => r.id),
-								),
-								awaitingReplySql,
+								inArray(report.issueId, ids),
+								eq(reportMessage.authorType, "reporter"),
+								sql`not exists (select 1 from ${reportMessage} as later where later.report_id = ${reportMessage.reportId} and later.created_at > ${reportMessage.createdAt})`,
 							),
 						),
 				);

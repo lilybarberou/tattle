@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { db } from "#/db";
-import { activity, issue, issueVote, report } from "#/db/schema";
+import { activity, issue, issueVote, report, reportMessage } from "#/db/schema";
 import { Ingest } from "#/server/Ingest";
 import { Issues } from "#/server/Issues";
 import { captureMail, stopCapturingMail } from "#/server/mailer";
@@ -410,6 +410,68 @@ describe("Issues.list", () => {
 		});
 		expect(first?.lastReport?.reporter).not.toHaveProperty("traits");
 		expect(items.find((i) => i.number === 2)?.lastReport).toBeNull();
+	});
+
+	it("flags issues whose conversation ends with the reporter, on any of their reports", async () => {
+		const { project: p } = await createWorkspace();
+		const older = await submit(
+			reportPayload(p.publicKey, { message: "Older" }),
+		);
+		const newer = await submit(
+			reportPayload(p.publicKey, { message: "Newer" }),
+		);
+		await run(
+			Issues.use((issues) =>
+				issues.moveReport(p.id, newer.id, older.issueNumber, userActor),
+			),
+		);
+		const answered = await submit(reportPayload(p.publicKey));
+		const at = (minutes: number) => new Date(Date.now() - minutes * 60_000);
+		await db.insert(reportMessage).values([
+			// Issue #1: the team answered the older report, the reporter wrote
+			// back. The newest report has no conversation: still waiting.
+			{
+				reportId: older.id,
+				authorType: "user",
+				authorName: "Ada",
+				body: "Hi",
+				createdAt: at(30),
+			},
+			{
+				reportId: older.id,
+				authorType: "reporter",
+				authorName: "Jo",
+				body: "Any news?",
+				createdAt: at(20),
+			},
+			// Issue #3: the reporter wrote, the team answered last.
+			{
+				reportId: answered.id,
+				authorType: "reporter",
+				authorName: "Sam",
+				body: "Help",
+				createdAt: at(20),
+			},
+			{
+				reportId: answered.id,
+				authorType: "user",
+				authorName: "Ada",
+				body: "Done",
+				createdAt: at(10),
+			},
+		]);
+
+		const items = await run(
+			Issues.use((issues) => issues.list({ projectId: p.id })),
+		);
+		const waiting = Object.fromEntries(
+			items.map((i) => [i.number, i.awaitingReply]),
+		);
+		// #2 lost its only report to #1.
+		expect(waiting).toEqual({ 1: true, 2: false, 3: false });
+		expect(items.find((i) => i.number === 1)?.lastReport?.message).toBe(
+			"Newer",
+		);
 	});
 
 	it("lists the least recently updated first when asked, beyond one page", async () => {

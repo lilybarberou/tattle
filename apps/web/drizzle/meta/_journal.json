@@ -57,6 +57,13 @@
       "when": 1794499757049,
       "tag": "0007_email_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794754081054,
+      "tag": "0008_report_issue_created_idx",
+      "breakpoints": true
     }
   ]
 }
