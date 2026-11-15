@@ -1,5 +1,6 @@
 import { openAnnotator, type Shape } from "../annotate";
 import { type Capture, captureViewport } from "../capture";
+import { applyBeforeSend } from "../collection";
 import { getStrings, type Strings } from "../i18n";
 import { Latest } from "../latest";
 import { resolveMotion } from "../motion";
@@ -22,6 +23,7 @@ import {
 } from "../reporter";
 import { resolveScheme, themeVariables } from "../theme";
 import type {
+	BeforeSend,
 	ColorScheme,
 	Locale,
 	Position,
@@ -47,6 +49,7 @@ export interface WidgetConfig {
 	css: string;
 	maskSelectors: string[];
 	release: string | undefined;
+	beforeSend: BeforeSend | undefined;
 }
 
 export interface WidgetDeps {
@@ -984,7 +987,10 @@ export class Widget {
 				release: this.config.release,
 				reporterKey: reporterKey(this.config.projectKey, true),
 			});
-			await sendPayload(this.config.apiUrl, payload);
+			await sendPayload(
+				this.config.apiUrl,
+				await applyBeforeSend(payload, this.config.beforeSend),
+			);
 			// "My reports" appears with this first report.
 			this.scheduleRefresh();
 		} catch (error) {

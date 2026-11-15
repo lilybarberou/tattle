@@ -102,6 +102,8 @@ Tattle.addBreadcrumb({ message: "Applied coupon", category: "cart", data: { code
   backgroundColor="#ffffff"            // behind transparent screens; default white, black in dark mode
   app={{ name: "Shop", version: "1.4.2", build: "87" }}
   release="1.4.2 (87)"                 // default: the app's version and build
+  collect={{ network: false }}         // console, network, steps: all true by default
+  beforeSend={(report) => report}      // change a report before it is sent, or return null to drop it
 >
 ```
 
@@ -116,6 +118,10 @@ Tattle.close();
 The app's name, version and build number are read from `expo-application` when it is installed. Otherwise pass `app`, for example from `react-native-device-info`.
 
 Every report is filed under a release: the app's version and build, such as `"1.4.2 (87)"`, unless you pass `release` (for example to tell over-the-air updates apart, with `Updates.updateId` from `expo-updates`). Issues show the releases they were seen in, the dashboard filters by it, and a bug marked done that gets a newer report is reopened as a regression in that release.
+
+`collect` turns collectors off: `{ console: false }`, `{ network: false }` or `{ steps: false }` (screens from `setScreen` or `trackNavigation` and steps from `addBreadcrumb` are still recorded). They start when the SDK is imported, so early errors are kept; turning one off restores what it patched and forgets what it had kept.
+
+`beforeSend` gets a copy of each report right before it is sent. Return it, changed or not (remove the screenshot, rewrite a log line), or `null` to drop it: the person sees that it could not be sent. If it throws, the report is dropped too.
 
 ## My reports: follow-up and replies
 

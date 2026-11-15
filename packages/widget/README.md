@@ -34,6 +34,7 @@ The script initializes itself from its `data-*` attributes and exposes `window.T
 | `data-color-scheme`  | `colorScheme`                              |
 | `data-show-button`   | `"false"` sets `showButton: false`         |
 | `data-release`       | `release`                                  |
+| `data-collect`       | `collect`: the collectors to keep, e.g. `"console, network"`, or `"none"` |
 
 With `defer`/`async` your code may run before the script has loaded. To call the API that early, add this stub first. Queued calls are replayed in order when the SDK loads:
 
@@ -63,6 +64,8 @@ Tattle.init(options: {
   css?: string                           // extra CSS inside the Shadow DOM
   maskSelectors?: string[]               // extra selectors to mask in screenshots
   release?: string                       // your app's version, e.g. "1.4.2" or a commit SHA (max 100)
+  collect?: { console?: boolean; network?: boolean; steps?: boolean }   // all true by default
+  beforeSend?: (report: IngestPayload) => IngestPayload | null | Promise<IngestPayload | null>
 }): void
 
 Tattle.setTheme(theme: TattleTheme): void                       // replaces the theme, keeps the open form
@@ -81,6 +84,19 @@ Tattle.destroy(): void
 - `destroy` removes the UI and restores the original `console`, `fetch`, `XMLHttpRequest` and `history` methods. It also clears buffers, user and context.
 - `addBreadcrumb` adds a step of your own to the trail, for what the page alone does not show: `Tattle.addBreadcrumb({ message: "Applied coupon", category: "cart", data: { code: "SPRING" } })`. `category` defaults to `"custom"`; `data` keeps up to 10 strings, numbers, booleans or nulls. Never put secrets in it.
 - When `identify` gives a user email, the form hides its optional email field.
+- `collect` turns collectors off: `{ console: false }`, `{ network: false }`, `{ steps: false }` (steps you add with `addBreadcrumb` are still recorded). The collectors start when the script loads, so errors before `init` are kept; turning one off at `init` restores what it patched and forgets what it had kept, so nothing from before is sent.
+- `beforeSend` gets a copy of each report right before it is sent. Return it, changed or not: remove the screenshot, rewrite a log line, drop a field. Return `null` to drop the report; the person sees that it could not be sent. If it throws, the report is dropped too.
+
+  ```js
+  Tattle.init({
+    projectKey: "pk_...",
+    beforeSend(report) {
+      report.console = report.console.filter((entry) => entry.level !== "debug");
+      report.message = report.message.replace(/\b\d{16}\b/g, "[card]");
+      return report;
+    },
+  });
+  ```
 - `release` files every report under your app's version. Issues show the releases they were seen in, the dashboard filters by it, and a bug marked done that gets a newer report is reopened as a regression in that release. Set it from your build, e.g. `release: import.meta.env.VITE_APP_VERSION`.
 
 ## My reports: follow-up and replies
