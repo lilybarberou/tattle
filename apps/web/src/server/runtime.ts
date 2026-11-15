@@ -1,4 +1,5 @@
 import { Cause, Effect, Exit, Layer, ManagedRuntime } from "effect";
+import { HttpError } from "#/shared/http-error";
 import { Access } from "./Access";
 import { AiSettings } from "./AiSettings";
 import { causeKinds } from "./background";
@@ -62,14 +63,7 @@ if (import.meta.hot) {
 	import.meta.hot.dispose(() => runtime.dispose());
 }
 
-export class HttpError extends Error {
-	constructor(
-		readonly status: number,
-		message: string,
-	) {
-		super(message);
-	}
-}
+export { HttpError };
 
 const isAppError = (error: unknown): error is AppError =>
 	typeof error === "object" &&
