@@ -13,7 +13,9 @@ export default defineConfig({
 	testMatch: "**/*.spec.ts",
 	fullyParallel: true,
 	forbidOnly: Boolean(process.env.CI),
-	retries: 0,
+	// One retry in CI only: a test that passes on its second try is reported
+	// as flaky, not hidden. Locally, a failure is a failure.
+	retries: process.env.CI ? 1 : 0,
 	// Two workers by default: password hashing, screenshots and the widget's
 	// capture are CPU-heavy, and a busy machine turns waits into timeouts.
 	// E2E_WORKERS=4 on a quiet one.

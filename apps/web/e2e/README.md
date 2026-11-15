@@ -14,6 +14,8 @@ pnpm --filter web e2e:down       # stop and remove the e2e containers when done
 
 `pnpm test:e2e` starts the containers of `docker-compose.e2e.yml`, builds the widget and the app, then runs `playwright test`, which starts the app and the fixtures server and stops them at the end.
 
+The CI runs the same command on every push and pull request (job "End-to-end" in `.github/workflows/ci.yml`), with one retry: a test that only passes on its second try is reported as flaky. The Playwright report of a failed run is kept for 7 days as the `playwright-report` artifact.
+
 While working on tests, from `apps/web`:
 
 ```bash

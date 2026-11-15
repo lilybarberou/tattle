@@ -79,3 +79,45 @@ jobs:
 
       - name: Build (no push)
         run: docker build .
+
+  e2e:
+    name: End-to-end (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm --filter web exec playwright install --with-deps chromium
+
+      # Starts its own Postgres and Mailpit (e2e/docker-compose.e2e.yml),
+      # builds the widget and the app, then runs Playwright. Everything stays
+      # on the runner: playwright.config.ts refuses any non-local address.
+      - name: Run the suite
+        run: pnpm test:e2e
+
+      - name: Keep the report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          retention-days: 7
+
+      - name: Stop the containers
+        if: always()
+        run: pnpm --filter web e2e:down
