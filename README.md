@@ -26,7 +26,7 @@ On a hosting panel (EasyPanel, Coolify, Dokploy…), run the image `ghcr.io/lily
 
 **[The self-hosting guide](docs/SELF-HOSTING.md)** walks through all of it step by step: HTTPS, hosting panels, backups, upgrades, troubleshooting and every setting.
 
-The first account is the admin: creating it takes the **setup code** printed in the logs (`docker compose logs app | grep setup`), so nobody else can claim a fresh server. Sign-up then closes; invite the rest of your team from **Members** (they sign up with the invited email and join automatically). Set `ALLOW_SIGNUP=true` to let anyone create an account.
+The first account is the admin: creating it takes the **setup code** printed in the logs (`docker compose logs app | grep setup`), so nobody else can claim a fresh server. Sign-up then closes; invite the rest of your team from **Members** (they open the invitation link, sign up with the invited email and join right away; the link is the proof, so share it only with them). Set `ALLOW_SIGNUP=true` to let anyone create an account.
 
 What runs:
 

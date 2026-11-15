@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
 import { getCookie, getRequest, setCookie } from "@tanstack/react-start/server";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { Effect } from "effect";
 import * as z from "zod";
 import {
@@ -22,8 +22,9 @@ import {
 import { auth } from "#/lib/auth";
 import { passwordPolicy } from "#/lib/password-policy";
 import {
-	acceptPendingInvitations,
+	acceptInvitation,
 	announceSetupCode,
+	signInvitation,
 	signupPolicy,
 } from "#/lib/signup";
 import { AI_PROVIDERS } from "#/shared/ai";
@@ -138,9 +139,6 @@ export const getSessionFn = createServerFn({ method: "GET" }).handler(
 		const session = await auth.api.getSession({
 			headers: getRequest().headers,
 		});
-		// An invited person joins the organization the first time they sign in.
-		if (session)
-			await acceptPendingInvitations(session.user.id, session.user.email);
 		return session
 			? {
 					user: {
@@ -153,11 +151,35 @@ export const getSessionFn = createServerFn({ method: "GET" }).handler(
 	},
 );
 
+/**
+ * An invited person joins the organization from the link they were sent,
+ * once signed in with the email it was sent to.
+ */
+export const acceptInvitationFn = createServerFn({ method: "POST" })
+	.validator(z.object({ invite: z.string().max(200) }))
+	.handler(async ({ data }) => {
+		const session = await auth.api.getSession({
+			headers: getRequest().headers,
+		});
+		if (!session) return { joined: false };
+		const joined = await acceptInvitation(
+			session.user.id,
+			session.user.email,
+			data.invite,
+		);
+		return { joined };
+	});
+
 /** Tells the login page whether to offer account creation. */
 export const getSignupStateFn = createServerFn({ method: "GET" })
-	.validator(z.object({ email: z.string().optional() }))
+	.validator(
+		z.object({
+			email: z.string().optional(),
+			invite: z.string().max(200).optional(),
+		}),
+	)
 	.handler(async ({ data }) => {
-		const policy = await signupPolicy(data.email);
+		const policy = await signupPolicy(data.email, data.invite);
 		if (policy.firstUser) announceSetupCode();
 		return {
 			firstUser: policy.firstUser,
@@ -798,11 +820,16 @@ export const listMembersFn = createServerFn({ method: "GET" })
 		),
 	);
 
+/** The link an invitation is accepted from: signed, so only its id is needed. */
+const invitationLink = (email: string, invitationId: string) =>
+	`${env.baseUrl}/login?email=${encodeURIComponent(email)}&invite=${signInvitation(invitationId)}`;
+
 export const inviteMemberFn = createServerFn({ method: "POST" })
 	.validator(
 		z.object({
 			organizationId: z.string(),
-			email: z.string().email(),
+			// Trimmed before it is checked: a pasted address often ends in a space.
+			email: z.string().trim().email(),
 			role: z.enum(["member", "admin"]),
 		}),
 	)
@@ -815,9 +842,10 @@ export const inviteMemberFn = createServerFn({ method: "POST" })
 				);
 				const database = yield* Database;
 				const email = data.email.trim().toLowerCase();
+				const invitationId = crypto.randomUUID();
 				yield* database.query((db) =>
 					db.insert(invitation).values({
-						id: crypto.randomUUID(),
+						id: invitationId,
 						organizationId: data.organizationId,
 						email,
 						role: data.role,
@@ -826,7 +854,7 @@ export const inviteMemberFn = createServerFn({ method: "POST" })
 						inviterId: p.userId,
 					}),
 				);
-				const link = `${env.baseUrl}/login?email=${encodeURIComponent(email)}`;
+				const link = invitationLink(email, invitationId);
 				const [org] = yield* database.query((db) =>
 					db
 						.select({ name: organization.name })
@@ -850,6 +878,44 @@ export const inviteMemberFn = createServerFn({ method: "POST" })
 					Effect.orElseSucceed(() => false),
 				);
 				return { link, emailed };
+			}),
+		),
+	);
+
+/**
+ * The link of an invitation still waiting, for an admin who lost it (no
+ * SMTP, or the email never arrived). The same link as the one created: the
+ * token is derived from the invitation's id with the server's secret.
+ */
+export const getInvitationLinkFn = createServerFn({ method: "POST" })
+	.validator(z.object({ organizationId: z.string(), invitationId: z.string() }))
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				yield* requireAdmin(
+					data.organizationId,
+					"Only owners and admins can invite people",
+				);
+				const database = yield* Database;
+				const [row] = yield* database.query((db) =>
+					db
+						.select({ id: invitation.id, email: invitation.email })
+						.from(invitation)
+						.where(
+							and(
+								eq(invitation.id, data.invitationId),
+								eq(invitation.organizationId, data.organizationId),
+								eq(invitation.status, "pending"),
+								gt(invitation.expiresAt, new Date()),
+							),
+						),
+				);
+				if (!row)
+					return yield* new NotFound({
+						message:
+							"This invitation was used, canceled or has expired. Create a new one.",
+					});
+				return { email: row.email, link: invitationLink(row.email, row.id) };
 			}),
 		),
 	);
