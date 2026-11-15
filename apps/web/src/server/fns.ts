@@ -278,6 +278,7 @@ export const getProjectFn = createServerFn({ method: "GET" })
 				const { project: row } = yield* withProject(data.projectId);
 				const issues = yield* Issues;
 				const counts = yield* issues.counts(row.id);
+				const canManage = yield* isProjectAdmin(row.organizationId);
 				return {
 					id: row.id,
 					name: row.name,
@@ -289,6 +290,9 @@ export const getProjectFn = createServerFn({ method: "GET" })
 					portalSlug: row.portalSlug,
 					// The secret itself: getIdentitySettingsFn, for admins only.
 					identityVerification: row.identitySecret !== null,
+					// Owners and admins change the project's settings and delete
+					// its data; members triage, comment and answer.
+					canManage,
 					counts,
 				};
 			}),
@@ -320,7 +324,9 @@ export const updateProjectFn = createServerFn({ method: "POST" })
 	.handler(({ data }) =>
 		run(
 			Effect.gen(function* () {
-				yield* withProject(data.projectId);
+				// Which sites may send reports, and the public page: project
+				// settings, like identity and webhooks.
+				yield* requireProjectAdmin(data.projectId);
 				const portalSlug = data.portalSlug?.trim().toLowerCase();
 				if (
 					portalSlug !== undefined &&
@@ -977,6 +983,7 @@ export const listTokensFn = createServerFn({ method: "GET" })
 			Effect.gen(function* () {
 				const p = yield* principal();
 				yield* (yield* Access).requireOrganization(p, data.organizationId);
+				const isAdmin = yield* isProjectAdmin(data.organizationId);
 				const database = yield* Database;
 				const rows = yield* database.query((db) =>
 					db
@@ -997,6 +1004,9 @@ export const listTokensFn = createServerFn({ method: "GET" })
 					canWrite: r.canWrite,
 					lastUsedAt: r.lastUsedAt?.toISOString() ?? null,
 					createdAt: r.createdAt.toISOString(),
+					// Your own tokens, or anyone's for owners and admins.
+					canRevoke:
+						isAdmin || (p.kind === "user" && r.createdById === p.userId),
 				}));
 			}),
 		),
@@ -1045,6 +1055,26 @@ export const revokeTokenFn = createServerFn({ method: "POST" })
 				const p = yield* principal();
 				yield* (yield* Access).requireOrganization(p, data.organizationId);
 				const database = yield* Database;
+				const [token] = yield* database.query((db) =>
+					db
+						.select({ createdById: apiToken.createdById })
+						.from(apiToken)
+						.where(
+							and(
+								eq(apiToken.id, data.tokenId),
+								eq(apiToken.organizationId, data.organizationId),
+							),
+						),
+				);
+				if (!token) return { ok: true };
+				// Members revoke their own tokens; someone else's cuts off an
+				// agent they do not run, which is for owners and admins.
+				if (p.kind !== "user" || token.createdById !== p.userId) {
+					yield* requireAdmin(
+						data.organizationId,
+						"Only owners and admins can revoke someone else's token",
+					);
+				}
 				yield* database.query((db) =>
 					db
 						.update(apiToken)
@@ -1266,7 +1296,10 @@ export const deleteReportFn = createServerFn({ method: "POST" })
 	.handler(({ data }) =>
 		run(
 			Effect.gen(function* () {
+				// Deleting cannot be undone (screenshots included): owners and
+				// admins only. Members decline or merge instead.
 				const { principal: p } = yield* withProject(data.projectId);
+				yield* requireProjectAdmin(data.projectId);
 				const lifecycle = yield* DataLifecycle;
 				yield* lifecycle.deleteReport(
 					data.projectId,
@@ -1283,7 +1316,8 @@ export const deleteIssueFn = createServerFn({ method: "POST" })
 	.handler(({ data }) =>
 		run(
 			Effect.gen(function* () {
-				yield* withProject(data.projectId);
+				// Like a report: cannot be undone, so owners and admins only.
+				yield* requireProjectAdmin(data.projectId);
 				const lifecycle = yield* DataLifecycle;
 				yield* lifecycle.deleteIssue(data.projectId, data.number);
 				return { ok: true };

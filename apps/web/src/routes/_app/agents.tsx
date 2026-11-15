@@ -90,22 +90,32 @@ function AgentsPage() {
 												: "never used"}
 										</p>
 									</div>
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={async () => {
-											await revokeTokenFn({
-												data: {
-													organizationId: organization.id,
-													tokenId: t.id,
-												},
-											});
-											toast.success(`${t.name} can no longer connect`);
-											await router.invalidate();
-										}}
-									>
-										Revoke
-									</Button>
+									{t.canRevoke && (
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={async () => {
+												try {
+													await revokeTokenFn({
+														data: {
+															organizationId: organization.id,
+															tokenId: t.id,
+														},
+													});
+													toast.success(`${t.name} can no longer connect`);
+													await router.invalidate();
+												} catch (error) {
+													toast.error(
+														error instanceof Error
+															? error.message
+															: "Not revoked",
+													);
+												}
+											}}
+										>
+											Revoke
+										</Button>
+									)}
 								</li>
 							))}
 						</ul>

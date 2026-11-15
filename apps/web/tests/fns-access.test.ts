@@ -257,11 +257,78 @@ describe("owner and admin only actions", () => {
 				fns.eraseReporterFn({
 					data: { organizationId, query: "x@example.com" },
 				}),
+			() => fns.updateProjectFn({ data: { projectId, name: "Renamed" } }),
+			() => fns.updateProjectFn({ data: { projectId, allowedOrigins: ["*"] } }),
+			() =>
+				fns.updateProjectFn({
+					data: { projectId, portalEnabled: true, portalSlug: "mine-now" },
+				}),
+			() => fns.deleteIssueFn({ data: { projectId, number: 1 } }),
+			() => fns.deleteReportFn({ data: { projectId, reportId: "x" } }),
 		];
 		for (const call of refused) expect(await statusOf(call())).toBe(403);
 		const [still] = await db.select().from(project).where(eq(project.id, p.id));
 		expect(still?.identitySecret).toBeNull();
+		expect(still).toMatchObject({
+			name: p.name,
+			allowedOrigins: [],
+			portalEnabled: false,
+		});
 		expect(await db.select().from(invitation)).toEqual([]);
+	});
+
+	it("tell the dashboard whether the person manages the project", async () => {
+		const { project: p, admin, plain } = await roles();
+		as(plain);
+		expect(
+			(await fns.getProjectFn({ data: { projectId: p.id } })).canManage,
+		).toBe(false);
+		as(admin);
+		expect(
+			(await fns.getProjectFn({ data: { projectId: p.id } })).canManage,
+		).toBe(true);
+	});
+
+	it("let a member revoke their own token only, and an admin anyone's", async () => {
+		const { org, admin, plain } = await roles();
+		const organizationId = org.id;
+		as(admin);
+		await fns.createTokenFn({
+			data: { organizationId, name: "Admin's agent", canWrite: true },
+		});
+		as(plain);
+		await fns.createTokenFn({
+			data: { organizationId, name: "My agent", canWrite: true },
+		});
+		const listed = await fns.listTokensFn({ data: { organizationId } });
+		const byName = (name: string) =>
+			listed.find((t) => t.name === name) as (typeof listed)[number];
+		expect(byName("My agent").canRevoke).toBe(true);
+		expect(byName("Admin's agent").canRevoke).toBe(false);
+
+		expect(
+			await statusOf(
+				fns.revokeTokenFn({
+					data: { organizationId, tokenId: byName("Admin's agent").id },
+				}),
+			),
+		).toBe(403);
+		await fns.revokeTokenFn({
+			data: { organizationId, tokenId: byName("My agent").id },
+		});
+		expect(
+			(await fns.listTokensFn({ data: { organizationId } })).map((t) => t.name),
+		).toEqual(["Admin's agent"]);
+
+		await fns.createTokenFn({
+			data: { organizationId, name: "Another of mine", canWrite: false },
+		});
+		as(admin);
+		const all = await fns.listTokensFn({ data: { organizationId } });
+		expect(all.every((t) => t.canRevoke)).toBe(true);
+		for (const t of all)
+			await fns.revokeTokenFn({ data: { organizationId, tokenId: t.id } });
+		expect(await fns.listTokensFn({ data: { organizationId } })).toEqual([]);
 	});
 
 	it("are allowed to an admin", async () => {

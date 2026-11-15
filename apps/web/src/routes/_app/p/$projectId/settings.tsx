@@ -165,16 +165,20 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 								onChange={(e) => setName(e.target.value)}
 								required
 								maxLength={80}
+								readOnly={!project.canManage}
 							/>
 						</div>
-						<Button
-							type="submit"
-							variant="outline"
-							disabled={!name.trim() || name === project.name}
-						>
-							Save
-						</Button>
+						{project.canManage && (
+							<Button
+								type="submit"
+								variant="outline"
+								disabled={!name.trim() || name === project.name}
+							>
+								Save
+							</Button>
+						)}
 					</form>
+					{!project.canManage && <OwnersAndAdminsOnly />}
 				</SettingsSection>
 
 				<SettingsSection
@@ -284,11 +288,16 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 								rows={3}
 								placeholder="https://shop.atelier-nord.fr"
 								className="font-mono text-xs"
+								readOnly={!project.canManage}
 							/>
 						</div>
-						<Button type="submit" variant="outline">
-							Save sites
-						</Button>
+						{project.canManage ? (
+							<Button type="submit" variant="outline">
+								Save sites
+							</Button>
+						) : (
+							<OwnersAndAdminsOnly />
+						)}
 					</form>
 				</SettingsSection>
 
@@ -780,6 +789,7 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 								id="portal-enabled"
 								checked={portalEnabled}
 								onCheckedChange={(v) => setPortalEnabled(v === true)}
+								disabled={!project.canManage}
 							/>
 							Publish the page
 						</label>
@@ -796,13 +806,18 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 									className="h-8 min-w-0 flex-1 bg-transparent pr-3 outline-none"
 									pattern="[a-z0-9][a-z0-9-]{2,39}"
 									required
+									readOnly={!project.canManage}
 								/>
 							</div>
 						</div>
 						<div className="flex flex-wrap items-center gap-3">
-							<Button type="submit" variant="outline">
-								Save
-							</Button>
+							{project.canManage ? (
+								<Button type="submit" variant="outline">
+									Save
+								</Button>
+							) : (
+								<OwnersAndAdminsOnly />
+							)}
 							{project.portalEnabled && project.portalSlug && (
 								<Link
 									to="/portal/$slug"
@@ -817,50 +832,61 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 					</form>
 				</SettingsSection>
 
-				<SettingsSection
-					id="danger"
-					title="Delete this project"
-					description="Deletes every issue, report, screenshot, webhook and vote of this project. The widget stops accepting reports. This cannot be undone."
-				>
-					<form
-						className="max-w-md space-y-3 rounded-lg border border-negative/30 p-4"
-						onSubmit={async (e) => {
-							e.preventDefault();
-							try {
-								await deleteProjectFn({
-									data: { projectId: project.id, confirmName },
-								});
-								toast.success(`${project.name} was deleted`);
-								await router.invalidate();
-								await navigate({ to: "/" });
-							} catch (error) {
-								toast.error(
-									error instanceof Error ? error.message : "Could not delete",
-								);
-							}
-						}}
+				{project.canManage && (
+					<SettingsSection
+						id="danger"
+						title="Delete this project"
+						description="Deletes every issue, report, screenshot, webhook and vote of this project. The widget stops accepting reports. This cannot be undone."
 					>
-						<Label htmlFor="confirm-name">
-							Type <span className="font-semibold">{project.name}</span> to
-							confirm
-						</Label>
-						<Input
-							id="confirm-name"
-							value={confirmName}
-							onChange={(e) => setConfirmName(e.target.value)}
-							autoComplete="off"
-						/>
-						<Button
-							type="submit"
-							variant="destructive"
-							disabled={confirmName.trim() !== project.name}
+						<form
+							className="max-w-md space-y-3 rounded-lg border border-negative/30 p-4"
+							onSubmit={async (e) => {
+								e.preventDefault();
+								try {
+									await deleteProjectFn({
+										data: { projectId: project.id, confirmName },
+									});
+									toast.success(`${project.name} was deleted`);
+									await router.invalidate();
+									await navigate({ to: "/" });
+								} catch (error) {
+									toast.error(
+										error instanceof Error ? error.message : "Could not delete",
+									);
+								}
+							}}
 						>
-							Delete {project.name}
-						</Button>
-					</form>
-				</SettingsSection>
+							<Label htmlFor="confirm-name">
+								Type <span className="font-semibold">{project.name}</span> to
+								confirm
+							</Label>
+							<Input
+								id="confirm-name"
+								value={confirmName}
+								onChange={(e) => setConfirmName(e.target.value)}
+								autoComplete="off"
+							/>
+							<Button
+								type="submit"
+								variant="destructive"
+								disabled={confirmName.trim() !== project.name}
+							>
+								Delete {project.name}
+							</Button>
+						</form>
+					</SettingsSection>
+				)}
 			</div>
 		</>
+	);
+}
+
+/** In place of a setting's Save button, for plain members. */
+function OwnersAndAdminsOnly() {
+	return (
+		<p className="text-muted-foreground">
+			Only owners and admins can change this.
+		</p>
 	);
 }
 
