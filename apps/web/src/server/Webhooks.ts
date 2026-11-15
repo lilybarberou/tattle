@@ -74,8 +74,9 @@ export class Webhooks extends Context.Service<
 			projectId: string,
 			input: { url: string; events: string[]; format: WebhookFormat },
 		) => Effect.Effect<{ id: string }, InvalidInput | DbError>;
-		/** Sends a `ping` event to one endpoint and waits for the result. */
+		/** Sends a `ping` event to one endpoint of a project and waits for the result. */
 		readonly ping: (
+			projectId: string,
 			endpointId: string,
 		) => Effect.Effect<{ ok: boolean; status?: number; error?: string }>;
 	}
@@ -381,12 +382,17 @@ export class Webhooks extends Context.Service<
 			});
 
 			const ping = Effect.fn("Webhooks.ping")(
-				function* (endpointId: string) {
+				function* (projectId: string, endpointId: string) {
 					const [endpoint] = yield* database.query((db) =>
 						db
 							.select()
 							.from(webhookEndpoint)
-							.where(eq(webhookEndpoint.id, endpointId)),
+							.where(
+								and(
+									eq(webhookEndpoint.id, endpointId),
+									eq(webhookEndpoint.projectId, projectId),
+								),
+							),
 					);
 					if (!endpoint) return { ok: false, error: "Endpoint not found" };
 					const deliveryId = crypto.randomUUID();

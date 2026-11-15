@@ -146,7 +146,7 @@ Two ways, both on `https://your-server/api/mcp`:
   claude mcp add --transport http tattle https://your-server/api/mcp
   ```
 
-- **A bot or script** (no browser): create a token in **Agents & API**. The token acts under its own name, can be read-only, and is what you assign issues to.
+- **A bot or script** (no browser): create a token in **Agents & API**. The token acts under its own name, can be read-only, and is what you assign issues to. Tokens work with `/api/mcp` only: the dashboard itself never accepts them.
 
   ```bash
   claude mcp add --transport http tattle https://your-server/api/mcp \

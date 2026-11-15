@@ -24,6 +24,9 @@ export default defineConfig({
 			STORAGE_DRIVER: "local",
 			REPORT_RETENTION_DAYS: "",
 			ALLOW_SIGNUP: "",
+			// Never a real mail server: tests read the mailer's outbox instead.
+			SMTP_HOST: "",
+			TRUST_PROXY: "",
 		},
 	},
 });
