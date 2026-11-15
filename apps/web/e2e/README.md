@@ -63,6 +63,7 @@ The app runs with sign-up closed (as in production), `PASSWORD_BREACH_CHECK=fals
 | `invitations.spec.ts`        | Invitation by email, the signed link only, existing accounts, canceled invitations, members cannot invite                              |
 | `roles.spec.ts`              | What members may do; what only owners and admins may                                                                                   |
 | `api-tokens.spec.ts`         | Read-only and write tokens over MCP, organization boundary, revocation                                                                 |
+| `webhooks.spec.ts`           | Signed deliveries to a local receiver, event filters, recent deliveries                                                                |
 | `conversation-email.spec.ts` | Reporter answers from the emailed link; stopping emails                                                                                |
 | `auth.spec.ts`               | Password reset by email, other sessions signed out                                                                                     |
 | `github-sync.spec.ts`        | Pull requests that fix issues, from signed deliveries: In review, then Done when merged                                                |
