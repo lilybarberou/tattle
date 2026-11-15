@@ -1,4 +1,4 @@
-import { getRequestIP } from "@tanstack/react-start/server";
+import { getRequest, getRequestIP } from "@tanstack/react-start/server";
 
 /**
  * Fixed-window counters kept in memory. Enough for one server process; the
@@ -36,10 +36,41 @@ const numberFromEnv = (name: string, fallback: number) => {
 	return Number.isFinite(value) && value > 0 ? value : fallback;
 };
 
-/** The caller's IP; X-Forwarded-For is trusted only when TRUST_PROXY=true. */
-export const clientIp = () =>
-	getRequestIP({ xForwardedFor: process.env.TRUST_PROXY === "true" }) ??
-	"unknown";
+/**
+ * How many reverse proxies sit in front of Tattle: none by default, one with
+ * TRUST_PROXY=true, or the number TRUST_PROXY holds (a CDN in front of nginx
+ * is 2).
+ */
+export const trustedProxyHops = (value = process.env.TRUST_PROXY) =>
+	value === "true" ? 1 : /^[1-9]\d?$/.test(value ?? "") ? Number(value) : 0;
+
+/**
+ * The client's IP in an X-Forwarded-For header that `hops` trusted proxies
+ * appended to. Each proxy adds the address it got the request from at the
+ * end, so the client is `hops` entries from the right; anything before it was
+ * written by the client and could be anything.
+ */
+export const forwardedClientIp = (
+	header: string | null | undefined,
+	hops: number,
+) => {
+	if (!header || hops < 1) return undefined;
+	const entries = header
+		.split(",")
+		.map((entry) => entry.trim())
+		.filter(Boolean);
+	return entries[Math.max(0, entries.length - hops)];
+};
+
+/** The caller's IP; X-Forwarded-For is trusted only with TRUST_PROXY set. */
+export const clientIp = () => {
+	const hops = trustedProxyHops();
+	const forwarded =
+		hops > 0
+			? forwardedClientIp(getRequest().headers.get("x-forwarded-for"), hops)
+			: undefined;
+	return forwarded ?? getRequestIP() ?? "unknown";
+};
 
 /** The header Better Auth reads the client IP from. Only this server sets it. */
 export const CLIENT_IP_HEADER = "x-tattle-client-ip";
@@ -63,18 +94,15 @@ export const withClientIp = (request: Request) => {
 	} as RequestInit);
 };
 
-/**
- * Reports per IP (default 20 per 10 minutes) and per project key (default
- * 300 per hour). Returns the seconds to wait when a limit is reached.
- */
-export const limitIngest = (ip: string, projectKey: string) => {
+/** Reports per IP: default 20 per 10 minutes. Checked before the body is read. */
+export const limitIngestIp = (ip: string) => {
 	sweep();
-	const perIp = hit(
-		`ip:${ip}`,
-		numberFromEnv("INGEST_LIMIT_PER_IP", 20),
-		10 * 60_000,
-	);
-	if (!perIp.ok) return perIp;
+	return hit(`ip:${ip}`, numberFromEnv("INGEST_LIMIT_PER_IP", 20), 10 * 60_000);
+};
+
+/** Reports per project key: default 300 per hour. */
+export const limitIngestProject = (projectKey: string) => {
+	sweep();
 	return hit(
 		`project:${projectKey}`,
 		numberFromEnv("INGEST_LIMIT_PER_PROJECT", 300),
@@ -98,11 +126,12 @@ export const limitPortal = (ip: string) => {
  */
 export const limitGithub = (ip: string, projectId: string) => {
 	sweep();
-	return hit(
-		`github:${ip}:${projectId}`,
-		numberFromEnv("GITHUB_LIMIT_PER_IP", 300),
-		10 * 60_000,
-	);
+	const limit = numberFromEnv("GITHUB_LIMIT_PER_IP", 300);
+	// Every project together too, at a few times the limit: a new project id
+	// in the URL on each request would otherwise never be limited.
+	const perIp = hit(`github-ip:${ip}`, limit * 4, 10 * 60_000);
+	if (!perIp.ok) return perIp;
+	return hit(`github:${ip}:${projectId}`, limit, 10 * 60_000);
 };
 
 /**

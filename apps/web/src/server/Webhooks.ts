@@ -20,6 +20,7 @@ import { env } from "./env";
 import { type DbError, InvalidInput } from "./errors";
 import { Notifications } from "./Notifications";
 import { checkUrlHost } from "./private-address";
+import { postPublic } from "./public-request";
 
 export { WEBHOOK_EVENTS, type WebhookEvent };
 
@@ -112,8 +113,10 @@ export class Webhooks extends Context.Service<
 										"x-tattle-signature": `t=${timestamp},v1=${signPayload(endpoint.secret, timestamp, body)}`,
 									}
 								: {};
-						const response = await fetch(endpoint.url, {
-							method: "POST",
+						// Redirects are never followed (they could lead anywhere, a
+						// private address included), and the address is checked again
+						// when connecting: the name could resolve elsewhere by then.
+						return await postPublic(endpoint.url, {
 							headers: {
 								"content-type": "application/json",
 								"user-agent": "tattle-webhooks/0.1",
@@ -121,16 +124,23 @@ export class Webhooks extends Context.Service<
 							},
 							body,
 							signal: AbortSignal.timeout(10_000),
-							// A redirect could lead anywhere, a private address included.
-							redirect: "manual",
+							publicOnly: !env.allowPrivateUrls,
 						});
-						await response.body?.cancel().catch(() => {});
-						return response.status;
 					},
-					catch: (cause) =>
-						cause instanceof DeliveryFailed
-							? cause
-							: new DeliveryFailed({ message: String(cause) }),
+					catch: (cause) => {
+						if (cause instanceof DeliveryFailed) return cause;
+						// The kind only: the text of a network error tells what sits at
+						// an address and port, which would make this a port scanner.
+						const code = (cause as { code?: unknown } | null)?.code;
+						if (code === "EPRIVATEADDRESS")
+							return new DeliveryFailed({
+								message: `Refused: ${PRIVATE_WEBHOOK_REFUSED}`,
+								refused: true,
+							});
+						if (cause instanceof Error && cause.name === "TimeoutError")
+							return new DeliveryFailed({ message: "Timed out" });
+						return new DeliveryFailed({ message: "Could not connect" });
+					},
 				}).pipe(
 					Effect.flatMap((status) =>
 						status >= 200 && status < 300

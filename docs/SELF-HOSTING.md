@@ -160,7 +160,8 @@ Then set `BETTER_AUTH_URL=https://your-domain` and `TRUST_PROXY=true` in `.env`,
 > [!WARNING]
 > Set `TRUST_PROXY=true` only when a proxy sits in front of Tattle. It makes Tattle believe the
 > visitor's IP from the `X-Forwarded-For` header, which anyone could fake if they reached Tattle
-> directly.
+> directly. Tattle reads the last address in that header, the one your proxy added. With two proxies
+> in a row (a CDN in front of nginx, for example), set `TRUST_PROXY=2`.
 
 ### On a hosting panel (EasyPanel, Coolify, Dokploy…)
 
@@ -339,7 +340,7 @@ Start with the logs: `docker compose logs --tail=100 app`.
 | "Wrong setup code" | Copy the code again from `docker compose logs app \| grep setup`. If you changed `BETTER_AUTH_SECRET`, the code changed too. |
 | Signing in does nothing, or "Invalid origin" | `BETTER_AUTH_URL` must be exactly the address in your browser, `https://` included and no trailing slash. |
 | The widget says "This origin is not allowed" | Add your app's address (for example `https://shop.example.org`) to the project's *Allowed sites*. |
-| "Too many reports" (429) behind a proxy, from many people at once | Set `TRUST_PROXY=true`, otherwise Tattle sees every visitor as the proxy's IP. |
+| "Too many reports" (429) or "Too many requests" behind a proxy, from many people at once | Set `TRUST_PROXY=true`, otherwise Tattle sees every visitor as the proxy's IP. With a CDN or another proxy in front of yours (Cloudflare in front of nginx, Traefik behind a load balancer…), set `TRUST_PROXY` to the number of proxies, for example `2`: Tattle reads the visitor's address that many entries from the end of `X-Forwarded-For`. |
 | The address shows nothing, or the panel keeps restarting the app; the logs say `Listening on: http://localhost/` | The panel set `PORT` (to 80). Add `PORT=3000` to the environment, or point the domain at port 80. |
 | Screenshots disappear after a redeploy | Nothing is mounted at `/data`. Add the volume (or use S3). |
 | Invitations aren't emailed | Expected without SMTP: copy the invitation link that **Members** shows right after you invite someone. If it gets lost, **Show link** next to the waiting invitation shows it again (owners and admins). With SMTP, the logs show the error. |
@@ -356,7 +357,7 @@ After changing `.env`, apply it with `docker compose up -d`.
 | `BETTER_AUTH_SECRET` | (required) | Signs sessions, derives the setup code and encrypts the AI key of duplicate suggestions. 32 characters or more. |
 | `POSTGRES_PASSWORD` | (required with Compose) | The bundled database's password. |
 | `DATABASE_URL` | set by Compose | Your own Postgres instead: `postgres://user:password@host:5432/db`. |
-| `TRUST_PROXY` | `false` | `true` behind a reverse proxy, to see visitors' real IPs. |
+| `TRUST_PROXY` | `false` | `true` behind a reverse proxy, to see visitors' real IPs. The number of proxies when there are several in a row (`2` for a CDN in front of nginx). |
 | `DOMAIN` | | The domain for the bundled Caddy (`--profile https`). |
 | `TATTLE_VERSION` | `latest` | The image version to run. |
 | `APP_BIND` / `APP_PORT` | `127.0.0.1` / `3000` | Where Tattle listens on the machine. `APP_BIND=0.0.0.0` makes it reachable at `http://<server-ip>:3000` without a proxy. |
