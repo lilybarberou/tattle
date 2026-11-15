@@ -119,6 +119,39 @@ describe("AiSettings", () => {
 		expect(off).toMatchObject({ model: "gpt-5-mini", keyLast4: null });
 	});
 
+	it("never sends a saved key to a new base URL", async () => {
+		const org = await createOrganization();
+		const owner = await createPrincipal(org.id);
+		await save(owner, org.id, {
+			provider: "openai_compatible",
+			baseUrl: "https://llm.example.com/v1",
+			model: "llama3.2",
+			apiKey: KEY,
+			enabled: true,
+		});
+		const fetchMock = mockFetch(200, {
+			choices: [{ message: { content: "ok" } }],
+		});
+		await test(owner, org.id, {
+			provider: "openai_compatible",
+			baseUrl: "https://203.0.113.66/v1",
+			model: "llama3.2",
+		});
+		const [, init] = fetchMock.mock.calls[0] ?? [];
+		expect(
+			(init?.headers as Record<string, string>).authorization,
+		).toBeUndefined();
+
+		const moved = await save(owner, org.id, {
+			provider: "openai_compatible",
+			baseUrl: "https://203.0.113.66/v1",
+			model: "llama3.2",
+			enabled: true,
+		});
+		expect(moved).toMatchObject({ keyLast4: null });
+		expect((await savedRow(org.id))?.apiKeyEncrypted).toBeNull();
+	});
+
 	it("needs a base URL for an OpenAI-compatible server, but no key", async () => {
 		const org = await createOrganization();
 		const owner = await createPrincipal(org.id);
