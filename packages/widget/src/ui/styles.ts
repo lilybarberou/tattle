@@ -247,6 +247,8 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 .fb-msg { align-self: flex-start; max-width: 88%; padding: 8px 11px; border-radius: var(--fb-radius); background: var(--fb-subtle); white-space: pre-wrap; overflow-wrap: anywhere; }
 .fb-msg-mine { align-self: flex-end; background: color-mix(in srgb, var(--fb-accent) 12%, var(--fb-bg)); }
 .fb-msg-meta { display: block; margin-bottom: 2px; font-size: 11.5px; color: var(--fb-muted); white-space: normal; }
+/* On the tinted bubble, muted text alone fell under 4.5:1 (4.35 with the default accent). */
+.fb-msg-mine .fb-msg-meta { color: color-mix(in srgb, var(--fb-muted) 80%, var(--fb-fg)); }
 .fb-reply { min-height: 72px; }
 .fb-empty { padding: 16px 0; text-align: center; }
 
