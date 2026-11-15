@@ -197,6 +197,9 @@ export class Webhooks extends Context.Service<
 					Effect.result,
 				);
 
+				// The payload is kept only while the delivery may be sent again: it
+				// holds what reporters wrote, their email and name, which erasure
+				// and retention must not leave behind in this table.
 				yield* database
 					.query((db) =>
 						db
@@ -209,8 +212,9 @@ export class Webhooks extends Context.Service<
 											responseStatus: result.success,
 											lastError: null,
 											deliveredAt: new Date(),
+											payload: {},
 										}
-									: { status: "failed" },
+									: { status: "failed", payload: {} },
 							)
 							.where(eq(webhookDelivery.id, deliveryId)),
 					)
