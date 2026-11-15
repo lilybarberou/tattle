@@ -171,6 +171,22 @@ describe("click steps", () => {
 		expect(steps().slice(1)).toEqual([["click", "button “Send”"]]);
 	});
 
+	it("never record the text typed in an editable area", () => {
+		const paragraph = element("p", {
+			text: "Dear support, my IBAN is XX00 0000 0000",
+			inside: ["contenteditable"],
+		});
+		doc.dispatchEvent(eventOn("click", paragraph));
+		const box = element("div", {
+			text: "My new password is hunter2",
+			attributes: { role: "textbox" },
+			inside: ["role=textbox"],
+		});
+		doc.dispatchEvent(eventOn("click", box));
+		expect(JSON.stringify(getBreadcrumbs())).not.toContain("IBAN");
+		expect(JSON.stringify(getBreadcrumbs())).not.toContain("hunter2");
+	});
+
 	it("ignore the widget's own UI and targets that are not elements", () => {
 		doc.dispatchEvent(
 			eventOn(
