@@ -16,6 +16,7 @@ import {
 import { PageHeader } from "#/components/page-header";
 import { ReleasePicker } from "#/components/pickers";
 import { Button } from "#/components/ui/button";
+import { lenient } from "#/lib/search-params";
 import { cn } from "#/lib/utils";
 import { listIssuesFn, listReleasesFn } from "#/server/fns";
 import type { IssueListItem } from "#/server/Issues";
@@ -33,10 +34,10 @@ const VIEWS = {
 type View = keyof typeof VIEWS;
 
 const searchSchema = z.object({
-	view: z.optional(z.enum(["open", "progress", "done", "closed"])),
-	type: z.optional(z.enum(["bug", "feature"])),
-	q: z.optional(z.string()),
-	release: z.optional(z.string()),
+	view: lenient(z.enum(["open", "progress", "done", "closed"])),
+	type: lenient(z.enum(["bug", "feature"])),
+	q: lenient(z.string()),
+	release: lenient(z.string()),
 });
 
 export const Route = createFileRoute("/_app/p/$projectId/issues/")({

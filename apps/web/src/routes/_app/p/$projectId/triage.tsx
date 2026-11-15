@@ -36,6 +36,7 @@ import {
 	Screenshot,
 } from "#/components/report-evidence";
 import { Button } from "#/components/ui/button";
+import { lenient } from "#/lib/search-params";
 import { cn } from "#/lib/utils";
 import {
 	dismissDuplicateFn,
@@ -49,7 +50,7 @@ import type { IssueListItem } from "#/server/Issues";
 const appRoute = getRouteApi("/_app");
 
 export const Route = createFileRoute("/_app/p/$projectId/triage")({
-	validateSearch: z.object({ selected: z.optional(z.int()) }),
+	validateSearch: z.object({ selected: lenient(z.int()) }),
 	loaderDeps: ({ search }) => ({ selected: search.selected }),
 	loader: async ({ params, deps }) => {
 		const [issues, recent] = await Promise.all([

@@ -7,14 +7,15 @@ import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { authClient } from "#/lib/auth-client";
+import { lenient } from "#/lib/search-params";
 import { getSignupStateFn } from "#/server/fns";
 
 // Better Auth sends people here as /reset-password?token=… (or ?error=… when
 // the link is invalid or expired).
 export const Route = createFileRoute("/reset-password")({
 	validateSearch: z.object({
-		token: z.optional(z.string()),
-		error: z.optional(z.string()),
+		token: lenient(z.string()),
+		error: lenient(z.string()),
 	}),
 	loader: () => getSignupStateFn({ data: {} }),
 	component: ResetPassword,

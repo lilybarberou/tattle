@@ -20,6 +20,7 @@ import {
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { Textarea } from "#/components/ui/textarea";
+import { lenient } from "#/lib/search-params";
 import { cn } from "#/lib/utils";
 import {
 	getPortalFn,
@@ -33,7 +34,7 @@ import type { PortalRequest } from "#/server/Portal";
 // a visitor is a random id in a cookie, and may leave an email to hear when an
 // idea ships.
 export const Route = createFileRoute("/portal/$slug")({
-	validateSearch: z.object({ shipped: z.optional(z.boolean()) }),
+	validateSearch: z.object({ shipped: lenient(z.boolean()) }),
 	loader: async ({ params }) => {
 		try {
 			return await getPortalFn({ data: { slug: params.slug } });
