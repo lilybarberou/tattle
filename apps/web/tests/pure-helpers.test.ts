@@ -3,7 +3,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { passwordPolicy } from "#/lib/password-policy";
 import { causeKinds, errorKind } from "#/server/background";
 import { DbError } from "#/server/errors";
-import { limitIngest, limitPortal } from "#/server/rate-limit";
+import {
+	forwardedClientIp,
+	limitIngest,
+	limitPortal,
+	trustedProxyHops,
+} from "#/server/rate-limit";
 import { buildTrail, trailLine } from "#/shared/trail";
 
 afterEach(() => {
@@ -46,6 +51,31 @@ describe("rate limits", () => {
 		const results = Array.from({ length: 31 }, () => limitPortal("10.3.0.1"));
 		expect(results.filter((r) => r.ok)).toHaveLength(30);
 		expect(results.at(-1)?.ok).toBe(false);
+	});
+});
+
+describe("the client IP behind proxies", () => {
+	it("trusts X-Forwarded-For only with TRUST_PROXY", () => {
+		expect(trustedProxyHops(undefined)).toBe(0);
+		expect(trustedProxyHops("false")).toBe(0);
+		expect(trustedProxyHops("true")).toBe(1);
+		expect(trustedProxyHops("2")).toBe(2);
+		expect(trustedProxyHops("0")).toBe(0);
+		expect(trustedProxyHops("-1")).toBe(0);
+	});
+
+	it("takes the address the trusted proxy added, not what the client wrote", () => {
+		// nginx with $proxy_add_x_forwarded_for appends the real address.
+		expect(forwardedClientIp("192.0.2.4, 203.0.113.7", 1)).toBe("203.0.113.7");
+		expect(forwardedClientIp("203.0.113.7", 1)).toBe("203.0.113.7");
+		// A CDN, then nginx: the client is second from the right.
+		expect(forwardedClientIp("192.0.2.66, 203.0.113.7, 198.51.100.1", 2)).toBe(
+			"203.0.113.7",
+		);
+		expect(forwardedClientIp("203.0.113.7", 2)).toBe("203.0.113.7");
+		expect(forwardedClientIp("", 1)).toBeUndefined();
+		expect(forwardedClientIp(null, 1)).toBeUndefined();
+		expect(forwardedClientIp("192.0.2.4", 0)).toBeUndefined();
 	});
 });
 

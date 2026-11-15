@@ -1,4 +1,4 @@
-import { getRequestIP } from "@tanstack/react-start/server";
+import { getRequest, getRequestIP } from "@tanstack/react-start/server";
 
 /**
  * Fixed-window counters kept in memory. Enough for one server process; the
@@ -36,10 +36,41 @@ const numberFromEnv = (name: string, fallback: number) => {
 	return Number.isFinite(value) && value > 0 ? value : fallback;
 };
 
-/** The caller's IP; X-Forwarded-For is trusted only when TRUST_PROXY=true. */
-export const clientIp = () =>
-	getRequestIP({ xForwardedFor: process.env.TRUST_PROXY === "true" }) ??
-	"unknown";
+/**
+ * How many reverse proxies sit in front of Tattle: none by default, one with
+ * TRUST_PROXY=true, or the number TRUST_PROXY holds (a CDN in front of nginx
+ * is 2).
+ */
+export const trustedProxyHops = (value = process.env.TRUST_PROXY) =>
+	value === "true" ? 1 : /^[1-9]\d?$/.test(value ?? "") ? Number(value) : 0;
+
+/**
+ * The client's IP in an X-Forwarded-For header that `hops` trusted proxies
+ * appended to. Each proxy adds the address it got the request from at the
+ * end, so the client is `hops` entries from the right; anything before it was
+ * written by the client and could be anything.
+ */
+export const forwardedClientIp = (
+	header: string | null | undefined,
+	hops: number,
+) => {
+	if (!header || hops < 1) return undefined;
+	const entries = header
+		.split(",")
+		.map((entry) => entry.trim())
+		.filter(Boolean);
+	return entries[Math.max(0, entries.length - hops)];
+};
+
+/** The caller's IP; X-Forwarded-For is trusted only with TRUST_PROXY set. */
+export const clientIp = () => {
+	const hops = trustedProxyHops();
+	const forwarded =
+		hops > 0
+			? forwardedClientIp(getRequest().headers.get("x-forwarded-for"), hops)
+			: undefined;
+	return forwarded ?? getRequestIP() ?? "unknown";
+};
 
 /** The header Better Auth reads the client IP from. Only this server sets it. */
 export const CLIENT_IP_HEADER = "x-tattle-client-ip";

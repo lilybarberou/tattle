@@ -65,7 +65,7 @@ On start, the app checks its configuration, waits for Postgres and applies pendi
 
 **Health**: `GET /health` answers `{"ok":true}` when the app and the database respond; Docker uses it as the container's healthcheck.
 
-**Limits**: the widget's public key is visible in your app, so reports are limited per IP (`INGEST_LIMIT_PER_IP`, default 20 per 10 minutes) and per project (`INGEST_LIMIT_PER_PROJECT`, default 300 per hour). Behind a proxy, set `TRUST_PROXY=true` so the limits see real client IPs; without it, `X-Forwarded-For` is ignored, so nobody can fake their IP. Sign-in attempts are limited per IP with the same rule. "My reports" allows 120 reads and 20 messages per IP per 10 minutes (`REPORTER_READ_LIMIT_PER_IP`, `REPORTER_MESSAGE_LIMIT_PER_IP`).
+**Limits**: the widget's public key is visible in your app, so reports are limited per IP (`INGEST_LIMIT_PER_IP`, default 20 per 10 minutes) and per project (`INGEST_LIMIT_PER_PROJECT`, default 300 per hour). Behind a proxy, set `TRUST_PROXY=true` so the limits see real client IPs: Tattle then reads the last address of `X-Forwarded-For`, the one your proxy added (with several proxies in a row, set `TRUST_PROXY` to their number). Without it, `X-Forwarded-For` is ignored, so nobody can fake their IP. Sign-in attempts are limited per IP with the same rule. "My reports" allows 120 reads and 20 messages per IP per 10 minutes (`REPORTER_READ_LIMIT_PER_IP`, `REPORTER_MESSAGE_LIMIT_PER_IP`).
 
 Run a single `app` container: rate limits, webhook retries and the background jobs (webhook recovery, retention purge, notification emails and the daily digest) live in its memory.
 
