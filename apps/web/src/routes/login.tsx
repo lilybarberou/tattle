@@ -11,25 +11,41 @@ import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { authClient, followRedirect } from "#/lib/auth-client";
-import { getSessionFn, getSignupStateFn } from "#/server/fns";
+import {
+	acceptInvitationFn,
+	getSessionFn,
+	getSignupStateFn,
+} from "#/server/fns";
 
 export const Route = createFileRoute("/login")({
-	// An invitation link carries the invited email: /login?email=…
+	// An invitation link carries the invited email and a signed token:
+	// /login?email=…&invite=…
 	// Unknown params are kept: an OAuth authorization (an MCP client signing a
 	// person in) arrives here with its signed query, which sign-in must carry.
-	validateSearch: z.looseObject({ email: z.string().optional() }),
+	validateSearch: z.looseObject({
+		email: z.string().optional(),
+		invite: z.string().optional(),
+	}),
 	beforeLoad: async ({ search }) => {
 		const oauth = "client_id" in search;
-		if (!oauth && (await getSessionFn())) throw redirect({ to: "/" });
+		if (!oauth && (await getSessionFn())) {
+			// Already signed in: an invitation link still makes them join.
+			if (search.invite)
+				await acceptInvitationFn({ data: { invite: search.invite } }).catch(
+					() => undefined,
+				);
+			throw redirect({ to: "/" });
+		}
 	},
-	loaderDeps: ({ search }) => ({ email: search.email }),
-	loader: ({ deps }) => getSignupStateFn({ data: { email: deps.email } }),
+	loaderDeps: ({ search }) => ({ email: search.email, invite: search.invite }),
+	loader: ({ deps }) =>
+		getSignupStateFn({ data: { email: deps.email, invite: deps.invite } }),
 	component: LoginPage,
 });
 
 function LoginPage() {
 	const signup = Route.useLoaderData();
-	const { email: invitedEmail } = Route.useSearch();
+	const { email: invitedEmail, invite } = Route.useSearch();
 	const navigate = useNavigate();
 	const canSignUp = signup.allowed;
 	const [mode, setMode] = useState<"sign-in" | "sign-up">(
@@ -52,6 +68,8 @@ function LoginPage() {
 						email,
 						password,
 						name: String(form.get("name")),
+						// Checked by the server: lets an invited person create their account.
+						...(invite ? { invite } : {}),
 						// Checked by the server for the first account only.
 						...(signup.firstUser
 							? { setupCode: String(form.get("setupCode")) }
@@ -62,6 +80,10 @@ function LoginPage() {
 			setError(result.error.message ?? "Something went wrong");
 			return;
 		}
+		// Joins the organization of the invitation link, when it was sent to
+		// this account's email.
+		if (invite)
+			await acceptInvitationFn({ data: { invite } }).catch(() => undefined);
 		if (followRedirect(result.data)) return;
 		await navigate({ to: "/" });
 	};

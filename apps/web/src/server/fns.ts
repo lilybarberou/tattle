@@ -22,8 +22,9 @@ import {
 import { auth } from "#/lib/auth";
 import { passwordPolicy } from "#/lib/password-policy";
 import {
-	acceptPendingInvitations,
+	acceptInvitation,
 	announceSetupCode,
+	signInvitation,
 	signupPolicy,
 } from "#/lib/signup";
 import { AI_PROVIDERS } from "#/shared/ai";
@@ -138,9 +139,6 @@ export const getSessionFn = createServerFn({ method: "GET" }).handler(
 		const session = await auth.api.getSession({
 			headers: getRequest().headers,
 		});
-		// An invited person joins the organization the first time they sign in.
-		if (session)
-			await acceptPendingInvitations(session.user.id, session.user.email);
 		return session
 			? {
 					user: {
@@ -153,11 +151,35 @@ export const getSessionFn = createServerFn({ method: "GET" }).handler(
 	},
 );
 
+/**
+ * An invited person joins the organization from the link they were sent,
+ * once signed in with the email it was sent to.
+ */
+export const acceptInvitationFn = createServerFn({ method: "POST" })
+	.validator(z.object({ invite: z.string().max(200) }))
+	.handler(async ({ data }) => {
+		const session = await auth.api.getSession({
+			headers: getRequest().headers,
+		});
+		if (!session) return { joined: false };
+		const joined = await acceptInvitation(
+			session.user.id,
+			session.user.email,
+			data.invite,
+		);
+		return { joined };
+	});
+
 /** Tells the login page whether to offer account creation. */
 export const getSignupStateFn = createServerFn({ method: "GET" })
-	.validator(z.object({ email: z.string().optional() }))
+	.validator(
+		z.object({
+			email: z.string().optional(),
+			invite: z.string().max(200).optional(),
+		}),
+	)
 	.handler(async ({ data }) => {
-		const policy = await signupPolicy(data.email);
+		const policy = await signupPolicy(data.email, data.invite);
 		if (policy.firstUser) announceSetupCode();
 		return {
 			firstUser: policy.firstUser,
@@ -815,9 +837,10 @@ export const inviteMemberFn = createServerFn({ method: "POST" })
 				);
 				const database = yield* Database;
 				const email = data.email.trim().toLowerCase();
+				const invitationId = crypto.randomUUID();
 				yield* database.query((db) =>
 					db.insert(invitation).values({
-						id: crypto.randomUUID(),
+						id: invitationId,
 						organizationId: data.organizationId,
 						email,
 						role: data.role,
@@ -826,7 +849,7 @@ export const inviteMemberFn = createServerFn({ method: "POST" })
 						inviterId: p.userId,
 					}),
 				);
-				const link = `${env.baseUrl}/login?email=${encodeURIComponent(email)}`;
+				const link = `${env.baseUrl}/login?email=${encodeURIComponent(email)}&invite=${signInvitation(invitationId)}`;
 				const [org] = yield* database.query((db) =>
 					db
 						.select({ name: organization.name })

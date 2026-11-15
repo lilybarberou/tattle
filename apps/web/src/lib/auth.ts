@@ -24,8 +24,15 @@ export const MCP_RESOURCE = `${baseUrl}/api/mcp`;
 
 export const auth = betterAuth({
 	database: drizzleAdapter(db, { provider: "pg", schema }),
-	// OAuth clients get tokens from /oauth2/token only, not from the JWT plugin.
-	disabledPaths: ["/token"],
+	disabledPaths: [
+		// OAuth clients get tokens from /oauth2/token only, not from the JWT plugin.
+		"/token",
+		// Invitations are accepted through their signed link only (see
+		// lib/signup.ts). The plugin's own endpoints take the invitation id
+		// alone, which every member of the organization sees.
+		"/organization/accept-invitation",
+		"/organization/reject-invitation",
+	],
 	emailAndPassword: {
 		enabled: true,
 		minPasswordLength: passwords.minLength,
@@ -65,12 +72,17 @@ export const auth = betterAuth({
 	databaseHooks: {
 		user: {
 			create: {
-				before: async (newUser) => {
-					const policy = await signupPolicy(newUser.email);
+				before: async (newUser, ctx) => {
+					// The invitation link's token, sent with the sign-up form.
+					const invite: unknown = ctx?.body?.invite;
+					const policy = await signupPolicy(
+						newUser.email,
+						typeof invite === "string" ? invite : undefined,
+					);
 					if (!policy.allowed) {
 						throw new APIError("FORBIDDEN", {
 							message:
-								"Sign-up is closed on this server. Ask a member to invite your email address.",
+								"Sign-up is closed on this server. Open the invitation link you were sent, or ask a member to invite your email address.",
 						});
 					}
 				},
