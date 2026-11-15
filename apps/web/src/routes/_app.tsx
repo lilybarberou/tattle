@@ -74,6 +74,11 @@ const isTyping = (target: EventTarget | null) =>
 	(target.isContentEditable ||
 		["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
 
+// Shortcuts wait while a dialog, a menu or a list of options is open: their
+// letters belong to it ("a" picks an item in a menu, it must not accept).
+const OVERLAY =
+	"[role=dialog], [role=alertdialog], [role=menu], [role=listbox]";
+
 function NavLink({
 	to,
 	params,
@@ -314,7 +319,7 @@ function AppLayout() {
 				isTyping(event.target)
 			)
 				return;
-			if (document.querySelector("[role=dialog]")) return;
+			if (event.defaultPrevented || document.querySelector(OVERLAY)) return;
 			if (event.key === "c") {
 				event.preventDefault();
 				setNewIssue({});
