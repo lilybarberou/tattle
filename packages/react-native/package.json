@@ -25,7 +25,8 @@
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "peerDependencies": {
     "@react-native-async-storage/async-storage": "*",
@@ -61,6 +62,7 @@
   },
   "devDependencies": {
     "@types/react": "19.3.0",
+    "@vitest/coverage-v8": "5.1.0",
     "react": "19.3.1",
     "react-native": "0.88.1",
     "react-native-svg": "15.16.1",

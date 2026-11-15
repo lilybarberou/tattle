@@ -13,6 +13,12 @@ export default defineConfig({
 		// Test files share one database: run them one after the other.
 		fileParallelism: false,
 		testTimeout: 20_000,
+		coverage: {
+			provider: "v8",
+			include: ["src/**/*.{ts,tsx}"],
+			exclude: ["src/routeTree.gen.ts"],
+			reporter: ["text", "json-summary"],
+		},
 		hookTimeout: 30_000,
 		// Set before any test module is imported (src/db reads DATABASE_URL then).
 		env: {
