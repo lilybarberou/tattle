@@ -53,8 +53,14 @@ export const Route = createFileRoute("/_app/p/$projectId/triage")({
 	loaderDeps: ({ search }) => ({ selected: search.selected }),
 	loader: async ({ params, deps }) => {
 		const [issues, recent] = await Promise.all([
+			// Oldest first: triage is a queue. Sorted by the server, so the
+			// oldest are there even with more than one page waiting.
 			listIssuesFn({
-				data: { projectId: params.projectId, statuses: ["triage"] },
+				data: {
+					projectId: params.projectId,
+					statuses: ["triage"],
+					oldestFirst: true,
+				},
 			}),
 			listIssuesFn({
 				data: {
@@ -64,8 +70,6 @@ export const Route = createFileRoute("/_app/p/$projectId/triage")({
 				},
 			}),
 		]);
-		// Oldest first: triage is a queue.
-		issues.reverse();
 		const selected =
 			issues.find((i) => i.number === deps.selected) ?? issues[0] ?? null;
 		const detail = selected

@@ -125,6 +125,8 @@ export type IssueFilter = {
 	release?: string;
 	limit?: number;
 	offset?: number;
+	/** Least recently updated first: Triage is a queue. */
+	oldestFirst?: boolean;
 };
 
 export const titleFromMessage = (message: string) => {
@@ -411,7 +413,9 @@ export class Issues extends Context.Service<
 						.select()
 						.from(issue)
 						.where(and(...conditions))
-						.orderBy(desc(issue.updatedAt))
+						.orderBy(
+							filter.oldestFirst ? asc(issue.updatedAt) : desc(issue.updatedAt),
+						)
 						.limit(Math.min(filter.limit ?? 50, 200))
 						.offset(filter.offset ?? 0),
 				);

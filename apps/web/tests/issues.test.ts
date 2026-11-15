@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { db } from "#/db";
-import { activity, issueVote, report } from "#/db/schema";
+import { activity, issue, issueVote, report } from "#/db/schema";
 import { Ingest } from "#/server/Ingest";
 import { Issues } from "#/server/Issues";
 import { captureMail, stopCapturingMail } from "#/server/mailer";
@@ -410,6 +410,31 @@ describe("Issues.list", () => {
 		});
 		expect(first?.lastReport?.reporter).not.toHaveProperty("traits");
 		expect(items.find((i) => i.number === 2)?.lastReport).toBeNull();
+	});
+
+	it("lists the least recently updated first when asked, beyond one page", async () => {
+		const { project: p } = await createWorkspace();
+		for (let n = 0; n < 5; n++) await submit(reportPayload(p.publicKey));
+		// #1 waited longest, #5 arrived last.
+		for (let n = 1; n <= 5; n++)
+			await db
+				.update(issue)
+				.set({ updatedAt: new Date(Date.now() - (6 - n) * 3_600_000) })
+				.where(and(eq(issue.projectId, p.id), eq(issue.number, n)));
+		const page = (oldestFirst: boolean) =>
+			run(
+				Issues.use((issues) =>
+					issues.list({
+						projectId: p.id,
+						statuses: ["triage"],
+						limit: 2,
+						oldestFirst,
+					}),
+				),
+			).then((items) => items.map((i) => i.number));
+		// Two at a time, as Triage gets 200 at a time: the oldest come first.
+		expect(await page(true)).toEqual([1, 2]);
+		expect(await page(false)).toEqual([5, 4]);
 	});
 
 	it("filters by status and type", async () => {

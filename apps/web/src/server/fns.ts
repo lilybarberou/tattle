@@ -442,6 +442,7 @@ export const listIssuesFn = createServerFn({ method: "GET" })
 			query: z.string().optional(),
 			release: z.string().max(100).optional(),
 			limit: z.number().int().min(1).max(200).optional(),
+			oldestFirst: z.boolean().optional(),
 		}),
 	)
 	.handler(({ data }) =>
