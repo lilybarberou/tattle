@@ -197,7 +197,7 @@ function IssuesPage() {
 						value={query}
 						onChange={(e) => setQuery(e.target.value)}
 						placeholder="Search titles"
-						className="h-8 w-full rounded-md border border-control bg-surface pr-3 pl-8 outline-none focus-visible:border-brand"
+						className="h-8 w-full rounded-md border border-control bg-surface pr-3 pl-8 transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
 					/>
 				</label>
 				<div className="flex rounded-md border border-control p-0.5">

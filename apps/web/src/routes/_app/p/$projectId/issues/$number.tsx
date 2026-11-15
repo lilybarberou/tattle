@@ -289,7 +289,7 @@ function Description({
 
 	return (
 		<form
-			className="mt-2 max-w-[75ch] rounded-lg border focus-within:border-control"
+			className="mt-2 max-w-[75ch] rounded-lg border transition-[color,box-shadow] focus-within:border-control has-focus-visible:border-ring has-focus-visible:ring-[3px] has-focus-visible:ring-ring/50"
 			onSubmit={(event) => {
 				event.preventDefault();
 				void save();
@@ -411,7 +411,7 @@ function ReporterThread({ report, name }: { report: ReportDto; name: string }) {
 			)}
 			{reachable ? (
 				<form
-					className="rounded-lg border border-brand/40 focus-within:border-brand"
+					className="rounded-lg border border-brand/40 transition-[color,box-shadow] focus-within:border-brand has-focus-visible:border-ring has-focus-visible:ring-[3px] has-focus-visible:ring-ring/50"
 					onSubmit={(event) => {
 						event.preventDefault();
 						void send();
@@ -646,7 +646,7 @@ function IssuePage() {
 									void update({ title: title.trim() });
 								else setTitle(issue.title);
 							}}
-							className="field-sizing-content w-full resize-none rounded-md bg-transparent text-[22px] leading-8 font-semibold tracking-[-0.01em] outline-none hover:bg-raised focus:bg-raised"
+							className="field-sizing-content w-full resize-none rounded-md bg-transparent text-[22px] leading-8 font-semibold tracking-[-0.01em] outline-none hover:bg-raised focus:bg-raised focus-visible:ring-[3px] focus-visible:ring-ring/50"
 						/>
 					</h1>
 				</div>
@@ -747,7 +747,7 @@ function IssuePage() {
 						)}
 					</ol>
 					<form
-						className="mt-5 rounded-lg border focus-within:border-control"
+						className="mt-5 rounded-lg border transition-[color,box-shadow] focus-within:border-control has-focus-visible:border-ring has-focus-visible:ring-[3px] has-focus-visible:ring-ring/50"
 						onSubmit={(event) => {
 							event.preventDefault();
 							void sendComment();
@@ -859,7 +859,7 @@ function IssuePage() {
 										void update({ prUrl: prUrl.trim() });
 								}}
 								placeholder="Paste a link"
-								className="h-8 w-full rounded-md bg-transparent px-2 outline-none placeholder:text-muted-foreground hover:bg-active focus:bg-active"
+								className="h-8 w-full rounded-md bg-transparent px-2 outline-none placeholder:text-muted-foreground hover:bg-active focus:bg-active focus-visible:ring-[3px] focus-visible:ring-ring/50"
 							/>
 						)}
 					</PropertyRow>

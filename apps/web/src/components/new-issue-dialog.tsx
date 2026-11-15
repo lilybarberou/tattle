@@ -140,7 +140,7 @@ export function NewIssueDialog({
 							onChange={(e) => setTitle(e.target.value)}
 							placeholder="Issue title"
 							maxLength={200}
-							className="w-full bg-transparent text-lg font-medium outline-none placeholder:text-muted-foreground/70"
+							className="-mx-1 w-[calc(100%+0.5rem)] rounded-sm bg-transparent px-1 text-lg font-medium outline-none placeholder:text-muted-foreground/70 focus-visible:ring-[3px] focus-visible:ring-ring/50"
 						/>
 						<label htmlFor="new-issue-description" className="sr-only">
 							Description
@@ -152,7 +152,7 @@ export function NewIssueDialog({
 							placeholder="Add a description: steps to reproduce, what you expected, links…"
 							rows={5}
 							headerClassName="-mx-2 pt-1 pb-1"
-							className="field-sizing-content block min-h-28 w-full resize-none bg-transparent leading-6 outline-none placeholder:text-muted-foreground/70"
+							className="field-sizing-content -mx-1 block min-h-28 w-[calc(100%+0.5rem)] resize-none rounded-sm bg-transparent px-1 leading-6 outline-none placeholder:text-muted-foreground/70 focus-visible:ring-[3px] focus-visible:ring-ring/50"
 							previewClassName="min-h-28 leading-6"
 						/>
 					</div>

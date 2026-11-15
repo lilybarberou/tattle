@@ -795,7 +795,7 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 						</label>
 						<div className="space-y-2">
 							<Label htmlFor="portal-slug">Address</Label>
-							<div className="flex max-w-lg items-center rounded-md border border-input bg-surface">
+							<div className="flex max-w-lg items-center rounded-md border border-input bg-surface transition-[color,box-shadow] has-focus-visible:border-ring has-focus-visible:ring-[3px] has-focus-visible:ring-ring/50">
 								<span className="truncate pl-3 text-muted-foreground">
 									{baseUrl.replace(/^https?:\/\//, "")}/portal/
 								</span>
