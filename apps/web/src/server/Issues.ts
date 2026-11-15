@@ -134,6 +134,32 @@ export const titleFromMessage = (message: string) => {
 		: firstLine || "Untitled";
 };
 
+// The same limits for the dashboard and for agents (MCP).
+const MAX_TITLE = 200;
+const MAX_DESCRIPTION = 20_000;
+const MAX_COMMENT = 20_000;
+
+/** Why a title or description is too long, or null. */
+const lengthError = (fields: { title?: string; description?: string }) => {
+	if (fields.title !== undefined && fields.title.length > MAX_TITLE)
+		return `A title takes at most ${MAX_TITLE} characters`;
+	if (
+		fields.description !== undefined &&
+		fields.description.length > MAX_DESCRIPTION
+	)
+		return `A description takes at most ${MAX_DESCRIPTION.toLocaleString("en")} characters`;
+	return null;
+};
+
+/** Only http(s): a javascript: URL must never become a link. */
+const isHttpUrl = (value: string) => {
+	try {
+		return ["http:", "https:"].includes(new URL(value).protocol);
+	} catch {
+		return false;
+	}
+};
+
 export class Issues extends Context.Service<
 	Issues,
 	{
@@ -667,6 +693,11 @@ export class Issues extends Context.Service<
 				const title = input.title.trim();
 				if (!title)
 					return yield* new InvalidInput({ message: "Title is required" });
+				const tooLong = lengthError({
+					title,
+					description: input.description,
+				});
+				if (tooLong) return yield* new InvalidInput({ message: tooLong });
 				const row = yield* insertIssue(projectId, {
 					type: input.type,
 					title,
@@ -786,6 +817,19 @@ export class Issues extends Context.Service<
 				patch: IssuePatch,
 				actor: Actor,
 			) {
+				const tooLong = lengthError({
+					title: patch.title?.trim(),
+					description: patch.description,
+				});
+				if (tooLong) return yield* new InvalidInput({ message: tooLong });
+				if (
+					patch.prUrl !== undefined &&
+					patch.prUrl !== null &&
+					!isHttpUrl(patch.prUrl)
+				)
+					return yield* new InvalidInput({
+						message: "The pull request URL must start with http:// or https://",
+					});
 				const current = yield* findIssue(projectId, number);
 				const set: Partial<typeof issue.$inferInsert> = {};
 				const changes: JsonObject = {};
@@ -882,6 +926,10 @@ export class Issues extends Context.Service<
 				if (!body.trim())
 					return yield* new InvalidInput({
 						message: "Comment cannot be empty",
+					});
+				if (body.length > MAX_COMMENT)
+					return yield* new InvalidInput({
+						message: `A comment takes at most ${MAX_COMMENT.toLocaleString("en")} characters`,
 					});
 				const current = yield* findIssue(projectId, number);
 				const [row] = yield* database.query((db) =>

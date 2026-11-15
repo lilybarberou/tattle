@@ -85,6 +85,22 @@ describe("Issues.update", () => {
 			),
 		);
 
+	it("refuses overlong text and pull request URLs that are not http(s)", async () => {
+		const p = await setup();
+		for (const patch of [
+			{ title: "t".repeat(201) },
+			{ description: "d".repeat(20_001) },
+			{ prUrl: "javascript:alert(1)" },
+			{ prUrl: "not a url" },
+		]) {
+			expect((await updateFailure(p.id, 1, patch))._tag).toBe("InvalidInput");
+		}
+		expect(
+			await update(p.id, { prUrl: "https://github.com/acme/shop/pull/3" }),
+		).toMatchObject({ prUrl: "https://github.com/acme/shop/pull/3" });
+		expect(await update(p.id, { prUrl: null })).toMatchObject({ prUrl: null });
+	});
+
 	it("applies the changes and records them in the activity log", async () => {
 		const p = await setup();
 		const updated = await update(p.id, {
@@ -169,6 +185,12 @@ describe("Issues.addComment", () => {
 			Issues.use((issues) => issues.addComment(p.id, 1, "   ", agentActor)),
 		);
 		expect(error._tag).toBe("InvalidInput");
+		const long = await runFailure(
+			Issues.use((issues) =>
+				issues.addComment(p.id, 1, "x".repeat(20_001), agentActor),
+			),
+		);
+		expect(long._tag).toBe("InvalidInput");
 	});
 });
 
