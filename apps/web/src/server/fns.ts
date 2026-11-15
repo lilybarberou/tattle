@@ -61,9 +61,11 @@ import { Webhooks } from "./Webhooks";
 
 // Helpers are functions (not top-level values) so the client bundle, where
 // handler bodies are stripped, can drop every server import.
+// Server functions serve the dashboard: only a signed-in person, never an
+// API token (agents go through /api/mcp, which enforces read-only tokens).
 const principal = () =>
 	Effect.suspend(() =>
-		Access.use((access) => access.fromHeaders(getRequest().headers)),
+		Access.use((access) => access.fromSession(getRequest().headers)),
 	);
 
 const withProject = (projectId: string) =>

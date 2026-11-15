@@ -57,8 +57,12 @@ type ProjectRow = typeof project.$inferSelect;
 export class Access extends Context.Service<
 	Access,
 	{
-		/** Resolves a Bearer API token or the session cookie. */
-		readonly fromHeaders: (
+		/**
+		 * The signed-in person of the session cookie only. The dashboard's
+		 * server functions use it: an API token works with /api/mcp, where
+		 * read-only tokens are enforced, and never as a dashboard session.
+		 */
+		readonly fromSession: (
 			headers: Headers,
 		) => Effect.Effect<Principal, Unauthorized | DbError>;
 		readonly fromToken: (
@@ -185,13 +189,9 @@ export class Access extends Context.Service<
 				return yield* fromUserId(userId);
 			});
 
-			const fromHeaders = Effect.fn("Access.fromHeaders")(function* (
+			const fromSession = Effect.fn("Access.fromSession")(function* (
 				headers: Headers,
 			) {
-				const authorization = headers.get("authorization");
-				const bearer = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
-				if (bearer?.startsWith(TOKEN_PREFIX)) return yield* fromToken(bearer);
-
 				const session = yield* Effect.tryPromise({
 					try: () => auth.api.getSession({ headers }),
 					catch: (cause) => new DbError({ cause }),
@@ -274,7 +274,7 @@ export class Access extends Context.Service<
 			});
 
 			return Access.of({
-				fromHeaders,
+				fromSession,
 				fromToken,
 				fromUserId,
 				fromOAuth,

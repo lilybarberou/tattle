@@ -45,15 +45,15 @@ describe("API tokens", () => {
 		expect(after?.lastUsedAt).toBeInstanceOf(Date);
 	});
 
-	it("are also read from the Authorization header", async () => {
+	it("never open a dashboard session", async () => {
 		const org = await createOrganization();
-		const { token } = await createApiToken(org.id);
-		const principal = await run(
+		const { token } = await createApiToken(org.id, { canWrite: false });
+		const failure = await runFailure(
 			Access.use((access) =>
-				access.fromHeaders(new Headers({ authorization: `Bearer ${token}` })),
+				access.fromSession(new Headers({ authorization: `Bearer ${token}` })),
 			),
 		);
-		expect(principal.kind).toBe("token");
+		expect(failure._tag).toBe("Unauthorized");
 	});
 
 	it("are rejected once revoked", async () => {
@@ -163,9 +163,9 @@ describe("users", () => {
 		expect(error._tag).toBe("Unauthorized");
 	});
 
-	it("fromHeaders without a token or session is Unauthorized", async () => {
+	it("fromSession without a session is Unauthorized", async () => {
 		const error = await runFailure(
-			Access.use((access) => access.fromHeaders(new Headers())),
+			Access.use((access) => access.fromSession(new Headers())),
 		);
 		expect(error._tag).toBe("Unauthorized");
 	});
