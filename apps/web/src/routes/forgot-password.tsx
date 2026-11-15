@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import * as z from "zod";
+import * as z from "zod/mini";
 import { AuthShell } from "#/components/auth-shell";
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
@@ -8,7 +8,7 @@ import { Label } from "#/components/ui/label";
 import { authClient } from "#/lib/auth-client";
 
 export const Route = createFileRoute("/forgot-password")({
-	validateSearch: z.object({ email: z.string().optional() }),
+	validateSearch: z.object({ email: z.optional(z.string()) }),
 	component: ForgotPassword,
 });
 

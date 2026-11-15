@@ -5,7 +5,7 @@ import {
 	useNavigate,
 } from "@tanstack/react-router";
 import { useState } from "react";
-import * as z from "zod";
+import * as z from "zod/mini";
 import { Brand } from "#/components/brand";
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
@@ -23,8 +23,8 @@ export const Route = createFileRoute("/login")({
 	// Unknown params are kept: an OAuth authorization (an MCP client signing a
 	// person in) arrives here with its signed query, which sign-in must carry.
 	validateSearch: z.looseObject({
-		email: z.string().optional(),
-		invite: z.string().optional(),
+		email: z.optional(z.string()),
+		invite: z.optional(z.string()),
 	}),
 	beforeLoad: async ({ search }) => {
 		const oauth = "client_id" in search;

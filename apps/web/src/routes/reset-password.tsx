@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import * as z from "zod";
+import * as z from "zod/mini";
 import { AuthShell } from "#/components/auth-shell";
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
@@ -13,8 +13,8 @@ import { getSignupStateFn } from "#/server/fns";
 // the link is invalid or expired).
 export const Route = createFileRoute("/reset-password")({
 	validateSearch: z.object({
-		token: z.string().optional(),
-		error: z.string().optional(),
+		token: z.optional(z.string()),
+		error: z.optional(z.string()),
 	}),
 	loader: () => getSignupStateFn({ data: {} }),
 	component: ResetPassword,

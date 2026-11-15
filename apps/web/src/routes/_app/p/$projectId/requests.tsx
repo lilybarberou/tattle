@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PlusIcon } from "lucide-react";
-import * as z from "zod";
+import * as z from "zod/mini";
 import { useAppActions } from "#/components/app-actions";
 import { STATUS_META, StatusIcon } from "#/components/issue-meta";
 import { PageHeader } from "#/components/page-header";
@@ -11,7 +11,7 @@ import { listIssuesFn } from "#/server/fns";
 const OPEN = ["triage", "backlog", "todo", "in_progress", "in_review"] as const;
 
 export const Route = createFileRoute("/_app/p/$projectId/requests")({
-	validateSearch: z.object({ shipped: z.boolean().optional() }),
+	validateSearch: z.object({ shipped: z.optional(z.boolean()) }),
 	loaderDeps: ({ search }) => ({ shipped: search.shipped ?? false }),
 	loader: async ({ params, deps }) => {
 		const items = await listIssuesFn({

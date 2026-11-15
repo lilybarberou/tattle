@@ -7,7 +7,7 @@ import {
 import { ChevronUpIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import * as z from "zod";
+import * as z from "zod/mini";
 import { BrandMark } from "#/components/brand";
 import { Button } from "#/components/ui/button";
 import {
@@ -33,7 +33,7 @@ import type { PortalRequest } from "#/server/Portal";
 // a visitor is a random id in a cookie, and may leave an email to hear when an
 // idea ships.
 export const Route = createFileRoute("/portal/$slug")({
-	validateSearch: z.object({ shipped: z.boolean().optional() }),
+	validateSearch: z.object({ shipped: z.optional(z.boolean()) }),
 	loader: async ({ params }) => {
 		try {
 			return await getPortalFn({ data: { slug: params.slug } });
