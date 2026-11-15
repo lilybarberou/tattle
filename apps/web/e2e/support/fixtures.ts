@@ -96,6 +96,8 @@ export type SiteOptions = {
 	email?: string;
 	name?: string;
 	release?: string;
+	/** Serve the site with a strict Content-Security-Policy. */
+	strictCsp?: boolean;
 	/** Reuse the browser context of a page opened before (same device). */
 	samePageAs?: Page;
 };
@@ -117,6 +119,7 @@ export const siteUrl = (options: SiteOptions) => {
 	if (options.email) query.set("email", options.email);
 	if (options.name) query.set("name", options.name);
 	if (options.release) query.set("release", options.release);
+	if (options.strictCsp) query.set("csp", "strict");
 	return `${SITE_URL}/site?${query}`;
 };
 

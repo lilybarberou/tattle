@@ -264,6 +264,19 @@ The server answers `201 { id, issueNumber? }`. On an error status it answers `{ 
   Clicks and changes inside the widget are not recorded. The dashboard shows the steps in time order, with the console errors and failed requests in between.
 - **Device**: a small built-in UA parser covers Chrome, Edge, Firefox, Safari and Opera on Windows, macOS, iOS, Android and Linux. Screen, viewport, timezone, color scheme and connection info are read when the report is sent.
 
+## Content-Security-Policy
+
+On a page with a strict CSP, add the Tattle server (here `https://tattle.example.com`) and what the widget needs:
+
+```
+script-src  https://tattle.example.com     (widget.js)
+connect-src https://tattle.example.com     (sending reports, "My reports")
+style-src   'unsafe-inline'                (the widget's styles, inside its Shadow DOM)
+img-src     data: blob:                    (the screenshot and its preview)
+```
+
+The widget has no nonce support yet, so `style-src` needs `'unsafe-inline'`: without it the widget shows unstyled. The screenshot redraws the page from its own images and fonts, which your policy already allows. The end-to-end suite runs the widget under exactly this policy (`apps/web/e2e/csp.spec.ts`), with `default-src 'self'` for the rest.
+
 ## Privacy
 
 - **URL redaction.** Query (and `#fragment`) parameters whose key matches `/token|key|secret|password|auth|session|code/i` have their value replaced with `[redacted]`. This applies to network entries, navigation steps and `pageUrl`.
