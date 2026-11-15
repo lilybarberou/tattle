@@ -41,6 +41,11 @@ const getTransporter = () => {
 		auth: process.env.SMTP_USER
 			? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD }
 			: undefined,
+		// Nodemailer waits up to 10 minutes by default: a stuck SMTP server
+		// would hold every background job that sends mail.
+		connectionTimeout: 15_000,
+		greetingTimeout: 15_000,
+		socketTimeout: 30_000,
 	});
 	return transporter;
 };
