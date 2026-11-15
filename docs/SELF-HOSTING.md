@@ -345,6 +345,7 @@ Start with the logs: `docker compose logs --tail=100 app`.
 | Screenshots disappear after a redeploy | Nothing is mounted at `/data`. Add the volume (or use S3). |
 | Invitations aren't emailed | Expected without SMTP: copy the invitation link that **Members** shows right after you invite someone. If it gets lost, **Show link** next to the waiting invitation shows it again (owners and admins). With SMTP, the logs show the error. |
 | An invitation link doesn't let the person join | The link is the proof of the invitation: it must be opened as sent, and the account created with the invited email. Links sent before the upgrade that introduced signed links carry no token and no longer work: cancel those invitations and send them again. |
+| Someone forgot their password, and there is no SMTP | Password reset needs email: set up SMTP (see [step 8](#8-optional-email-and-s3)), then they use "Forgot your password?" on the sign-in page. Emails that could not be sent, reset links included, are never written to the logs: anyone reading the logs could take over the account. |
 | A notification email doesn't come | Check **Notifications** under your name. A reporter's answer is emailed about 10 minutes after their first message, and not at all once someone on the team has answered. The digest skips days with nothing new. Failed sends are in the logs. |
 
 ## 12. All settings

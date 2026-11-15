@@ -4,6 +4,12 @@ import { passwordPolicy } from "#/lib/password-policy";
 import { causeKinds, errorKind } from "#/server/background";
 import { DbError } from "#/server/errors";
 import {
+	captureMail,
+	isSingleAddress,
+	sendMail,
+	stopCapturingMail,
+} from "#/server/mailer";
+import {
 	forwardedClientIp,
 	limitGithub,
 	limitIngestIp,
@@ -193,5 +199,41 @@ describe("error kinds in logs", () => {
 		expect(
 			JSON.stringify([errorKind(sql), causeKinds(Cause.fail(sql))]),
 		).not.toContain("jo@example.com");
+	});
+});
+
+describe("email recipients", () => {
+	it("are one plain address", () => {
+		for (const ok of ["ada@example.com", "a.b+tag@mail.example.org"])
+			expect(isSingleAddress(ok), ok).toBe(true);
+		for (const bad of [
+			"a@example.com, b@example.org",
+			"a@example.com;b@example.org",
+			"Ada <a@example.com>",
+			"a@example.com b@example.org",
+			"not-an-email",
+			"@example.com",
+			"ada@localhost",
+		])
+			expect(isSingleAddress(bad), bad).toBe(false);
+	});
+
+	it("never go out as a list someone typed", async () => {
+		const outbox = captureMail();
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		try {
+			expect(
+				await sendMail({
+					to: "me@example.com, victim@example.org",
+					subject: "Your report",
+					text: "Thanks",
+				}),
+			).toBe(false);
+			expect(outbox).toEqual([]);
+			expect(warn.mock.calls.flat().join(" ")).not.toContain("victim");
+		} finally {
+			stopCapturingMail();
+			warn.mockRestore();
+		}
 	});
 });

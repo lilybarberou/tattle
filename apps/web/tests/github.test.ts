@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { db } from "#/db";
 import { activity, project } from "#/db/schema";
 import {
@@ -10,6 +10,7 @@ import {
 } from "#/server/GitHub";
 import { Ingest } from "#/server/Ingest";
 import { type IssueStatus, Issues } from "#/server/Issues";
+import { captureMail, stopCapturingMail } from "#/server/mailer";
 import { createWorkspace, reportPayload, userActor } from "./helpers/factories";
 import { run, setupTestDatabase, waitFor } from "./helpers/runtime";
 
@@ -251,7 +252,9 @@ describe("merged pull requests", () => {
 				issues.update(p.id, 1, { status: "todo" }, userActor),
 			),
 		);
-		const info = vi.spyOn(console, "info").mockImplementation(() => {});
+		// Without SMTP, the mailer's test outbox gets what would be sent.
+		const outbox = process.env.SMTP_HOST ? null : captureMail();
+		onTestFinished(stopCapturingMail);
 
 		const result = await deliver(
 			p.id,
@@ -261,15 +264,14 @@ describe("merged pull requests", () => {
 		expect(result.body.issues).toEqual([1]);
 		const issue = await issueOf(p.id, 1);
 		expect(issue).toMatchObject({ status: "done", prUrl: PR_URL });
-		// Without SMTP the mailer logs what it would have sent.
-		if (!process.env.SMTP_HOST) {
+		if (outbox) {
 			await waitFor(() =>
-				info.mock.calls.some((c) =>
-					String(c[0]).includes("Shipped: Dark mode"),
+				outbox.some(
+					(m) =>
+						m.subject === "Shipped: Dark mode" && m.to === "jo@example.com",
 				),
 			);
 		}
-		info.mockRestore();
 	});
 
 	it("leave an issue whose pull request is another one", async () => {
