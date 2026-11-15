@@ -59,6 +59,7 @@ The app runs with sign-up closed (as in production), `PASSWORD_BREACH_CHECK=fals
 | `first-run.spec.ts`          | Setup code, admin account, onboarding (organization and project), closed sign-up, sign out and in                                      |
 | `central.spec.ts`            | Widget report with annotated screenshot, console and network → Triage → accept → comment → reply → email and widget → reporter answers |
 | `csp.spec.ts`                | The widget on a page with a strict Content-Security-Policy: screenshot and report, no violation                                        |
+| `triage.spec.ts`             | Decline, accept from the keyboard, merge a duplicate; issue list and overview                                                          |
 | `conversation-email.spec.ts` | Reporter answers from the emailed link; stopping emails                                                                                |
 | `auth.spec.ts`               | Password reset by email, other sessions signed out                                                                                     |
 | `github-sync.spec.ts`        | Pull requests that fix issues, from signed deliveries: In review, then Done when merged                                                |
