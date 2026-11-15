@@ -18,16 +18,10 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 			{ charSet: "utf-8" },
 			{ name: "viewport", content: "width=device-width, initial-scale=1" },
 			{ title: "Tattle" },
-			// Tints the browser chrome to match the app frame (--ground).
 			{
-				name: "theme-color",
-				media: "(prefers-color-scheme: light)",
-				content: "#f4f6f8",
-			},
-			{
-				name: "theme-color",
-				media: "(prefers-color-scheme: dark)",
-				content: "#0c0c0d",
+				name: "description",
+				content:
+					"Bug reports and feature requests from your users, triaged by your agents.",
 			},
 		],
 		links: [
@@ -46,6 +40,18 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 		<html lang="en">
 			<head>
 				<HeadContent />
+				{/* Tints the browser chrome to match the app frame (--ground). Written
+				    here: HeadContent keeps one meta per name, so it dropped the light one. */}
+				<meta
+					name="theme-color"
+					media="(prefers-color-scheme: light)"
+					content="#f4f6f8"
+				/>
+				<meta
+					name="theme-color"
+					media="(prefers-color-scheme: dark)"
+					content="#0c0c0d"
+				/>
 			</head>
 			<body>
 				<TooltipProvider>{children}</TooltipProvider>
