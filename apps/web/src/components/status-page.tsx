@@ -18,10 +18,13 @@ const useInApp = () => {
 function StatusPage({
 	title,
 	text,
+	details,
 	children,
 }: {
 	title: string;
 	text: string;
+	/** Technical detail, folded away like the router's own "Show error". */
+	details?: string;
 	children?: React.ReactNode;
 }) {
 	const inApp = useInApp();
@@ -30,6 +33,18 @@ function StatusPage({
 			{!inApp && <BrandMark className="mx-auto size-6" />}
 			<h1 className="text-xl font-semibold text-balance">{title}</h1>
 			<p className="text-pretty text-muted-foreground">{text}</p>
+			{details && (
+				<details className="text-left text-xs text-muted-foreground">
+					<summary className="cursor-pointer text-center">Details</summary>
+					<pre
+						// biome-ignore lint/a11y/noNoninteractiveTabindex: it scrolls when long
+						tabIndex={0}
+						className="mt-2 max-h-40 overflow-auto rounded-md border bg-muted/50 p-2 font-mono whitespace-pre-wrap break-words"
+					>
+						{details}
+					</pre>
+				</details>
+			)}
 			<div className="flex flex-wrap justify-center gap-2 pt-2">
 				{children}
 				<Button asChild variant={children ? "outline" : "default"}>
@@ -66,10 +81,9 @@ export function ErrorPage({ error }: { error: unknown }) {
 	return (
 		<StatusPage
 			title="This page couldn't load"
-			text={
-				message && message !== "Internal server error"
-					? message
-					: "Something went wrong on the server. Try again in a moment."
+			text="Something went wrong while loading it. Try again in a moment."
+			details={
+				message && message !== "Internal server error" ? message : undefined
 			}
 		>
 			<Button onClick={() => router.invalidate()}>Try again</Button>
