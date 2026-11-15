@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { db } from "#/db";
-import { activity, issueVote, report } from "#/db/schema";
+import { activity, issue, issueVote, report, reportMessage } from "#/db/schema";
 import { Ingest } from "#/server/Ingest";
 import { Issues } from "#/server/Issues";
 import { captureMail, stopCapturingMail } from "#/server/mailer";
@@ -84,6 +84,22 @@ describe("Issues.update", () => {
 				issues.update(projectId, number, patch, agentActor),
 			),
 		);
+
+	it("refuses overlong text and pull request URLs that are not http(s)", async () => {
+		const p = await setup();
+		for (const patch of [
+			{ title: "t".repeat(201) },
+			{ description: "d".repeat(20_001) },
+			{ prUrl: "javascript:alert(1)" },
+			{ prUrl: "not a url" },
+		]) {
+			expect((await updateFailure(p.id, 1, patch))._tag).toBe("InvalidInput");
+		}
+		expect(
+			await update(p.id, { prUrl: "https://github.com/acme/shop/pull/3" }),
+		).toMatchObject({ prUrl: "https://github.com/acme/shop/pull/3" });
+		expect(await update(p.id, { prUrl: null })).toMatchObject({ prUrl: null });
+	});
 
 	it("applies the changes and records them in the activity log", async () => {
 		const p = await setup();
@@ -169,6 +185,12 @@ describe("Issues.addComment", () => {
 			Issues.use((issues) => issues.addComment(p.id, 1, "   ", agentActor)),
 		);
 		expect(error._tag).toBe("InvalidInput");
+		const long = await runFailure(
+			Issues.use((issues) =>
+				issues.addComment(p.id, 1, "x".repeat(20_001), agentActor),
+			),
+		);
+		expect(long._tag).toBe("InvalidInput");
 	});
 });
 
@@ -214,6 +236,21 @@ describe("Issues.markDuplicate", () => {
 			action: "marked_duplicate",
 			data: { duplicateOf: 1 },
 		});
+	});
+
+	it("never makes a cycle when two merges cross", async () => {
+		const { p } = await twoReportedIssues();
+		const results = await Promise.allSettled([
+			run(markDuplicate(p.id, 2, 1)),
+			run(markDuplicate(p.id, 1, 2)),
+		]);
+		expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+		const [one, two] = [await getIssue(p.id, 1), await getIssue(p.id, 2)];
+		const statuses = [one.issue.status, two.issue.status];
+		expect(statuses.filter((s) => s === "duplicate")).toHaveLength(1);
+		// Every report sits on the issue that is not a duplicate.
+		const kept = one.issue.status === "duplicate" ? two : one;
+		expect(kept.issue.reportCount).toBe(2);
 	});
 
 	it("refuses to mark an issue as a duplicate of itself", async () => {
@@ -373,6 +410,93 @@ describe("Issues.list", () => {
 		});
 		expect(first?.lastReport?.reporter).not.toHaveProperty("traits");
 		expect(items.find((i) => i.number === 2)?.lastReport).toBeNull();
+	});
+
+	it("flags issues whose conversation ends with the reporter, on any of their reports", async () => {
+		const { project: p } = await createWorkspace();
+		const older = await submit(
+			reportPayload(p.publicKey, { message: "Older" }),
+		);
+		const newer = await submit(
+			reportPayload(p.publicKey, { message: "Newer" }),
+		);
+		await run(
+			Issues.use((issues) =>
+				issues.moveReport(p.id, newer.id, older.issueNumber, userActor),
+			),
+		);
+		const answered = await submit(reportPayload(p.publicKey));
+		const at = (minutes: number) => new Date(Date.now() - minutes * 60_000);
+		await db.insert(reportMessage).values([
+			// Issue #1: the team answered the older report, the reporter wrote
+			// back. The newest report has no conversation: still waiting.
+			{
+				reportId: older.id,
+				authorType: "user",
+				authorName: "Ada",
+				body: "Hi",
+				createdAt: at(30),
+			},
+			{
+				reportId: older.id,
+				authorType: "reporter",
+				authorName: "Jo",
+				body: "Any news?",
+				createdAt: at(20),
+			},
+			// Issue #3: the reporter wrote, the team answered last.
+			{
+				reportId: answered.id,
+				authorType: "reporter",
+				authorName: "Sam",
+				body: "Help",
+				createdAt: at(20),
+			},
+			{
+				reportId: answered.id,
+				authorType: "user",
+				authorName: "Ada",
+				body: "Done",
+				createdAt: at(10),
+			},
+		]);
+
+		const items = await run(
+			Issues.use((issues) => issues.list({ projectId: p.id })),
+		);
+		const waiting = Object.fromEntries(
+			items.map((i) => [i.number, i.awaitingReply]),
+		);
+		// #2 lost its only report to #1.
+		expect(waiting).toEqual({ 1: true, 2: false, 3: false });
+		expect(items.find((i) => i.number === 1)?.lastReport?.message).toBe(
+			"Newer",
+		);
+	});
+
+	it("lists the least recently updated first when asked, beyond one page", async () => {
+		const { project: p } = await createWorkspace();
+		for (let n = 0; n < 5; n++) await submit(reportPayload(p.publicKey));
+		// #1 waited longest, #5 arrived last.
+		for (let n = 1; n <= 5; n++)
+			await db
+				.update(issue)
+				.set({ updatedAt: new Date(Date.now() - (6 - n) * 3_600_000) })
+				.where(and(eq(issue.projectId, p.id), eq(issue.number, n)));
+		const page = (oldestFirst: boolean) =>
+			run(
+				Issues.use((issues) =>
+					issues.list({
+						projectId: p.id,
+						statuses: ["triage"],
+						limit: 2,
+						oldestFirst,
+					}),
+				),
+			).then((items) => items.map((i) => i.number));
+		// Two at a time, as Triage gets 200 at a time: the oldest come first.
+		expect(await page(true)).toEqual([1, 2]);
+		expect(await page(false)).toEqual([5, 4]);
 	});
 
 	it("filters by status and type", async () => {

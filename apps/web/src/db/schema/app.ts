@@ -226,7 +226,8 @@ export const report = pgTable(
 	},
 	(t) => [
 		index("report_project_idx").on(t.projectId, t.createdAt),
-		index("report_issue_idx").on(t.issueId),
+		// An issue's reports, newest first: the issue list's latest report.
+		index("report_issue_created_idx").on(t.issueId, t.createdAt),
 		index("report_project_release_idx").on(t.projectId, t.release),
 		index("report_reporter_key_idx").on(t.projectId, t.reporterKeyHash),
 		index("report_verified_user_idx").on(t.projectId, t.verifiedUserId),

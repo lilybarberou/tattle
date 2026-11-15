@@ -103,9 +103,6 @@ export const messageDto = (row: MessageRow) => ({
 });
 export type MessageDto = ReturnType<typeof messageDto>;
 
-/** Reports whose conversation ends with a message from the reporter. */
-export const awaitingReplySql = sql`(select ${reportMessage.authorType} from ${reportMessage} where ${reportMessage.reportId} = ${report.id} order by ${reportMessage.createdAt} desc limit 1) = 'reporter'`;
-
 export type IssuePatch = {
 	title?: string;
 	description?: string;
@@ -125,6 +122,8 @@ export type IssueFilter = {
 	release?: string;
 	limit?: number;
 	offset?: number;
+	/** Least recently updated first: Triage is a queue. */
+	oldestFirst?: boolean;
 };
 
 export const titleFromMessage = (message: string) => {
@@ -132,6 +131,32 @@ export const titleFromMessage = (message: string) => {
 	return firstLine.length > 90
 		? `${firstLine.slice(0, 87)}…`
 		: firstLine || "Untitled";
+};
+
+// The same limits for the dashboard and for agents (MCP).
+const MAX_TITLE = 200;
+const MAX_DESCRIPTION = 20_000;
+const MAX_COMMENT = 20_000;
+
+/** Why a title or description is too long, or null. */
+const lengthError = (fields: { title?: string; description?: string }) => {
+	if (fields.title !== undefined && fields.title.length > MAX_TITLE)
+		return `A title takes at most ${MAX_TITLE} characters`;
+	if (
+		fields.description !== undefined &&
+		fields.description.length > MAX_DESCRIPTION
+	)
+		return `A description takes at most ${MAX_DESCRIPTION.toLocaleString("en")} characters`;
+	return null;
+};
+
+/** Only http(s): a javascript: URL must never become a link. */
+const isHttpUrl = (value: string) => {
+	try {
+		return ["http:", "https:"].includes(new URL(value).protocol);
+	} catch {
+		return false;
+	}
 };
 
 export class Issues extends Context.Service<
@@ -385,15 +410,20 @@ export class Issues extends Context.Service<
 						.select()
 						.from(issue)
 						.where(and(...conditions))
-						.orderBy(desc(issue.updatedAt))
+						.orderBy(
+							filter.oldestFirst ? asc(issue.updatedAt) : desc(issue.updatedAt),
+						)
 						.limit(Math.min(filter.limit ?? 50, 200))
 						.offset(filter.offset ?? 0),
 				);
 				if (rows.length === 0) return [];
-				const latest = yield* database.query((db) =>
-					db
-						.selectDistinctOn([report.issueId], {
-							issueId: report.issueId,
+				const ids = rows.map((r) => r.id);
+				// The newest report of each listed issue, one index lookup per issue
+				// (report_issue_created_idx). DISTINCT ON read every report of the
+				// listed issues first: seconds when one has thousands of reports.
+				const latest = yield* database.query((db) => {
+					const last = db
+						.select({
 							id: report.id,
 							message: report.message,
 							reporter: report.reporter,
@@ -401,29 +431,49 @@ export class Issues extends Context.Service<
 							pageUrl: report.pageUrl,
 							release: report.release,
 							createdAt: report.createdAt,
-							consoleErrors: sql<number>`(select count(*) from jsonb_array_elements(${report.console}) as e where e->>'level' = 'error')::int`,
-							failedRequests: sql<number>`(select count(*) from jsonb_array_elements(${report.network}) as n where (n->>'status')::int = 0 or (n->>'status')::int >= 400)::int`,
+							consoleErrors:
+								sql<number>`(select count(*) from jsonb_array_elements(${report.console}) as e where e->>'level' = 'error')::int`.as(
+									"console_errors",
+								),
+							failedRequests:
+								sql<number>`(select count(*) from jsonb_array_elements(${report.network}) as n where (n->>'status')::int = 0 or (n->>'status')::int >= 400)::int`.as(
+									"failed_requests",
+								),
 						})
 						.from(report)
-						.where(
-							inArray(
-								report.issueId,
-								rows.map((r) => r.id),
-							),
-						)
-						.orderBy(report.issueId, desc(report.createdAt)),
-				);
+						.where(eq(report.issueId, issue.id))
+						.orderBy(desc(report.createdAt))
+						.limit(1)
+						.as("last_report");
+					return db
+						.select({
+							issueId: issue.id,
+							id: last.id,
+							message: last.message,
+							reporter: last.reporter,
+							screenshotKey: last.screenshotKey,
+							pageUrl: last.pageUrl,
+							release: last.release,
+							createdAt: last.createdAt,
+							consoleErrors: last.consoleErrors,
+							failedRequests: last.failedRequests,
+						})
+						.from(issue)
+						.innerJoinLateral(last, sql`true`)
+						.where(inArray(issue.id, ids));
+				});
+				// Issues with a conversation whose last message is the reporter's.
+				// Driven from the messages, far fewer than the reports.
 				const waiting = yield* database.query((db) =>
 					db
 						.selectDistinct({ issueId: report.issueId })
-						.from(report)
+						.from(reportMessage)
+						.innerJoin(report, eq(report.id, reportMessage.reportId))
 						.where(
 							and(
-								inArray(
-									report.issueId,
-									rows.map((r) => r.id),
-								),
-								awaitingReplySql,
+								inArray(report.issueId, ids),
+								eq(reportMessage.authorType, "reporter"),
+								sql`not exists (select 1 from ${reportMessage} as later where later.report_id = ${reportMessage.reportId} and later.created_at > ${reportMessage.createdAt})`,
 							),
 						),
 				);
@@ -667,6 +717,11 @@ export class Issues extends Context.Service<
 				const title = input.title.trim();
 				if (!title)
 					return yield* new InvalidInput({ message: "Title is required" });
+				const tooLong = lengthError({
+					title,
+					description: input.description,
+				});
+				if (tooLong) return yield* new InvalidInput({ message: tooLong });
 				const row = yield* insertIssue(projectId, {
 					type: input.type,
 					title,
@@ -786,6 +841,19 @@ export class Issues extends Context.Service<
 				patch: IssuePatch,
 				actor: Actor,
 			) {
+				const tooLong = lengthError({
+					title: patch.title?.trim(),
+					description: patch.description,
+				});
+				if (tooLong) return yield* new InvalidInput({ message: tooLong });
+				if (
+					patch.prUrl !== undefined &&
+					patch.prUrl !== null &&
+					!isHttpUrl(patch.prUrl)
+				)
+					return yield* new InvalidInput({
+						message: "The pull request URL must start with http:// or https://",
+					});
 				const current = yield* findIssue(projectId, number);
 				const set: Partial<typeof issue.$inferInsert> = {};
 				const changes: JsonObject = {};
@@ -883,6 +951,10 @@ export class Issues extends Context.Service<
 					return yield* new InvalidInput({
 						message: "Comment cannot be empty",
 					});
+				if (body.length > MAX_COMMENT)
+					return yield* new InvalidInput({
+						message: `A comment takes at most ${MAX_COMMENT.toLocaleString("en")} characters`,
+					});
 				const current = yield* findIssue(projectId, number);
 				const [row] = yield* database.query((db) =>
 					db
@@ -926,26 +998,40 @@ export class Issues extends Context.Service<
 				}
 				const duplicate = yield* findIssue(projectId, number);
 				const original = yield* findIssue(projectId, duplicateOfNumber);
-				if (original.status === "duplicate") {
-					return yield* new InvalidInput({
-						message: `#${duplicateOfNumber} is itself a duplicate; use its original instead`,
-					});
-				}
-				const moved = yield* database.query((db) =>
-					db
+				const notOriginal = new InvalidInput({
+					message: `#${duplicateOfNumber} is itself a duplicate; use its original instead`,
+				});
+				if (original.status === "duplicate") return yield* notOriginal;
+				// Both issues locked (in id order, so two merges cannot deadlock),
+				// the original checked again, then the reports moved and the issue
+				// marked in one transaction: A→B and B→A at the same time can no
+				// longer make a cycle, and a failure halfway changes nothing.
+				const merged = yield* database.transaction(async (tx) => {
+					const locked = await tx
+						.select({ id: issue.id, status: issue.status })
+						.from(issue)
+						.where(inArray(issue.id, [duplicate.id, original.id]))
+						.orderBy(asc(issue.id))
+						.for("update");
+					const target = locked.find((row) => row.id === original.id);
+					if (!target || target.status === "duplicate") return null;
+					const moved = await tx
 						.update(report)
 						.set({ issueId: original.id })
 						.where(eq(report.issueId, duplicate.id))
-						.returning({ id: report.id }),
-				);
+						.returning({ id: report.id });
+					await tx
+						.update(issue)
+						.set({ status: "duplicate", duplicateOfId: original.id })
+						.where(eq(issue.id, duplicate.id));
+					return { moved };
+				});
+				if (!merged) return yield* notOriginal;
+				const { moved } = merged;
 				// Recount first so the returned issue shows its new (empty) count.
 				yield* recountReports([duplicate.id, original.id]);
 				const [updated] = yield* database.query((db) =>
-					db
-						.update(issue)
-						.set({ status: "duplicate", duplicateOfId: original.id })
-						.where(eq(issue.id, duplicate.id))
-						.returning(),
+					db.select().from(issue).where(eq(issue.id, duplicate.id)),
 				);
 				yield* logActivity(duplicate.id, actor, "marked_duplicate", {
 					duplicateOf: original.number,

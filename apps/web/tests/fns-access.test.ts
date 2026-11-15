@@ -6,6 +6,7 @@ import * as fns from "#/server/fns";
 import { HttpError } from "#/server/runtime";
 import {
 	createApiToken,
+	createProject,
 	createWebhookEndpoint,
 	createWorkspace,
 } from "./helpers/factories";
@@ -462,5 +463,96 @@ describe("secrets are for owners and admins", () => {
 		expect(
 			await fns.listTokensFn({ data: { organizationId: org.id } }),
 		).toEqual([]);
+	});
+});
+
+describe("projects", () => {
+	it("get a slug from their name, unique in the organization", async () => {
+		const { org } = await createWorkspace();
+		await createProject(org.id, { name: "Other" });
+		const me = await signedInMember(org.id, "member");
+		as(me);
+		const create = (name: string) =>
+			fns.createProjectFn({ data: { organizationId: org.id, name } });
+		const slugOf = async (id: string) =>
+			(await db.select().from(project).where(eq(project.id, id)))[0]?.slug;
+
+		expect(await slugOf((await create("Café Crème — App")).id)).toBe(
+			"cafe-creme-app",
+		);
+		expect(await slugOf((await create("café crème app")).id)).toBe(
+			"cafe-creme-app-2",
+		);
+		expect(await slugOf((await create("Cafe Creme App!")).id)).toBe(
+			"cafe-creme-app-3",
+		);
+		expect(await slugOf((await create("🚀🚀")).id)).toBe("project");
+		const long = await create("a".repeat(80));
+		expect((await slugOf(long.id))?.length).toBe(40);
+	});
+
+	it("refuse an empty or too long name", async () => {
+		const { org } = await createWorkspace();
+		as(await signedInMember(org.id));
+		await expect(
+			fns.createProjectFn({ data: { organizationId: org.id, name: "" } }),
+		).rejects.toThrow();
+		await expect(
+			fns.createProjectFn({
+				data: { organizationId: org.id, name: "a".repeat(81) },
+			}),
+		).rejects.toThrow();
+	});
+
+	it("take allowed origins as scheme and host only", async () => {
+		const { org, project: p } = await createWorkspace();
+		as(await signedInMember(org.id, "admin"));
+		const update = (allowedOrigins: string[]) =>
+			fns.updateProjectFn({ data: { projectId: p.id, allowedOrigins } });
+
+		await update([" https://shop.example.com/ ", "", "http://localhost:5173"]);
+		const [saved] = await db.select().from(project).where(eq(project.id, p.id));
+		expect(saved?.allowedOrigins).toEqual([
+			"https://shop.example.com",
+			"http://localhost:5173",
+		]);
+
+		for (const bad of [
+			"shop.example.com",
+			"https://shop.example.com/checkout",
+			"ftp://shop.example.com",
+			"javascript:alert(1)",
+			"https://shop example.com",
+		]) {
+			await expect(update([bad])).rejects.toMatchObject({ status: 400 });
+		}
+		await update(["*"]);
+	});
+
+	it("take a portal address of 3 to 40 lowercase letters, digits or dashes, once per server", async () => {
+		const { org, project: p } = await createWorkspace();
+		const other = await createProject(org.id, { portalSlug: "taken-slug" });
+		as(await signedInMember(org.id, "admin"));
+		const setSlug = (portalSlug: string) =>
+			fns.updateProjectFn({ data: { projectId: p.id, portalSlug } });
+
+		await setSlug("  My-Portal ");
+		const [saved] = await db.select().from(project).where(eq(project.id, p.id));
+		expect(saved?.portalSlug).toBe("my-portal");
+
+		for (const bad of [
+			"ab",
+			"-starts-with-dash",
+			"a".repeat(41),
+			"has space",
+			"é-accent",
+		]) {
+			await expect(setSlug(bad)).rejects.toMatchObject({ status: 400 });
+		}
+		await expect(setSlug("taken-slug")).rejects.toMatchObject({
+			status: 400,
+			message: "This address is already taken.",
+		});
+		expect(other.portalSlug).toBe("taken-slug");
 	});
 });
