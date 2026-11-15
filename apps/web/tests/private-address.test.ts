@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { checkUrlHost, isPrivateAddress } from "#/server/private-address";
+import { postPublic } from "#/server/public-request";
+import { startReceiver } from "./helpers/http";
 
 describe("isPrivateAddress", () => {
 	it("flags loopback, private, link-local, unique-local and unspecified addresses", () => {
@@ -85,5 +87,32 @@ describe("checkUrlHost", () => {
 		expect(await checkUrlHost("https://empty.example/", async () => [])).toBe(
 			"unresolved",
 		);
+	});
+});
+
+describe("postPublic", () => {
+	const post = (url: string, publicOnly: boolean) =>
+		postPublic(url, {
+			headers: { "content-type": "application/json" },
+			body: "{}",
+			signal: AbortSignal.timeout(5_000),
+			publicOnly,
+		});
+
+	it("refuses, when connecting, a name that resolves to a private address", async () => {
+		// The check runs on the address dialed, so a name answering a public
+		// address to an earlier check cannot reach this one (DNS rebinding).
+		const receiver = await startReceiver();
+		try {
+			const url = receiver.url.replace("127.0.0.1", "localhost");
+			await expect(post(url, true)).rejects.toMatchObject({
+				code: "EPRIVATEADDRESS",
+			});
+			expect(receiver.requests).toEqual([]);
+			expect(await post(url, false)).toBe(200);
+			expect(receiver.requests).toHaveLength(1);
+		} finally {
+			await receiver.close();
+		}
 	});
 });
