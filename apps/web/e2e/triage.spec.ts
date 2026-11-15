@@ -140,6 +140,30 @@ test("triage accepts, declines and merges duplicates", async ({
 	});
 });
 
+test("an unknown value in the address falls back to the page's default", async ({
+	workspace,
+	dashboard,
+	request,
+}) => {
+	const { project } = workspace;
+	await sendReport(request, project.publicKey, {
+		message: "Search ignores accented letters",
+	});
+	// An old bookmark or a hand-edited link: the page opens on its default.
+	await dashboard.goto(`/p/${project.id}/triage?selected=abc`);
+	await expect(
+		dashboard.getByRole("heading", { name: /^Triage/ }),
+	).toBeVisible();
+	await expect(dashboard.getByRole("main")).toContainText(
+		"Search ignores accented letters",
+	);
+	await dashboard.goto(`/p/${project.id}/issues?view=bogus&type=nope`);
+	await expect(dashboard.getByRole("main")).not.toContainText(
+		"This page couldn't load",
+	);
+	await expect(dashboard.getByRole("main")).toContainText("Open");
+});
+
 test("an issue deleted meanwhile opens the missing page, also from inside the app", async ({
 	workspace,
 	dashboard,
