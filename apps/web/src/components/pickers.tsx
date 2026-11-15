@@ -79,7 +79,7 @@ function Picker({
 	return (
 		<Popover open={open} onOpenChange={onOpenChange}>
 			<PopoverTrigger asChild>{trigger}</PopoverTrigger>
-			<PopoverContent className="w-60 p-0" align="start">
+			<PopoverContent className="w-60 p-0" align="start" aria-label={label}>
 				<Command label={label}>
 					{searchable && (
 						<CommandInput placeholder={placeholder ?? `${label}…`} />
@@ -423,7 +423,7 @@ export function LabelsPicker({
 					)}
 				</Trigger>
 			</PopoverTrigger>
-			<PopoverContent className="w-60 p-0" align="start">
+			<PopoverContent className="w-60 p-0" align="start" aria-label="Labels">
 				<Command label="Labels">
 					<CommandInput
 						placeholder="Find or create a label…"
