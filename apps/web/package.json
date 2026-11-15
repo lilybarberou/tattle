@@ -87,7 +87,7 @@
     "drizzle-kit": "^0.31.9",
     "esbuild": "0.28.2",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.2",
+    "typescript": "^7.0.2",
     "vite": "^8.0.0",
     "vitest": "5.1.0"
   }
