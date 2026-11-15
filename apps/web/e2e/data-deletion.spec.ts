@@ -105,6 +105,18 @@ test("an access then an erasure request for one person", async ({
 		expect(() => JSON.parse(exported)).not.toThrow();
 	});
 
+	await test.step("pressing Enter twice on Erase… erases nothing", async () => {
+		const erase = dashboard.getByRole("button", { name: "Erase…" });
+		await erase.focus();
+		await dashboard.keyboard.press("Enter");
+		await expect(
+			dashboard.getByRole("button", { name: "Keep them" }),
+		).toBeFocused();
+		await dashboard.keyboard.press("Enter");
+		await expect(erase).toBeFocused();
+		await expect(dashboard.getByText(/^Erased /)).toHaveCount(0);
+	});
+
 	await test.step("the erasure request deletes her data for good", async () => {
 		await dashboard.getByRole("button", { name: "Erase…" }).click();
 		await expect(
