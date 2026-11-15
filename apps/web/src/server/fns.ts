@@ -47,7 +47,7 @@ import { Database } from "./Database";
 import { DataLifecycle } from "./DataLifecycle";
 import { Duplicates } from "./Duplicates";
 import { env } from "./env";
-import { type DbError, InvalidInput, NotFound } from "./errors";
+import { type DbError, Forbidden, InvalidInput, NotFound } from "./errors";
 import { GitHub } from "./GitHub";
 import { Issues } from "./Issues";
 import { mailEnabled, sendMail } from "./mailer";
@@ -729,29 +729,15 @@ export const removeAiSettingsFn = createServerFn({ method: "POST" })
 
 // ---------- Members and invitations ----------
 
-const requireAdmin = (organizationId: string) =>
+/** A signed-in owner or admin of the organization (403 otherwise). */
+const requireAdmin = (
+	organizationId: string,
+	message = "Only owners and admins can do this",
+) =>
 	Effect.gen(function* () {
 		const p = yield* principal();
-		if (p.kind !== "user")
-			return yield* new InvalidInput({
-				message: "Only members can manage members",
-			});
-		const database = yield* Database;
-		const [row] = yield* database.query((db) =>
-			db
-				.select({ role: member.role })
-				.from(member)
-				.where(
-					and(
-						eq(member.organizationId, organizationId),
-						eq(member.userId, p.userId),
-					),
-				),
-		);
-		if (!row || !["owner", "admin"].includes(row.role))
-			return yield* new InvalidInput({
-				message: "Only owners and admins can invite people",
-			});
+		yield* (yield* Access).requireAdmin(p, organizationId, message);
+		if (p.kind !== "user") return yield* new Forbidden({ message });
 		return p;
 	});
 
@@ -823,7 +809,10 @@ export const inviteMemberFn = createServerFn({ method: "POST" })
 	.handler(({ data }) =>
 		run(
 			Effect.gen(function* () {
-				const p = yield* requireAdmin(data.organizationId);
+				const p = yield* requireAdmin(
+					data.organizationId,
+					"Only owners and admins can invite people",
+				);
 				const database = yield* Database;
 				const email = data.email.trim().toLowerCase();
 				yield* database.query((db) =>
@@ -870,7 +859,10 @@ export const revokeInvitationFn = createServerFn({ method: "POST" })
 	.handler(({ data }) =>
 		run(
 			Effect.gen(function* () {
-				yield* requireAdmin(data.organizationId);
+				yield* requireAdmin(
+					data.organizationId,
+					"Only owners and admins can invite people",
+				);
 				const database = yield* Database;
 				yield* database.query((db) =>
 					db
@@ -1105,7 +1097,7 @@ const requireProjectAdmin = (projectId: string) =>
 const isProjectAdmin = (organizationId: string) =>
 	requireAdmin(organizationId).pipe(
 		Effect.as(true),
-		Effect.catchTag("InvalidInput", () => Effect.succeed(false)),
+		Effect.catchTag("Forbidden", () => Effect.succeed(false)),
 	);
 
 /** Everyone sees whether it is on; only owners and admins see the secret. */
