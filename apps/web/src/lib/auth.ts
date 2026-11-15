@@ -32,6 +32,10 @@ export const auth = betterAuth({
 		// alone, which every member of the organization sees.
 		"/organization/accept-invitation",
 		"/organization/reject-invitation",
+		// The dashboard never deletes an organization, and this endpoint would
+		// leave its projects' screenshots in storage (rows cascade, files do
+		// not). Projects are deleted one by one, files included.
+		"/organization/delete",
 	],
 	emailAndPassword: {
 		enabled: true,
