@@ -67,7 +67,7 @@
     "react-native": "0.88.1",
     "react-native-svg": "15.16.1",
     "react-native-view-shot": "6.2.1",
-    "typescript": "^6.0.2",
+    "typescript": "^7.0.2",
     "vitest": "5.1.0"
   }
 }
