@@ -48,7 +48,13 @@ import { Database } from "./Database";
 import { DataLifecycle } from "./DataLifecycle";
 import { Duplicates } from "./Duplicates";
 import { env } from "./env";
-import { type DbError, Forbidden, InvalidInput, NotFound } from "./errors";
+import {
+	type DbError,
+	Forbidden,
+	InvalidInput,
+	NotFound,
+	violatedConstraint,
+} from "./errors";
 import { GitHub } from "./GitHub";
 import { Issues } from "./Issues";
 import { mailEnabled, sendMail } from "./mailer";
@@ -364,7 +370,7 @@ export const updateProjectFn = createServerFn({ method: "POST" })
 						Effect.catchTag(
 							"DbError",
 							(error): Effect.Effect<never, InvalidInput | DbError> =>
-								String(error.cause).includes("project_portal_slug_unique")
+								violatedConstraint(error) === "project_portal_slug_unique"
 									? Effect.fail(
 											new InvalidInput({
 												message: "This address is already taken.",
