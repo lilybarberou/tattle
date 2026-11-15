@@ -335,7 +335,7 @@ function AppLayout() {
 	return (
 		<AppActionsContext.Provider value={actions}>
 			<div className="grid min-h-dvh md:h-dvh md:grid-cols-[var(--sidebar-width)_minmax(0,1fr)] md:grid-rows-[48px_minmax(0,1fr)]">
-				<aside className="row-span-2 max-md:hidden">
+				<aside aria-label="Sidebar" className="row-span-2 max-md:hidden">
 					<SidebarContent />
 				</aside>
 

@@ -774,7 +774,10 @@ function IssuePage() {
 				</section>
 			</div>
 
-			<aside className="border-l bg-surface px-5 py-5 max-lg:order-first max-lg:border-b max-lg:border-l-0">
+			<aside
+				aria-label="Issue properties"
+				className="border-l bg-surface px-5 py-5 max-lg:order-first max-lg:border-b max-lg:border-l-0"
+			>
 				<div className="space-y-1 lg:sticky lg:top-5">
 					<PropertyRow label="Status">
 						<StatusPicker

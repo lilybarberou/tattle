@@ -528,7 +528,10 @@ function TriagePage() {
 								{latest && <ReportLogs report={latest} />}
 							</div>
 
-							<aside className="space-y-6 xl:border-l xl:pl-6">
+							<aside
+								aria-label="Decision"
+								className="space-y-6 xl:border-l xl:pl-6"
+							>
 								<div className="space-y-1">
 									<p className="text-xs text-muted-foreground">
 										Set before accepting
