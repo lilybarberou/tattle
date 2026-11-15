@@ -28,14 +28,15 @@ export const Route = createFileRoute("/login")({
 	}),
 	beforeLoad: async ({ search }) => {
 		const oauth = "client_id" in search;
-		if (!oauth && (await getSessionFn())) {
-			// Already signed in: an invitation link still makes them join.
-			if (search.invite)
-				await acceptInvitationFn({ data: { invite: search.invite } }).catch(
-					() => undefined,
-				);
-			throw redirect({ to: "/" });
+		const session = oauth ? null : await getSessionFn();
+		if (!session) return { signedInAs: null };
+		// Already signed in: an invitation link still makes them join.
+		if (search.invite && !(await joins(search.invite))) {
+			// Another account, or a link no longer valid: say so, rather than
+			// open the dashboard as if they had joined.
+			return { signedInAs: session.user.email };
 		}
+		throw redirect({ to: "/" });
 	},
 	loaderDeps: ({ search }) => ({ email: search.email, invite: search.invite }),
 	loader: ({ deps }) =>
@@ -43,9 +44,18 @@ export const Route = createFileRoute("/login")({
 	component: LoginPage,
 });
 
+/** Whether the signed-in person joined the organization of this invitation. */
+const joins = (invite: string) =>
+	acceptInvitationFn({ data: { invite } }).then(
+		(result) => result.joined,
+		() => false,
+	);
+
 function LoginPage() {
 	const signup = Route.useLoaderData();
 	const { email: invitedEmail, invite } = Route.useSearch();
+	const { signedInAs } = Route.useRouteContext();
+	const [wrongAccount, setWrongAccount] = useState(signedInAs);
 	const navigate = useNavigate();
 	const canSignUp = signup.allowed;
 	const [mode, setMode] = useState<"sign-in" | "sign-up">(
@@ -82,8 +92,10 @@ function LoginPage() {
 		}
 		// Joins the organization of the invitation link, when it was sent to
 		// this account's email.
-		if (invite)
-			await acceptInvitationFn({ data: { invite } }).catch(() => undefined);
+		if (invite && !(await joins(invite))) {
+			setWrongAccount(email);
+			return;
+		}
 		if (followRedirect(result.data)) return;
 		await navigate({ to: "/" });
 	};
@@ -100,6 +112,45 @@ function LoginPage() {
 			: mode === "sign-up" && invitedEmail
 				? `You were invited as ${invitedEmail}.`
 				: "Bug reports and feature requests from your users, triaged by your agents.";
+
+	if (wrongAccount) {
+		return (
+			<main className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-ground px-4 py-10">
+				<Brand className="text-base" />
+				<div className="w-full max-w-sm space-y-6 rounded-2xl border bg-surface p-7">
+					<div className="space-y-2">
+						<h1 className="text-xl font-semibold">
+							This invitation is not for this account
+						</h1>
+						<p className="text-muted-foreground">
+							You are signed in as{" "}
+							<span className="font-medium text-ink">{wrongAccount}</span>.
+							{invitedEmail
+								? ` The invitation was sent to ${invitedEmail}, or it was already used, canceled or has expired.`
+								: " The invitation was sent to another address, or it was already used, canceled or has expired."}
+						</p>
+						<p className="text-muted-foreground">
+							Sign out, then open the link again to join with the invited
+							address. Or ask for a new invitation to {wrongAccount}.
+						</p>
+					</div>
+					<div className="flex flex-col gap-2">
+						<Button
+							onClick={async () => {
+								await authClient.signOut();
+								setWrongAccount(null);
+							}}
+						>
+							Sign out
+						</Button>
+						<Button variant="outline" asChild>
+							<Link to="/">Go to the dashboard</Link>
+						</Button>
+					</div>
+				</div>
+			</main>
+		);
+	}
 
 	return (
 		<main className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-ground px-4 py-10">

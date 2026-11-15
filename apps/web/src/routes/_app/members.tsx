@@ -9,6 +9,7 @@ import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import {
+	getInvitationLinkFn,
 	getWorkspaceFn,
 	inviteMemberFn,
 	listMembersFn,
@@ -36,7 +37,7 @@ function MembersPage() {
 		Route.useLoaderData();
 	const router = useRouter();
 	const [role, setRole] = useState<"member" | "admin">("member");
-	const [link, setLink] = useState<string | null>(null);
+	const [link, setLink] = useState<{ email: string; url: string } | null>(null);
 
 	return (
 		<>
@@ -78,14 +79,13 @@ function MembersPage() {
 								event.preventDefault();
 								const form = event.currentTarget;
 								try {
-									const result = await inviteMemberFn({
-										data: {
-											organizationId: organization.id,
-											email: String(new FormData(form).get("email")),
-											role,
-										},
-									});
-									setLink(result.link);
+									const data = {
+										organizationId: organization.id,
+										email: String(new FormData(form).get("email")).trim(),
+										role,
+									};
+									const result = await inviteMemberFn({ data });
+									setLink({ email: data.email, url: result.link });
 									if (result.emailed) toast.success("Invitation sent by email");
 									form.reset();
 									await router.invalidate();
@@ -137,8 +137,8 @@ function MembersPage() {
 					)}
 					{link && (
 						<CodeBlock
-							label="Invitation link (also usable if the email gets lost)"
-							code={link}
+							label={`Invitation link for ${link.email} (also usable if the email gets lost)`}
+							code={link.url}
 						/>
 					)}
 					{invitations.length > 0 && (
@@ -157,6 +157,32 @@ function MembersPage() {
 												{relativeTime(invite.expiresAt)}
 											</p>
 										</div>
+										{canManage && (
+											<Button
+												variant="ghost"
+												size="sm"
+												onClick={async () => {
+													try {
+														const shown = await getInvitationLinkFn({
+															data: {
+																organizationId: organization.id,
+																invitationId: invite.id,
+															},
+														});
+														setLink({ email: shown.email, url: shown.link });
+													} catch (error) {
+														toast.error(
+															error instanceof Error
+																? error.message
+																: "Link unavailable",
+														);
+														await router.invalidate();
+													}
+												}}
+											>
+												Show link
+											</Button>
+										)}
 										{canManage && (
 											<Button
 												variant="outline"
