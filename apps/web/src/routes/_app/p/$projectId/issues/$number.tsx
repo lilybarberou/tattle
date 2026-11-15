@@ -46,6 +46,7 @@ import {
 } from "#/components/report-evidence";
 import { errorStatus } from "#/components/status-page";
 import { Button } from "#/components/ui/button";
+import { useInlineConfirm } from "#/lib/use-inline-confirm";
 import { cn } from "#/lib/utils";
 import {
 	addCommentFn,
@@ -141,7 +142,7 @@ function ReportBlock({
 	onDelete?: () => Promise<void>;
 }) {
 	const [open, setOpen] = useState(defaultOpen);
-	const [confirming, setConfirming] = useState(false);
+	const { confirming, setConfirming, trigger, cancel } = useInlineConfirm();
 	const name = report.reporter?.name || report.reporter?.email || "Anonymous";
 	const { errors, failed } = countErrors(report);
 	const signal = errorSignal(errors, failed);
@@ -201,6 +202,7 @@ function ReportBlock({
 											Delete
 										</Button>
 										<Button
+											ref={cancel}
 											size="xs"
 											variant="ghost"
 											onClick={() => setConfirming(false)}
@@ -210,6 +212,7 @@ function ReportBlock({
 									</>
 								) : (
 									<Button
+										ref={trigger}
 										size="xs"
 										variant="ghost"
 										className="text-muted-foreground"
@@ -480,7 +483,12 @@ function IssuePage() {
 	const [title, setTitle] = useState(issue.title);
 	const [comment, setComment] = useState("");
 	const [merging, setMerging] = useState(false);
-	const [deleting, setDeleting] = useState(false);
+	const {
+		confirming: deleting,
+		setConfirming: setDeleting,
+		trigger: deleteTrigger,
+		cancel: keepIssue,
+	} = useInlineConfirm();
 	const [checking, setChecking] = useState(false);
 	const navigate = useNavigate();
 	const [prUrl, setPrUrl] = useState(issue.prUrl ?? "");
@@ -950,6 +958,7 @@ function IssuePage() {
 											Delete
 										</Button>
 										<Button
+											ref={keepIssue}
 											size="sm"
 											variant="ghost"
 											onClick={() => setDeleting(false)}
@@ -960,6 +969,7 @@ function IssuePage() {
 								</div>
 							) : (
 								<Button
+									ref={deleteTrigger}
 									variant="ghost"
 									className="-ml-2 text-muted-foreground"
 									onClick={() => setDeleting(true)}
