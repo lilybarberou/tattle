@@ -36,10 +36,23 @@ export const verifyGithubSignature = (
 const REFERENCE =
 	/(?<!(?:\bnot|\bnever|n['’]t)\s+)\b(?:fix(?:e[sd])?|close[sd]?|resolve[sd]?)(?:\s*:\s*|\s+)tattle\s*#(\d{1,9})\b/gi;
 
-/** Issue numbers a pull request's title or body says it fixes. */
-export const issueReferences = (text: string) => [
-	...new Set([...text.matchAll(REFERENCE)].map((m) => Number(m[1]))),
-];
+/** At most this many issues are linked or closed by one pull request. */
+export const MAX_REFERENCES = 10;
+
+/** Issue numbers a pull request's title or body says it fixes, the first 10. */
+export const issueReferences = (text: string) =>
+	[...new Set([...text.matchAll(REFERENCE)].map((m) => Number(m[1])))].slice(
+		0,
+		MAX_REFERENCES,
+	);
+
+/**
+ * Authors whose open pull requests may link issues: people with access to
+ * the repository. Anyone can open a pull request from a fork of a public
+ * repository, so an outsider's "Fixes Tattle #12" only counts once someone
+ * with write access merges it.
+ */
+export const TRUSTED_AUTHORS = ["OWNER", "MEMBER", "COLLABORATOR"];
 
 const pullRequestEvent = z.object({
 	action: z.string(),
@@ -51,6 +64,7 @@ const pullRequestEvent = z.object({
 		merged: z.boolean().nullish(),
 		draft: z.boolean().nullish(),
 		base: z.object({ ref: z.string() }),
+		author_association: z.string().nullish(),
 	}),
 	repository: z.object({ default_branch: z.string() }),
 });
@@ -202,7 +216,13 @@ export class GitHub extends Context.Service<
 					return { ok: true, message: `${label}: ${reason}`, issues: [] };
 				}
 
-				const references = issueReferences(`${pr.title}\n${pr.body ?? ""}`);
+				const trusted =
+					merged || TRUSTED_AUTHORS.includes(pr.author_association ?? "");
+				// An outsider's pull request still updates the issue it is already
+				// the pull request of (set by the team), never others.
+				const references = trusted
+					? issueReferences(`${pr.title}\n${pr.body ?? ""}`)
+					: [];
 				const linked = yield* database.query((db) =>
 					db
 						.select({
@@ -258,7 +278,9 @@ export class GitHub extends Context.Service<
 						: `${label}: no open linked issue`
 					: changed.length
 						? `${label}: linked ${list}`
-						: `${label}: no issue to link`;
+						: trusted
+							? `${label}: no issue to link`
+							: `${label}: by someone outside the repository (${pr.author_association ?? "unknown"}), its references count once it is merged`;
 				return { ok: true, message, issues: changed };
 			});
 

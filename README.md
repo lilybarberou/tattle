@@ -197,7 +197,7 @@ Turn it on, then in the repository on GitHub: **Settings → Webhooks → Add we
 
 - A pull request is linked to an issue when it is the issue's pull request (`prUrl`, set by an agent or in the dashboard), or when its title or description says `Fixes Tattle #12`: a closing keyword (`fix`, `fixes`, `fixed`, `close`, `closes`, `closed`, `resolve`, `resolves`, `resolved`, any case, optional colon) right before the reference, as in `Closes: tattle#12`. A bare mention (`see Tattle #12`, `does not fix Tattle #12`) links nothing.
 - An issue whose pull request is another one is never touched by this one: it is neither relinked nor moved to Done.
-- When a pull request that says `Fixes Tattle #12` is opened, reopened or marked ready for review, issue 12 gets it as its pull request (if it has none) and moves from Todo or In progress to In review. Drafts are linked without moving.
+- When a pull request that says `Fixes Tattle #12` is opened, reopened or marked ready for review, issue 12 gets it as its pull request (if it has none) and moves from Todo or In progress to In review. Drafts are linked without moving. This applies to pull requests opened by people with access to the repository (owner, members, collaborators): an outsider's pull request, from a fork of a public repository say, links nothing until it is merged. One pull request links or closes 10 issues at most.
 - Merges into another branch, pull requests closed without merging, and issues already done, declined or marked duplicate are left alone.
 - Every delivery must carry a valid `X-Hub-Signature-256`; anything else gets a 401. Deliveries are limited per IP (`GITHUB_LIMIT_PER_IP`, default 300 per 10 minutes).
 
