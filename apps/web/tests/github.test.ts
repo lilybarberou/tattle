@@ -26,6 +26,7 @@ type PullRequest = {
 	title?: string;
 	body?: string | null;
 	url?: string;
+	author?: string;
 };
 
 const pullRequest = (pr: PullRequest = {}) => ({
@@ -39,6 +40,7 @@ const pullRequest = (pr: PullRequest = {}) => ({
 		merged: pr.merged ?? true,
 		draft: pr.draft ?? false,
 		base: { ref: pr.base ?? "main" },
+		author_association: pr.author ?? "MEMBER",
 	},
 	repository: { full_name: "acme/shop", default_branch: "main" },
 });
@@ -449,6 +451,94 @@ describe("opened pull requests", () => {
 			status: "todo",
 			prUrl: other,
 		});
+	});
+
+	it("ignore what an outsider's open pull request references, until it is merged", async () => {
+		const { project: p, secret } = await setup();
+		await createIssue(p.id, { status: "todo" });
+		for (const author of ["CONTRIBUTOR", "FIRST_TIME_CONTRIBUTOR", "NONE"]) {
+			const result = await deliver(
+				p.id,
+				secret,
+				pullRequest({
+					action: "opened",
+					merged: false,
+					author,
+					body: "Fixes Tattle #1",
+				}),
+			);
+			expect(result.body).toMatchObject({
+				issues: [],
+				message: expect.stringContaining(
+					`by someone outside the repository (${author})`,
+				),
+			});
+		}
+		expect(await issueOf(p.id, 1)).toMatchObject({
+			status: "todo",
+			prUrl: null,
+		});
+
+		// A maintainer merged it: the reference counts now.
+		const merged = await deliver(
+			p.id,
+			secret,
+			pullRequest({ author: "CONTRIBUTOR", body: "Fixes Tattle #1" }),
+		);
+		expect(merged.body.issues).toEqual([1]);
+		expect(await issueOf(p.id, 1)).toMatchObject({
+			status: "done",
+			prUrl: PR_URL,
+		});
+	});
+
+	it("still update the issue an outsider's pull request was set on by the team", async () => {
+		const { project: p, secret } = await setup();
+		await createIssue(p.id, { status: "todo", prUrl: PR_URL });
+		const result = await deliver(
+			p.id,
+			secret,
+			pullRequest({ action: "opened", merged: false, author: "CONTRIBUTOR" }),
+		);
+		expect(result.body.issues).toEqual([1]);
+		expect(await issueOf(p.id, 1)).toMatchObject({ status: "in_review" });
+	});
+
+	it("link the team's open pull requests, collaborators included", async () => {
+		const { project: p, secret } = await setup();
+		for (const _ of ["OWNER", "MEMBER", "COLLABORATOR"])
+			await createIssue(p.id, { status: "todo" });
+		for (const [index, author] of [
+			"OWNER",
+			"MEMBER",
+			"COLLABORATOR",
+		].entries()) {
+			const result = await deliver(
+				p.id,
+				secret,
+				pullRequest({
+					action: "opened",
+					merged: false,
+					author,
+					url: `https://github.com/acme/shop/pull/${40 + index}`,
+					body: `Fixes Tattle #${index + 1}`,
+				}),
+			);
+			expect(result.body.issues).toEqual([index + 1]);
+		}
+	});
+
+	it("link or close 10 issues at most per pull request", async () => {
+		const { project: p, secret } = await setup();
+		for (let n = 1; n <= 12; n++) await createIssue(p.id, { status: "todo" });
+		const body = Array.from(
+			{ length: 12 },
+			(_, i) => `Fixes Tattle #${i + 1}`,
+		).join("\n");
+		const result = await deliver(p.id, secret, pullRequest({ body }));
+		expect(result.body.issues).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+		expect(await issueOf(p.id, 11)).toMatchObject({ status: "todo" });
+		expect(await issueOf(p.id, 12)).toMatchObject({ status: "todo" });
 	});
 
 	it("do not link a pull request that only mentions the issue", async () => {

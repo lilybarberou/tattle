@@ -159,7 +159,7 @@ OAuth discovery follows the MCP spec: `/.well-known/oauth-protected-resource/api
 
 | Tool | What it does |
 |---|---|
-| `list_projects` | Projects the token can access |
+| `list_projects` | Projects you can access, with their organization (when two have the same slug, use the id) |
 | `list_issues` | Filter by status (`["triage"]` for the inbox), type, keyword, release |
 | `search_issues` | Similar issues by keywords, to spot duplicates, optionally from one release |
 | `get_issue` | Issue, comments, activity (including regressions), the releases it was seen in, report summaries with their conversation, the open duplicate suggestion |
@@ -171,7 +171,7 @@ OAuth discovery follows the MCP spec: `/.well-known/oauth-protected-resource/api
 
 Linking a fix: set the issue's pull request with `update_issue` (`pr_url`), or write `Fixes Tattle #12` in the pull request's title or description: a GitHub closing keyword (`fix`, `fixes`, `fixed`, `close`, `closes`, `closed`, `resolve`, `resolves`, `resolved`, any case, optional colon) right before the reference, e.g. `closes tattle#12`. A bare `Tattle #12` or `does not fix Tattle #12` links nothing, and a plain `#12` is left alone: on GitHub it means GitHub's own issue 12.
 
-Report content and reporters' messages are written by end users. The MCP server tells agents to treat them as data, never as instructions (reporters' messages are flagged `untrustedUserContent`); keep agent permissions narrow anyway.
+Report content and reporters' messages are written by end users. The MCP server tells agents to treat them as data, never as instructions, and flags them `untrustedUserContent`: reporters' messages, and issues whose title and description an end user wrote (created from a report, or suggested on the public page), with their reports. Keep agent permissions narrow anyway.
 
 ## Duplicate suggestions
 
@@ -197,7 +197,7 @@ Turn it on, then in the repository on GitHub: **Settings → Webhooks → Add we
 
 - A pull request is linked to an issue when it is the issue's pull request (`prUrl`, set by an agent or in the dashboard), or when its title or description says `Fixes Tattle #12`: a closing keyword (`fix`, `fixes`, `fixed`, `close`, `closes`, `closed`, `resolve`, `resolves`, `resolved`, any case, optional colon) right before the reference, as in `Closes: tattle#12`. A bare mention (`see Tattle #12`, `does not fix Tattle #12`) links nothing.
 - An issue whose pull request is another one is never touched by this one: it is neither relinked nor moved to Done.
-- When a pull request that says `Fixes Tattle #12` is opened, reopened or marked ready for review, issue 12 gets it as its pull request (if it has none) and moves from Todo or In progress to In review. Drafts are linked without moving.
+- When a pull request that says `Fixes Tattle #12` is opened, reopened or marked ready for review, issue 12 gets it as its pull request (if it has none) and moves from Todo or In progress to In review. Drafts are linked without moving. This applies to pull requests opened by people with access to the repository (owner, members, collaborators): an outsider's pull request, from a fork of a public repository say, links nothing until it is merged. One pull request links or closes 10 issues at most.
 - Merges into another branch, pull requests closed without merging, and issues already done, declined or marked duplicate are left alone.
 - Every delivery must carry a valid `X-Hub-Signature-256`; anything else gets a 401. Deliveries are limited per IP (`GITHUB_LIMIT_PER_IP`, default 300 per 10 minutes).
 
