@@ -74,12 +74,22 @@ const s3Backend = (): Backend => {
 		for (let i = 0; i < keys.length; i += 1000) {
 			const batch = keys.slice(i, i + 1000);
 			if (batch.length === 0) continue;
-			await client.send(
+			const result = await client.send(
 				new DeleteObjectsCommand({
 					Bucket: bucket,
 					Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: true },
 				}),
 			);
+			// Quiet mode still lists the objects it could not delete. Failing
+			// keeps the database's reference, so the deletion is tried again
+			// instead of leaving an orphan file behind.
+			const failed = result.Errors ?? [];
+			if (failed.length > 0) {
+				const codes = [...new Set(failed.map((e) => e.Code ?? "unknown"))];
+				throw new Error(
+					`${failed.length} of ${batch.length} files could not be deleted (${codes.join(", ")})`,
+				);
+			}
 		}
 	};
 	return {
