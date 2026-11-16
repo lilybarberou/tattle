@@ -8,6 +8,10 @@ import type { ReactNode } from "react";
 import { Reveal } from "@/components/reveal";
 
 export const metadata: Metadata = {
+	// Resolves the social images and the canonical address against the public
+	// domain instead of localhost.
+	metadataBase: new URL("https://tattle.bylily.me"),
+	alternates: { canonical: "/" },
 	title: "Tattle — bugs et idées, signalés depuis vos apps",
 	description:
 		"Un widget et un tracker auto-hébergés : chaque rapport arrive avec sa capture annotée, les étapes, la console, le réseau et l'appareil, prêt à être trié par votre équipe ou par un agent IA.",
@@ -15,6 +19,14 @@ export const metadata: Metadata = {
 		title: "Tattle",
 		description:
 			"Bugs et idées, signalés depuis vos apps. Auto-hébergé, open source, prêt pour les agents.",
+		url: "/",
+		siteName: "Tattle",
+		locale: "fr_FR",
+		type: "website",
+		images: ["/media/promo-poster.jpg"],
+	},
+	twitter: {
+		card: "summary_large_image",
 		images: ["/media/promo-poster.jpg"],
 	},
 };
