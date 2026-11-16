@@ -1,0 +1,25 @@
+{
+	"name": "landing",
+	"private": true,
+	"license": "AGPL-3.0-only",
+	"type": "module",
+	"scripts": {
+		"dev": "next dev",
+		"build": "next build",
+		"start": "npx serve out",
+		"check": "biome check",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@fontsource/ibm-plex-mono": "5.3.0",
+		"@fontsource/ibm-plex-sans": "5.3.0",
+		"next": "16.4.6",
+		"react": "19.3.1",
+		"react-dom": "19.3.1"
+	},
+	"devDependencies": {
+		"@types/node": "^22",
+		"@types/react": "^19",
+		"@types/react-dom": "^19"
+	}
+}

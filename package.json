@@ -6,6 +6,7 @@
   "packageManager": "pnpm@10.15.0",
   "scripts": {
     "dev": "pnpm --filter web dev",
+    "dev:landing": "pnpm --filter landing dev",
     "build": "pnpm -r build",
     "check": "biome check .",
     "typecheck": "pnpm -r typecheck",
