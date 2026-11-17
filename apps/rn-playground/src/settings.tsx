@@ -1,4 +1,4 @@
-import type { ColorScheme, Locale } from "@tattle/react-native";
+import type { ColorScheme, Locale } from "@tattlehq/react-native";
 import { createContext, use } from "react";
 
 /** What the Account screen changes on the provider, to try its options. */

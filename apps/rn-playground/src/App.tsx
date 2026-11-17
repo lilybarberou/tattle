@@ -5,7 +5,7 @@ import {
 	useNavigationContainerRef,
 } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { Tattle, TattleProvider } from "@tattle/react-native";
+import { Tattle, TattleProvider } from "@tattlehq/react-native";
 import Constants from "expo-constants";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";

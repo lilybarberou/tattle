@@ -1,4 +1,4 @@
-import { Tattle } from "@tattle/react-native";
+import { Tattle } from "@tattlehq/react-native";
 import { useState } from "react";
 import { StyleSheet, Text } from "react-native";
 import { apiUrl, hasProjectKey, projectKey } from "../config";

@@ -1,8 +1,15 @@
 {
-  "name": "@tattle/widget",
+  "name": "@tattlehq/widget",
   "version": "0.1.0",
   "description": "Drop-in bug report and feedback widget: screenshot + annotations, console logs, network requests and device info.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lilybarberou/tattle.git",
+    "directory": "packages/widget"
+  },
+  "homepage": "https://tattle.bylily.me",
+  "bugs": "https://github.com/lilybarberou/tattle/issues",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -39,5 +46,9 @@
     "typescript": "^7.0.2",
     "vite": "8.3.8",
     "vitest": "5.1.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

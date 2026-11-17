@@ -78,7 +78,7 @@ pnpm install
 docker compose -f docker-compose.dev.yml up -d   # Postgres :5434, Mailpit http://localhost:8026, S3 (RustFS) :9030
 cp apps/web/.env.example apps/web/.env           # then set BETTER_AUTH_SECRET
 pnpm --filter web db:migrate
-pnpm --filter @tattle/widget build
+pnpm --filter @tattlehq/widget build
 pnpm dev                                         # http://localhost:3000
 ```
 
@@ -125,10 +125,10 @@ A user id without a valid hash never opens anyone's reports. While verification 
 
 ## Install in a mobile app
 
-**React Native and Expo**: `@tattle/react-native` adds the same button and form, with an annotated screenshot of the current screen, the screens visited before, console logs, uncaught errors, network requests, and the device and app version. It is not on npm yet: its README explains how to install it from this repository.
+**React Native and Expo**: `@tattlehq/react-native` adds the same button and form, with an annotated screenshot of the current screen, the screens visited before, console logs, uncaught errors, network requests, and the device and app version. It is not on npm yet: its README explains how to install it from this repository.
 
 ```tsx
-import { TattleProvider, Tattle } from "@tattle/react-native";
+import { TattleProvider, Tattle } from "@tattlehq/react-native";
 
 <TattleProvider projectKey="pk_…" apiUrl="https://your-server">
   <App />

@@ -12,6 +12,6 @@ if (existsSync(source)) {
 	console.log("widget.js copied to public/");
 } else {
 	console.warn(
-		"packages/widget is not built yet: run `pnpm --filter @tattle/widget build`",
+		"packages/widget is not built yet: run `pnpm --filter @tattlehq/widget build`",
 	);
 }

@@ -1,4 +1,4 @@
-# @tattle/widget
+# @tattlehq/widget
 
 A drop-in bug report and feedback widget for any web app. It has no framework dependency and renders in a Shadow DOM.
 
@@ -241,7 +241,7 @@ Submitting a report sends `POST {apiUrl}/api/v1/ingest` with `Content-Type: appl
   console: [{ level, message, timestamp, stack? }],                  // last 200
   network: [{ method, url, status, durationMs, timestamp, error? }],  // last 100
   breadcrumbs: [{ category, message, timestamp, data? }],            // last 50
-  sdk: { name: "@tattle/widget", version: "0.1.0" },
+  sdk: { name: "@tattlehq/widget", version: "0.1.0" },
   reporterKey?,            // this device's key, for "My reports"
   userHash?                // the hash given to identify()
 }
@@ -311,10 +311,10 @@ The widget has no nonce support yet, so `style-src` needs `'unsafe-inline'`: wit
 ## Development
 
 ```sh
-pnpm --filter @tattle/widget build       # dist/widget.iife.js, dist/index.js, dist/*.d.ts
-pnpm --filter @tattle/widget dev         # rebuild the IIFE on change
-pnpm --filter @tattle/widget typecheck
-pnpm --filter @tattle/widget demo        # serves demo/index.html (build first)
+pnpm --filter @tattlehq/widget build       # dist/widget.iife.js, dist/index.js, dist/*.d.ts
+pnpm --filter @tattlehq/widget dev         # rebuild the IIFE on change
+pnpm --filter @tattlehq/widget typecheck
+pnpm --filter @tattlehq/widget demo        # serves demo/index.html (build first)
 ```
 
 `demo/index.html` loads `../dist/widget.iife.js` with `data-api-url="http://localhost:3000"`. It has buttons that log, throw, call `fetch`/XHR, and call the widget API, plus fields that should be masked.

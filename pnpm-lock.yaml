@@ -56,7 +56,7 @@ importers:
       '@react-navigation/native-stack':
         specifier: 7.21.1
         version: 7.21.1(@react-navigation/native@7.5.2(react-native@0.88.1(@babel/core@7.29.13)(@types/react@19.3.0)(react@19.3.0))(react@19.3.0))(react-native-safe-area-context@5.11.1(react-native@0.88.1(@babel/core@7.29.13)(@types/react@19.3.0)(react@19.3.0))(react@19.3.0))(react-native-screens@4.30.1(react-native@0.88.1(@babel/core@7.29.13)(@types/react@19.3.0)(react@19.3.0))(react@19.3.0))(react-native@0.88.1(@babel/core@7.29.13)(@types/react@19.3.0)(react@19.3.0))(react@19.3.0)
-      '@tattle/react-native':
+      '@tattlehq/react-native':
         specifier: workspace:*
         version: link:../../packages/react-native
       expo:

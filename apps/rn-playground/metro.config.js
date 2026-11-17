@@ -1,6 +1,6 @@
 // Metro for the playground, inside the pnpm workspace.
 //
-// - `@tattle/react-native` resolves to the SDK's TypeScript sources, so an edit
+// - `@tattlehq/react-native` resolves to the SDK's TypeScript sources, so an edit
 //   in packages/react-native reloads the app without building or packing.
 // - Every package the SDK imports (react, react-native, react-native-svg…)
 //   resolves from this app, as it would once installed in a real app. The SDK's
@@ -23,7 +23,7 @@ config.watchFolders = [...new Set([...(config.watchFolders ?? []), sdkRoot])];
 const isPackage = (name) => !name.startsWith(".") && !path.isAbsolute(name);
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-	if (moduleName === "@tattle/react-native")
+	if (moduleName === "@tattlehq/react-native")
 		return { type: "sourceFile", filePath: sdkEntry };
 	if (
 		isPackage(moduleName) &&

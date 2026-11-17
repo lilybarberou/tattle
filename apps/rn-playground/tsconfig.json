@@ -4,7 +4,7 @@
 		"strict": true,
 		"types": ["expo/types"],
 		"paths": {
-			"@tattle/react-native": ["../../packages/react-native/src/index.ts"]
+			"@tattlehq/react-native": ["../../packages/react-native/src/index.ts"]
 		}
 	},
 	"include": ["src"]

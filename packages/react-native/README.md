@@ -1,4 +1,4 @@
-# @tattle/react-native
+# @tattlehq/react-native
 
 Tattle's bug report and feedback widget for React Native and Expo apps.
 
@@ -11,16 +11,16 @@ Users tap a floating button, choose **Report a bug** or **Suggest an idea**, wri
 
 ## Install
 
-`@tattle/react-native` is not on npm yet. Until it is, build a package file from this repository and install it in your app:
+`@tattlehq/react-native` is not on npm yet. Until it is, build a package file from this repository and install it in your app:
 
 ```sh
 # In the Tattle repository
 pnpm install
-pnpm --filter @tattle/react-native build
-pnpm --filter @tattle/react-native pack --pack-destination ~/Downloads
+pnpm --filter @tattlehq/react-native build
+pnpm --filter @tattlehq/react-native pack --pack-destination ~/Downloads
 
 # In your app
-npx expo install ~/Downloads/tattle-react-native-0.2.0.tgz react-native-view-shot react-native-svg
+npx expo install ~/Downloads/tattlehq-react-native-0.2.0.tgz react-native-view-shot react-native-svg
 ```
 
 On bare React Native, use `npm install` with the same packages, then `npx pod-install`.
@@ -28,7 +28,7 @@ On bare React Native, use `npm install` with the same packages, then `npx pod-in
 Wrap your app with the provider, around your navigation. What it wraps is what screenshots show.
 
 ```tsx
-import { TattleProvider } from "@tattle/react-native";
+import { TattleProvider } from "@tattlehq/react-native";
 
 export default function App() {
   return (
@@ -44,7 +44,7 @@ The SDK records console logs and requests from the moment it is imported. Import
 ## Identify the user and name the screens
 
 ```ts
-import { Tattle } from "@tattle/react-native";
+import { Tattle } from "@tattlehq/react-native";
 
 // After sign-in, so every report says who sent it. Extra keys become traits.
 Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.plan });
@@ -246,7 +246,7 @@ The form then offers **Capture the screen** and **Choose an image** when there i
 Wrap anything that must never leave the device in `<TattleMask>`. While the screen is captured, a solid block covers it.
 
 ```tsx
-import { TattleMask } from "@tattle/react-native";
+import { TattleMask } from "@tattlehq/react-native";
 
 <TattleMask>
   <Text>{iban}</Text>
@@ -272,9 +272,9 @@ Submitting a report sends `POST {apiUrl}/api/v1/ingest`, the same endpoint as th
 ## Development
 
 ```sh
-pnpm --filter @tattle/react-native build      # dist/
-pnpm --filter @tattle/react-native typecheck
-pnpm --filter @tattle/react-native test       # collectors and payload, in Node
+pnpm --filter @tattlehq/react-native build      # dist/
+pnpm --filter @tattlehq/react-native typecheck
+pnpm --filter @tattlehq/react-native test       # collectors and payload, in Node
 ```
 
 To see a change on a device, run the playground: `pnpm playground:ios` from the repository root opens an Expo app that uses these sources directly, against a local server. See [apps/rn-playground](../../apps/rn-playground/README.md).

@@ -1,4 +1,4 @@
-import { Tattle, TattleMask } from "@tattle/react-native";
+import { Tattle, TattleMask } from "@tattlehq/react-native";
 import { useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import { usePalette } from "../theme";
