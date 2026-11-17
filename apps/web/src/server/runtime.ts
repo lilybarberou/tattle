@@ -14,6 +14,7 @@ import { Issues } from "./Issues";
 import { Notifications } from "./Notifications";
 import { Overview } from "./Overview";
 import { Portal } from "./Portal";
+import { Stats } from "./Stats";
 import { Storage } from "./Storage";
 import { Webhooks } from "./Webhooks";
 
@@ -43,6 +44,7 @@ export const AppLayer = Layer.mergeAll(
 	DuplicatesLive,
 	DataLifecycle.layer.pipe(Layer.provide(Infra)),
 	Overview.layer.pipe(Layer.provide(Layer.mergeAll(Infra, AccessLive))),
+	Stats.layer.pipe(Layer.provide(Layer.mergeAll(Infra, AccessLive))),
 	Portal.layer.pipe(Layer.provide(Layer.mergeAll(Infra, IssuesLive))),
 	GitHub.layer.pipe(Layer.provide(Layer.mergeAll(Infra, IssuesLive))),
 	Ingest.layer.pipe(

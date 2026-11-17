@@ -55,6 +55,7 @@ describe("handleMcpRequest", () => {
 			"create_issue",
 			"get_issue",
 			"get_report",
+			"get_stats",
 			"list_issues",
 			"list_projects",
 			"mark_duplicate",
@@ -63,9 +64,10 @@ describe("handleMcpRequest", () => {
 			"search_issues",
 			"update_issue",
 		]);
-		expect(
-			tools.find((t) => t.name === "get_report")?.annotations?.readOnlyHint,
-		).toBe(true);
+		for (const name of ["get_report", "get_stats"])
+			expect(
+				tools.find((t) => t.name === name)?.annotations?.readOnlyHint,
+			).toBe(true);
 	});
 
 	it("lists only the projects of the token's organization", async () => {
