@@ -4,6 +4,8 @@ import {
 	Image,
 	type LayoutChangeEvent,
 	PanResponder,
+	PixelRatio,
+	Platform,
 	Pressable,
 	StyleSheet,
 	Text,
@@ -21,6 +23,7 @@ import {
 	type Tool,
 } from "../geometry";
 import type { Strings } from "../i18n";
+import { captureDimensions, encodeWithinLimit, targetPixels } from "../image";
 import { Icon, type IconName } from "./icons";
 import { useInsets } from "./insets";
 import { offset, type Theme } from "./theme";
@@ -157,23 +160,32 @@ function BlurPatch({
 /**
  * Full-screen editor: draws rectangles, circles, arrows, pen strokes and blurs
  * over the screenshot, then flattens them into a new JPEG.
+ *
+ * With `flatten` (an image from the photo library, `imageSize` being its own
+ * pixels), the image is always flattened, even without shapes, at the size
+ * the editor shows it and within the SDK's weight limit.
  */
 export function Annotator({
 	uri,
 	imageSize,
 	initial,
+	flatten = false,
 	t,
 	theme,
 	onCancel,
 	onDone,
+	onFail,
 }: {
 	uri: string;
 	imageSize: { width: number; height: number };
 	initial: Annotation | null;
+	flatten?: boolean;
 	t: Strings;
 	theme: Theme;
 	onCancel: () => void;
 	onDone: (result: { dataUrl: string; annotation: Annotation }) => void;
+	/** A `flatten` image could not be loaded or brought under the limit. */
+	onFail?: (error: unknown) => void;
 }) {
 	const insets = useInsets();
 	const [area, setArea] = useState({ width: 0, height: 0 });
@@ -182,6 +194,8 @@ export function Annotator({
 	const [shapes, setShapes] = useState<Shape[]>([]);
 	const [draft, setDraft] = useState<Shape | null>(null);
 	const [saving, setSaving] = useState(false);
+	// A screenshot is a data URL, drawn at once; a photo is read from disk.
+	const [loaded, setLoaded] = useState(!flatten);
 	const canvasRef: ViewRef = useRef(null);
 	const restored = useRef(false);
 
@@ -255,8 +269,8 @@ export function Annotator({
 	}, []);
 
 	const finish = async () => {
-		if (saving) return;
-		if (shapes.length === 0) {
+		if (saving || !loaded) return;
+		if (shapes.length === 0 && !flatten) {
 			onDone({
 				dataUrl: uri,
 				annotation: { shapes: [], canvasWidth: canvas.width },
@@ -265,10 +279,22 @@ export function Annotator({
 		}
 		setSaving(true);
 		try {
-			const dataUrl = await captureView(canvasRef, { mask: false });
+			const ratio = PixelRatio.get();
+			const dataUrl = flatten
+				? await encodeWithinLimit(
+						targetPixels(canvas, ratio, imageSize),
+						({ quality, ...pixels }) =>
+							captureView(canvasRef, {
+								mask: false,
+								quality,
+								...captureDimensions(pixels, Platform.OS, ratio),
+							}),
+					)
+				: await captureView(canvasRef, { mask: false });
 			onDone({ dataUrl, annotation: { shapes, canvasWidth: canvas.width } });
-		} catch {
+		} catch (error) {
 			setSaving(false);
+			if (flatten) onFail?.(error);
 		}
 	};
 
@@ -304,8 +330,9 @@ export function Annotator({
 				</Text>
 				<Pressable
 					onPress={finish}
-					disabled={saving}
+					disabled={saving || !loaded}
 					accessibilityRole="button"
+					accessibilityState={{ disabled: !loaded, busy: saving }}
 					hitSlop={8}
 					style={[
 						styles.doneButton,
@@ -313,6 +340,7 @@ export function Annotator({
 							backgroundColor: theme.accent,
 							borderRadius: offset(theme.buttonRadius, -2),
 						},
+						!loaded && styles.disabled,
 					]}
 				>
 					{saving ? (
@@ -351,6 +379,10 @@ export function Annotator({
 							source={{ uri }}
 							style={{ width: canvas.width, height: canvas.height }}
 							accessibilityIgnoresInvertColors
+							onLoad={() => setLoaded(true)}
+							onError={(event) => {
+								if (flatten) onFail?.(new Error(event.nativeEvent.error));
+							}}
 						/>
 						{all.map((shape, i) => (
 							<BlurPatch

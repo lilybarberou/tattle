@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { applyBeforeSend, ReportDropped } from "../collection";
 import type { Strings } from "../i18n";
+import { canPickImage, ImageTooLarge, pickImage, type Size } from "../image";
 import {
 	buildPayload,
 	IngestError,
@@ -37,11 +38,13 @@ const SUCCESS_CLOSE_MS = 2500;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface Shot {
-	/** The raw capture, kept to annotate again from scratch. */
+	/** The raw capture or chosen image, kept to annotate again from scratch. */
 	uri: string;
-	/** What is sent: the capture, or the annotated copy. */
+	/** What is sent: the capture, or the annotated (or flattened) copy. */
 	dataUrl: string;
 	annotation: Annotation | null;
+	/** An image from the photo library, in its own pixels; else a capture. */
+	picked?: Size;
 }
 
 export interface PanelConfig {
@@ -64,7 +67,8 @@ export interface Inbox {
 /**
  * The feedback form in a modal: bug or idea, screenshot, message and email.
  * For bugs, the screen under the modal is captured as it opens and attached;
- * users can annotate or remove it.
+ * users can annotate or remove it. When the app has expo-image-picker, they
+ * can attach an image from their photos instead, annotated the same way.
  */
 export function Panel({
 	visible,
@@ -103,6 +107,11 @@ export function Panel({
 	const [shot, setShot] = useState<Shot | null>(null);
 	const [capturing, setCapturing] = useState(false);
 	const [captureFailed, setCaptureFailed] = useState(false);
+	/** An image just chosen, in the editor until it is done or cancelled. */
+	const [pending, setPending] = useState<Shot | null>(null);
+	const [picking, setPicking] = useState(false);
+	const [pickError, setPickError] = useState<string | null>(null);
+	const [canPick] = useState(canPickImage);
 	const [message, setMessage] = useState("");
 	const [email, setEmail] = useState("");
 	const [error, setError] = useState<string | null>(null);
@@ -119,7 +128,8 @@ export function Panel({
 			const uri = await captureScreen();
 			if (openId.current !== id) return;
 			lastCapture.current = uri;
-			setShot({ uri, dataUrl: uri, annotation: null });
+			// An image chosen meanwhile stays.
+			setShot((current) => current ?? { uri, dataUrl: uri, annotation: null });
 		} catch {
 			if (openId.current === id) setCaptureFailed(true);
 		} finally {
@@ -138,9 +148,35 @@ export function Panel({
 		setThreadId(null);
 		setError(null);
 		setShot(null);
+		setPending(null);
+		setPickError(null);
 		lastCapture.current = null;
 		void capture(id);
 	}, [visible, initialType, initialView]);
+
+	// Opens the photo library; the chosen image goes to the editor first, then
+	// replaces the screenshot once done. Cancelling either changes nothing.
+	const choose = async () => {
+		if (picking) return;
+		const id = openId.current;
+		setPicking(true);
+		setPickError(null);
+		try {
+			const image = await pickImage();
+			if (openId.current !== id || !image) return;
+			setPending({
+				uri: image.uri,
+				dataUrl: image.uri,
+				annotation: null,
+				picked: { width: image.width, height: image.height },
+			});
+			setView("editor");
+		} catch {
+			if (openId.current === id) setPickError(t.pickFailed);
+		} finally {
+			if (openId.current === id) setPicking(false);
+		}
+	};
 
 	// Close on its own a moment after a report was sent.
 	useEffect(() => {
@@ -205,6 +241,7 @@ export function Panel({
 	const back = () => {
 		if (view === "thread") setView("list");
 		else setView("form");
+		setPending(null);
 	};
 
 	// Android's back button steps back before it closes.
@@ -220,6 +257,15 @@ export function Panel({
 			? screenSize
 			: { width: window.width, height: window.height };
 
+	const editing = view === "editor" ? (pending ?? shot) : null;
+	const sourceHint =
+		pickError ??
+		(captureFailed
+			? t.captureFailed
+			: canPick
+				? t.captureOrPickHint
+				: t.captureHint);
+
 	return (
 		<Modal
 			visible={motion.mounted}
@@ -230,18 +276,30 @@ export function Panel({
 			onRequestClose={close}
 			supportedOrientations={["portrait", "landscape"]}
 		>
-			{view === "editor" && shot ? (
+			{editing ? (
 				<Animated.View style={[styles.editor, motion.contentStyle]}>
 					<Annotator
-						uri={shot.uri}
-						imageSize={shotSize}
-						initial={shot.annotation}
+						// A new image starts a new editor.
+						key={editing.uri}
+						uri={editing.uri}
+						imageSize={editing.picked ?? shotSize}
+						initial={editing.annotation}
+						flatten={editing.picked !== undefined}
 						t={t}
 						theme={theme}
-						onCancel={() => setView("form")}
+						onCancel={back}
 						onDone={({ dataUrl, annotation }) => {
-							setShot({ ...shot, dataUrl, annotation });
-							setView("form");
+							setShot({ ...editing, dataUrl, annotation });
+							setPickError(null);
+							back();
+						}}
+						onFail={(failure) => {
+							setPickError(
+								failure instanceof ImageTooLarge
+									? t.imageTooLarge
+									: t.pickFailed,
+							);
+							back();
 						}}
 					/>
 				</Animated.View>
@@ -454,7 +512,7 @@ export function Panel({
 											<Pressable
 												onPress={() => setView("editor")}
 												accessibilityRole="imagebutton"
-												accessibilityLabel={`${t.screenshotAlt}. ${t.editShot}`}
+												accessibilityLabel={`${shot.picked ? t.imageAlt : t.screenshotAlt}. ${t.editShot}`}
 											>
 												<Image
 													source={{ uri: shot.dataUrl }}
@@ -476,63 +534,89 @@ export function Panel({
 													theme={theme}
 													onPress={() => setView("editor")}
 												/>
+												{canPick && (
+													<SmallButton
+														icon="image"
+														label={t.replaceShot}
+														theme={theme}
+														busy={picking}
+														onPress={choose}
+													/>
+												)}
 												<SmallButton
 													icon="trash"
 													label={t.removeShot}
 													theme={theme}
 													danger
-													onPress={() => setShot(null)}
+													onPress={() => {
+														setShot(null);
+														setPickError(null);
+													}}
 												/>
 											</View>
 										</View>
 									) : (
 										<View style={styles.field}>
-											<Pressable
-												onPress={() => {
-													if (lastCapture.current) {
-														const uri = lastCapture.current;
-														setShot({ uri, dataUrl: uri, annotation: null });
-													} else void capture(openId.current);
-												}}
-												disabled={capturing}
-												accessibilityRole="button"
-												style={[
-													styles.capture,
-													{
-														borderColor: theme.border,
-														borderRadius: theme.radius,
-													},
-												]}
-											>
-												{capturing ? (
-													<ActivityIndicator
-														size="small"
-														color={theme.accent}
+											<View style={styles.sources}>
+												<SourceButton
+													icon="camera"
+													label={
+														capturing
+															? t.capturing
+															: canPick
+																? t.captureScreen
+																: t.capture
+													}
+													busy={capturing}
+													theme={theme}
+													onPress={() => {
+														setPickError(null);
+														if (lastCapture.current) {
+															const uri = lastCapture.current;
+															setShot({ uri, dataUrl: uri, annotation: null });
+														} else void capture(openId.current);
+													}}
+												/>
+												{canPick && (
+													<SourceButton
+														icon="image"
+														label={t.chooseImage}
+														busy={picking}
+														theme={theme}
+														onPress={choose}
 													/>
-												) : (
-													<Icon name="camera" color={theme.accent} />
 												)}
-												<Text
-													style={[
-														styles.captureText,
-														theme.font("500"),
-														{ color: theme.fg },
-													]}
-												>
-													{capturing ? t.capturing : t.capture}
-												</Text>
-											</Pressable>
+											</View>
 											<Text
 												style={[
 													styles.hint,
 													theme.font("400"),
-													{ color: captureFailed ? theme.danger : theme.muted },
+													{
+														color:
+															pickError || captureFailed
+																? theme.danger
+																: theme.muted,
+													},
 												]}
+												accessibilityLiveRegion="polite"
 											>
-												{captureFailed ? t.captureFailed : t.captureHint}
+												{sourceHint}
 											</Text>
 										</View>
 									))}
+
+								{type === "bug" && shot && pickError && (
+									<Text
+										style={[
+											styles.hint,
+											theme.font("400"),
+											{ color: theme.danger },
+										]}
+										accessibilityLiveRegion="polite"
+									>
+										{pickError}
+									</Text>
+								)}
 
 								<View style={styles.field}>
 									<Text
@@ -685,24 +769,67 @@ export function Panel({
 	);
 }
 
+/** A dashed button that attaches a screenshot or an image to a bug. */
+function SourceButton({
+	icon,
+	label,
+	busy,
+	theme,
+	onPress,
+}: {
+	icon: "camera" | "image";
+	label: string;
+	busy: boolean;
+	theme: Theme;
+	onPress: () => void;
+}) {
+	return (
+		<Pressable
+			onPress={onPress}
+			disabled={busy}
+			accessibilityRole="button"
+			accessibilityState={{ busy }}
+			style={[
+				styles.capture,
+				{ borderColor: theme.border, borderRadius: theme.radius },
+			]}
+		>
+			{busy ? (
+				<ActivityIndicator size="small" color={theme.accent} />
+			) : (
+				<Icon name={icon} color={theme.accent} />
+			)}
+			<Text
+				style={[styles.captureText, theme.font("500"), { color: theme.fg }]}
+			>
+				{label}
+			</Text>
+		</Pressable>
+	);
+}
+
 function SmallButton({
 	icon,
 	label,
 	theme,
 	danger,
+	busy,
 	onPress,
 }: {
-	icon: "edit" | "trash";
+	icon: "edit" | "trash" | "image";
 	label: string;
 	theme: Theme;
 	danger?: boolean;
+	busy?: boolean;
 	onPress: () => void;
 }) {
 	const color = danger ? theme.danger : theme.fg;
 	return (
 		<Pressable
 			onPress={onPress}
+			disabled={busy}
 			accessibilityRole="button"
+			accessibilityState={{ busy: !!busy }}
 			style={({ pressed }) => [
 				styles.smallButton,
 				{
@@ -712,7 +839,11 @@ function SmallButton({
 				pressed && styles.pressed,
 			]}
 		>
-			<Icon name={icon} color={color} size={16} />
+			{busy ? (
+				<ActivityIndicator size="small" color={color} />
+			) : (
+				<Icon name={icon} color={color} size={16} />
+			)}
 			<Text style={[styles.smallButtonText, theme.font("500"), { color }]}>
 				{label}
 			</Text>
@@ -783,16 +914,20 @@ const styles = StyleSheet.create({
 	field: { gap: 7 },
 	label: { fontSize: 14 },
 	hint: { fontSize: 12.5 },
+	sources: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
 	capture: {
+		flexGrow: 1,
+		flexBasis: 140,
 		flexDirection: "row",
 		alignItems: "center",
 		gap: 10,
 		minHeight: 46,
 		paddingHorizontal: 14,
+		paddingVertical: 8,
 		borderWidth: 1,
 		borderStyle: "dashed",
 	},
-	captureText: { fontSize: 15 },
+	captureText: { fontSize: 15, flexShrink: 1 },
 	shot: {
 		flexDirection: "row",
 		alignItems: "center",

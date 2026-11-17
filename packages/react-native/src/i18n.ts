@@ -10,6 +10,14 @@ const en = {
 	captureHint: "Optional: an annotated screenshot of the screen you were on.",
 	capturing: "Capturing…",
 	captureFailed: "Could not capture the screen.",
+	// With expo-image-picker: a screen capture or an image from the photos.
+	captureScreen: "Capture the screen",
+	chooseImage: "Choose an image",
+	captureOrPickHint:
+		"Optional: the screen you were on, or a screenshot from your photos.",
+	replaceShot: "Replace with an image",
+	imageAlt: "Attached image",
+	pickFailed: "Could not add this image.",
 	imageTooLarge:
 		"This image is too large to send. Remove it or choose a smaller one.",
 	screenshotAlt: "Screenshot of the app",
@@ -71,6 +79,13 @@ const fr: Strings = {
 	captureHint: "Facultatif : une capture annotée de l'écran où vous étiez.",
 	capturing: "Capture…",
 	captureFailed: "Impossible de capturer l'écran.",
+	captureScreen: "Capturer l'écran",
+	chooseImage: "Choisir une image",
+	captureOrPickHint:
+		"Facultatif : l'écran où vous étiez, ou une capture de vos photos.",
+	replaceShot: "Remplacer par une image",
+	imageAlt: "Image jointe",
+	pickFailed: "Impossible d'ajouter cette image.",
 	imageTooLarge:
 		"Cette image est trop lourde pour être envoyée. Supprimez-la ou choisissez-en une plus légère.",
 	screenshotAlt: "Capture d'écran de l'application",
