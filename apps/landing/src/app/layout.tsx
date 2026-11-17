@@ -5,6 +5,7 @@ import "@fontsource/ibm-plex-mono/400.css";
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { FeedbackWidget } from "@/components/feedback-widget";
 import { Reveal } from "@/components/reveal";
 
 export const metadata: Metadata = {
@@ -52,6 +53,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 			<body>
 				{children}
 				<Reveal />
+				<FeedbackWidget />
 			</body>
 		</html>
 	);
