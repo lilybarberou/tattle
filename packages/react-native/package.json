@@ -1,6 +1,6 @@
 {
   "name": "@tattle/react-native",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Bug report and feedback widget for React Native and Expo apps: annotated screenshot, console logs, network requests and device info.",
   "license": "MIT",
   "type": "module",
@@ -16,6 +16,7 @@
   "files": [
     "dist",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "sideEffects": [

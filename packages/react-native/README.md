@@ -20,7 +20,7 @@ pnpm --filter @tattle/react-native build
 pnpm --filter @tattle/react-native pack --pack-destination ~/Downloads
 
 # In your app
-npx expo install ~/Downloads/tattle-react-native-0.1.0.tgz react-native-view-shot react-native-svg
+npx expo install ~/Downloads/tattle-react-native-0.2.0.tgz react-native-view-shot react-native-svg
 ```
 
 On bare React Native, use `npm install` with the same packages, then `npx pod-install`.
