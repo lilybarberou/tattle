@@ -126,3 +126,43 @@ export function safeAreaContext(): SafeAreaContext | null {
 	}
 	return safeArea;
 }
+
+interface PickerAsset {
+	uri: string;
+	width: number;
+	height: number;
+}
+/** The part of expo-image-picker the SDK uses. */
+export interface ImagePicker {
+	launchImageLibraryAsync(options: Record<string, unknown>): Promise<{
+		canceled?: boolean;
+		/** expo-image-picker before SDK 48. */
+		cancelled?: boolean;
+		assets?: PickerAsset[] | null;
+		uri?: string;
+		width?: number;
+		height?: number;
+	} | null>;
+}
+
+/** The module, when it has the picker the SDK calls. */
+export function asImagePicker(module: unknown): ImagePicker | null {
+	return typeof (module as Partial<ImagePicker> | null)
+		?.launchImageLibraryAsync === "function"
+		? (module as ImagePicker)
+		: null;
+}
+
+let picker: ImagePicker | null | undefined;
+
+/** expo-image-picker, or null when the app does not have it. */
+export function imagePicker(): ImagePicker | null {
+	if (picker === undefined) {
+		try {
+			picker = asImagePicker(require("expo-image-picker"));
+		} catch {
+			picker = null;
+		}
+	}
+	return picker;
+}

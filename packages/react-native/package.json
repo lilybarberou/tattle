@@ -34,6 +34,7 @@
     "expo-application": "*",
     "expo-crypto": "*",
     "expo-device": "*",
+    "expo-image-picker": ">=16",
     "expo-secure-store": "*",
     "react": ">=18",
     "react-native": ">=0.72",
@@ -52,6 +53,9 @@
       "optional": true
     },
     "expo-device": {
+      "optional": true
+    },
+    "expo-image-picker": {
       "optional": true
     },
     "expo-secure-store": {
