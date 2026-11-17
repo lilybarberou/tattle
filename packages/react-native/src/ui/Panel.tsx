@@ -20,6 +20,7 @@ import {
 	buildPayload,
 	IngestError,
 	MAX_MESSAGE_LENGTH,
+	payloadProblem,
 	sendPayload,
 } from "../payload";
 import { type ReportSummary, reporterKey } from "../reporter";
@@ -174,10 +175,14 @@ export function Panel({
 				release: config.release,
 				reporterKey: await reporterKey(config.projectKey, true),
 			});
-			await sendPayload(
-				config.apiUrl,
-				await applyBeforeSend(payload, config.beforeSend),
-			);
+			const report = await applyBeforeSend(payload, config.beforeSend);
+			// The server would refuse it: say so instead of sending it.
+			const problem = payloadProblem(report);
+			if (problem) {
+				setError(report.screenshot ? t.imageTooLarge : t.genericError);
+				return;
+			}
+			await sendPayload(config.apiUrl, report);
 			setMessage("");
 			setEmail("");
 			setShot(null);
