@@ -18,18 +18,29 @@ Status of each source: **live**, **planned** (with its target month), or **not p
 
 | Question | Source | Name | Status |
 |---|---|---|---|
-| How many reports come in, of which type, from which project? | `get_stats` | `reports.total`, `reports.byType`, `reports.byDay` | Planned (December) |
-| Is Triage keeping up? | `get_stats` | `triage.open`, `triage.oldestAgeHours`, `triage.medianTimeToTriageHours` | Planned (December) |
-| How long does a fix take? | Overview page today; `get_stats` | `resolution.median30Days`, `resolution.median90Days`, `resolution.resolved30Days` | Live in the dashboard (Overview); planned in MCP (December) |
-| Do agents really do the triage? | `get_stats`, from `activity.actor_type` | `actors.byAction` (`user` / `agent` / `system` per action) | Planned (December) |
-| Are duplicates caught? | `get_stats` | `duplicates.suggested`, `duplicates.merged`, `duplicates.dismissed` | Planned (December) |
-| Do fixed bugs come back? | `get_stats` | `regressions.count`, `regressions.byRelease` | Planned (December) |
-| Which SDK versions and app releases are still sending reports? (compatibility policy) | `get_stats`, from `report.sdk` and `report.release` | `sdkVersions` (`name`, `version`, `reports`, `lastSeenAt`), `releases` | Planned (December) |
-| Do reporters get an answer, and how fast? | `get_stats` | `conversations.waiting`, `conversations.medianFirstReplyHours` | Planned (December) |
-| Are integrations healthy? | `get_stats` | `webhooks.failed`, `github.lastDeliveryAt` | Planned (December) |
+| How many reports come in, of which type, from which project? | `get_stats` | `reports.total`, `reports.byType`, `reports.byDay` | Live |
+| Is Triage keeping up? | `get_stats` | `triage.open`, `triage.oldestAgeHours`, `triage.medianTimeToTriageHours` | Live |
+| How long does a fix take? | Overview page; `get_stats` | `resolution.median30Days`, `resolution.median90Days`, `resolution.resolved30Days` | Live (dashboard and MCP, same query) |
+| Do agents really do the triage? | `get_stats`, from `activity.actor_type` | `actors.byAction` (`user` / `agent` / `system` per action) | Live |
+| Are duplicates caught? | `get_stats` | `duplicates.suggested`, `duplicates.merged`, `duplicates.dismissed` | Live |
+| Do fixed bugs come back? | `get_stats` | `regressions.count`, `regressions.byRelease` | Live |
+| Which SDK versions and app releases are still sending reports? (compatibility policy) | `get_stats`, from `report.sdk` and `report.release` | `sdkVersions` (`name`, `version`, `reports`, `lastSeenAt`), `releases` (`release`, `reports`, `lastSeenAt`) | Live |
+| Do reporters get an answer, and how fast? | `get_stats` | `conversations.waiting`, `conversations.medianFirstReplyHours` | Live |
+| Are integrations healthy? | `get_stats` | `webhooks.failed`, `github.lastDeliveryAt` | Live |
 | Do people open the widget and give up? | Widget counters stored on the Tattle server, aggregated per project and day, no identifier | `widget.opened`, `widget.screenshotTaken`, `widget.sent`, `widget.abandoned` (in `get_stats`) | Planned (January) |
 
-`get_stats` is a read-only MCP tool: `get_stats { project, days }` (default 30 days). It answers from the database with the caller's access, so a token or OAuth client sees only its projects. Until it ships, the dashboard's **Overview** page shows the open count, the 30-day chart and the resolution medians.
+`get_stats` is a read-only MCP tool: `get_stats { project, days }` (1 to 365 UTC days, today included, 30 by default; read-only tokens may call it). It answers from the database with the caller's access, so a token or OAuth client sees only its projects. The dashboard's **Overview** page shows the open count, the 30-day chart and the resolution medians.
+
+How `get_stats` reads its fields:
+- **Period**: `period { from, to, days }`. `from` is midnight UTC `days − 1` days ago; "during the period" means from then to now. `reports.byDay` has one entry per day.
+- **Current state, whatever the period**: `triage.open`, `triage.oldestAgeHours`, `conversations.waiting` (threads whose last message is the reporter's), `github.lastDeliveryAt`.
+- **Fixed windows**: `resolution.*` keeps 30 and 90 days, from creation to the last move to Done, as on the Overview page.
+- **Time to triage**: from an issue's creation to its first move out of Triage (a status change from `triage` in the activity log, or a merge as duplicate for an issue that arrived from a report or the public portal), for issues that left Triage during the period. A merge logs no previous status, so an issue a person or agent created in Triage and then merged directly is not counted.
+- **First reply**: from a report sent during the period to the team's first message in its thread; unanswered reports are not counted.
+- **Duplicates**: `suggested` and `dismissed` are suggestions made and dismissed during the period; `merged` counts issues marked duplicate during the period.
+- **App strings**: `sdkVersions`, `releases` and `regressions.byRelease` hold strings that apps and end users send. They are cut to 100 characters, the lists to 50 rows (most reports first), and the result carries `untrustedUserContent: true`. `name`, `version` and `release` are null for reports sent without them.
+- **Null values** mean there was nothing to measure, never a missing feature: a median with no case in its window (`triage.medianTimeToTriageHours`, `resolution.median30Days`, `resolution.median90Days`, `conversations.medianFirstReplyHours`), `triage.oldestAgeHours` when Triage is empty, and `github.lastDeliveryAt` when the GitHub sync is off or nothing arrived yet. Every field is computed from what the database stores; none is estimated.
+- Deleting an issue or a report deletes its activity, so past figures can shrink after a deletion or retention run.
 
 ### Open source adoption
 
@@ -66,4 +77,5 @@ There is no analytics tool, so there are no external dashboards. The named views
 
 ## Changes
 
+- 2026-11-17: `get_stats` is live, with every field listed above except the widget counters (still planned for January). `releases` items are `{ release, reports, lastSeenAt }`.
 - 2026-11-17: first version. PostHog and any other third-party analytics ruled out for Tattle, landing included.
