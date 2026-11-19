@@ -1,0 +1,16 @@
+{
+	"expo": {
+		"name": "Tattle playground",
+		"slug": "tattle-rn-playground",
+		"version": "1.0.0",
+		"orientation": "default",
+		"userInterfaceStyle": "automatic",
+		"ios": {
+			"bundleIdentifier": "dev.tattle.playground",
+			"supportsTablet": true
+		},
+		"android": {
+			"package": "dev.tattle.playground"
+		}
+	}
+}
