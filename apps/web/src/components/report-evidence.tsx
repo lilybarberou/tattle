@@ -1,5 +1,7 @@
 import { ExternalLinkIcon, ImageOffIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
+import { DEFAULT_LOCALE, type Locale, messages } from "#/i18n";
+import { useI18n } from "#/i18n/react";
 import { cn } from "#/lib/utils";
 import type { ReportDto, SeenInRelease } from "#/server/Issues";
 import { buildTrail, isFailedRequest } from "#/shared/trail";
@@ -90,17 +92,19 @@ export const messageBody = (message: string, title: string) => {
 	return (sameAsTitle ? rest.join("\n") : message).trim();
 };
 
-const plural = (count: number, one: string, many: string) =>
-	`${count} ${count === 1 ? one : many}`;
-
 /** "1 error · 2 failed", or null when the report is clean. */
-export const errorSignal = (errors: number, failed: number) =>
-	[
-		errors ? plural(errors, "error", "errors") : null,
-		failed ? `${failed} failed` : null,
-	]
-		.filter(Boolean)
-		.join(" · ") || null;
+export const errorSignal = (
+	errors: number,
+	failed: number,
+	locale: Locale = DEFAULT_LOCALE,
+) => {
+	const m = messages(locale).issues.evidence;
+	return (
+		[errors ? m.errors(errors) : null, failed ? m.failed(failed) : null]
+			.filter(Boolean)
+			.join(" · ") || null
+	);
+};
 
 export const countErrors = (report: ReportDto) => ({
 	errors: report.console.filter((c) => c.level === "error").length,
@@ -113,6 +117,7 @@ export const countErrors = (report: ReportDto) => ({
  * a desktop one still fills the column.
  */
 export function Screenshot({ report }: { report: ReportDto }) {
+	const { m } = useI18n();
 	const { objectUrl, failed } = useFetchedImage(report.screenshotUrl);
 	if (!report.screenshotUrl) return null;
 	return (
@@ -128,7 +133,7 @@ export function Screenshot({ report }: { report: ReportDto }) {
 			{objectUrl ? (
 				<img
 					src={objectUrl}
-					alt="Annotated screenshot sent with the report"
+					alt={m.issues.evidence.screenshotAlt}
 					className="max-h-[32rem] w-auto max-w-full"
 				/>
 			) : (
@@ -136,7 +141,7 @@ export function Screenshot({ report }: { report: ReportDto }) {
 					{failed && (
 						<span className="flex items-center gap-2">
 							<ImageOffIcon className="size-4" />
-							Couldn't load the screenshot.
+							{m.issues.evidence.screenshotFailed}
 						</span>
 					)}
 				</div>
@@ -159,27 +164,23 @@ const levelClass: Record<string, string> = {
 const withRowIds = <T,>(entries: T[]) =>
 	entries.map((entry, index) => ({ entry, rowId: `row-${index}` }));
 
-const STEP_LABELS: Record<string, string> = {
-	navigation: "navigate",
-	click: "click",
-	input: "input",
-	app: "app",
-};
+const isStepCategory = (
+	category: string,
+): category is "navigation" | "click" | "input" | "app" =>
+	["navigation", "click", "input", "app"].includes(category);
 
 /**
  * What the user did before sending, oldest first, with the console errors and
  * failed requests in between: usually enough to reproduce the bug.
  */
 function StepsTimeline({ report }: { report: ReportDto }) {
+	const { m } = useI18n();
+	const e = m.issues.evidence;
 	const trail = buildTrail(report);
 	if (report.breadcrumbs.length === 0)
-		return (
-			<p className="py-3 font-sans text-muted-foreground">
-				No steps were recorded before the report.
-			</p>
-		);
+		return <p className="py-3 font-sans text-muted-foreground">{e.noSteps}</p>;
 	return (
-		<ol aria-label="Steps before the report">
+		<ol aria-label={e.stepsLabel}>
 			{withRowIds(trail).map(({ entry, rowId }) => (
 				<li
 					key={rowId}
@@ -193,10 +194,12 @@ function StepsTimeline({ report }: { report: ReportDto }) {
 					</span>
 					<span className="truncate text-muted-foreground">
 						{entry.kind === "step"
-							? (STEP_LABELS[entry.category] ?? entry.category)
+							? isStepCategory(entry.category)
+								? e.step[entry.category]
+								: entry.category
 							: entry.kind === "error"
-								? "error"
-								: "failed"}
+								? e.stepError
+								: e.stepFailed}
 					</span>
 					<span className="min-w-0 break-words whitespace-pre-wrap">
 						{entry.kind === "step" ? (
@@ -217,7 +220,7 @@ function StepsTimeline({ report }: { report: ReportDto }) {
 							<>
 								{entry.method} {entry.url}{" "}
 								<span className="num">
-									{entry.status || entry.error || "no response"}
+									{entry.status || entry.error || e.noResponse}
 								</span>
 							</>
 						)}
@@ -226,8 +229,8 @@ function StepsTimeline({ report }: { report: ReportDto }) {
 			))}
 			<li className="grid grid-cols-[64px_64px_minmax(0,1fr)] gap-2 py-1 text-muted-foreground">
 				<span />
-				<span>sent</span>
-				<span className="font-sans">The report was sent.</span>
+				<span>{e.stepSent}</span>
+				<span className="font-sans">{e.reportSent}</span>
 			</li>
 		</ol>
 	);
@@ -235,6 +238,8 @@ function StepsTimeline({ report }: { report: ReportDto }) {
 
 /** Steps, console, network, device and account data, behind underline tabs. */
 export function ReportLogs({ report }: { report: ReportDto }) {
+	const { m, number } = useI18n();
+	const e = m.issues.evidence;
 	const { errors, failed } = countErrors(report);
 	const [tab, setTab] = useState<Tab>(
 		report.breadcrumbs.length > 0
@@ -251,21 +256,21 @@ export function ReportLogs({ report }: { report: ReportDto }) {
 		count?: number;
 		alert?: number;
 	}> = [
-		{ id: "steps", label: "Steps", count: report.breadcrumbs.length },
+		{ id: "steps", label: e.tabs.steps, count: report.breadcrumbs.length },
 		{
 			id: "console",
-			label: "Console",
+			label: e.tabs.console,
 			count: report.console.length,
 			alert: errors,
 		},
 		{
 			id: "network",
-			label: "Network",
+			label: e.tabs.network,
 			count: report.network.length,
 			alert: failed,
 		},
-		{ id: "device", label: "Device" },
-		{ id: "context", label: "Account" },
+		{ id: "device", label: e.tabs.device },
+		{ id: "context", label: e.tabs.context },
 	];
 	const ids = useId();
 	const tabRefs = useRef(new Map<Tab, HTMLButtonElement>());
@@ -290,10 +295,10 @@ export function ReportLogs({ report }: { report: ReportDto }) {
 		tabRefs.current.get(id)?.focus();
 	};
 	return (
-		<section aria-label="Logs and context">
+		<section aria-label={e.logsLabel}>
 			<div
 				role="tablist"
-				aria-label="Logs and context"
+				aria-label={e.logsLabel}
 				className="flex gap-5 overflow-x-auto border-b"
 			>
 				{tabs.map((t) => (
@@ -324,9 +329,7 @@ export function ReportLogs({ report }: { report: ReportDto }) {
 						)}
 						{t.alert ? (
 							<span className="num rounded-full bg-pill-negative px-1.5 text-xs font-medium text-pill-negative-ink">
-								{t.id === "console"
-									? plural(t.alert, "error", "errors")
-									: `${t.alert} failed`}
+								{t.id === "console" ? e.errors(t.alert) : e.failed(t.alert)}
 							</span>
 						) : null}
 					</button>
@@ -345,7 +348,7 @@ export function ReportLogs({ report }: { report: ReportDto }) {
 				{tab === "console" &&
 					(report.console.length === 0 ? (
 						<p className="py-3 font-sans text-muted-foreground">
-							Nothing was logged before the report.
+							{e.noConsole}
 						</p>
 					) : (
 						<ul>
@@ -376,7 +379,7 @@ export function ReportLogs({ report }: { report: ReportDto }) {
 				{tab === "network" &&
 					(report.network.length === 0 ? (
 						<p className="py-3 font-sans text-muted-foreground">
-							No requests were recorded.
+							{e.noNetwork}
 						</p>
 					) : (
 						<table className="w-full">
@@ -400,7 +403,7 @@ export function ReportLogs({ report }: { report: ReportDto }) {
 												{entry.url}
 											</td>
 											<td className="num w-16 py-1 text-right text-muted-foreground">
-												{Math.round(entry.durationMs)} ms
+												{e.ms(number(Math.round(entry.durationMs)))}
 											</td>
 										</tr>
 									);
@@ -432,6 +435,8 @@ export function ReportLogs({ report }: { report: ReportDto }) {
  * differs: "1.4.0 → 1.5.2". Hovering lists every release with its reports.
  */
 export function SeenIn({ releases }: { releases: SeenInRelease[] }) {
+	const { m, locale } = useI18n();
+	const e = m.issues.evidence;
 	// "last 2 days ago" depends on the reader's clock: only once hydrated.
 	const hydrated = useHydrated();
 	const first = releases[0];
@@ -440,7 +445,7 @@ export function SeenIn({ releases }: { releases: SeenInRelease[] }) {
 	const details = releases
 		.map(
 			(r) =>
-				`${r.release}: ${plural(r.reports, "report", "reports")}${hydrated ? `, last ${relativeTime(r.lastSeen)}` : ""}`,
+				`${e.seenInDetail(r.release, e.reports(r.reports))}${hydrated ? e.lastSeen(relativeTime(r.lastSeen, Date.now(), locale)) : ""}`,
 		)
 		.join("\n");
 	return (
@@ -451,7 +456,7 @@ export function SeenIn({ releases }: { releases: SeenInRelease[] }) {
 					<span aria-hidden className="text-muted-foreground">
 						→
 					</span>
-					<span className="sr-only">, last seen in</span>
+					<span className="sr-only">{e.lastSeenIn}</span>
 					<span className="truncate">{last.release}</span>
 				</>
 			)}
@@ -468,13 +473,16 @@ export function ReportFacts({
 	/** The issue's releases: shown when the issue spans more than this one. */
 	seenIn?: SeenInRelease[];
 }) {
+	const { m } = useI18n();
+	const e = m.issues.evidence;
+	const f = e.facts;
 	const device = deviceSummary(report.device);
 	const { errors, failed } = countErrors(report);
 	const reporter = report.reporter;
 	const traits = Object.entries(reporter?.traits ?? {}).slice(0, 4);
 	const rows: Array<[string, React.ReactNode]> = [
 		[
-			"Reporter",
+			f.reporter,
 			reporter?.name || reporter?.email ? (
 				<span key="r" className="flex min-w-0 items-center gap-2">
 					<Face
@@ -486,14 +494,14 @@ export function ReportFacts({
 				</span>
 			) : (
 				<span key="r" className="text-muted-foreground">
-					Anonymous
+					{f.anonymous}
 				</span>
 			),
 		],
 		...(reporter?.email && reporter.name
 			? ([
 					[
-						"Email",
+						f.email,
 						<span key="e" className="truncate">
 							{reporter.email}
 						</span>,
@@ -503,7 +511,7 @@ export function ReportFacts({
 		...(reporter?.id
 			? ([
 					[
-						"User id",
+						f.userId,
 						<span key="i" className="truncate font-mono text-xs">
 							{reporter.id}
 						</span>,
@@ -521,7 +529,7 @@ export function ReportFacts({
 		),
 		isWebPage(report.pageUrl)
 			? [
-					"Page",
+					f.page,
 					<a
 						key="p"
 						href={report.pageUrl}
@@ -536,26 +544,26 @@ export function ReportFacts({
 					</a>,
 				]
 			: [
-					"Screen",
+					f.screen,
 					<span key="p" className="truncate">
 						{report.pageTitle || report.pageUrl || "—"}
 					</span>,
 				],
 		...((device.mobile
 			? [
-					["App", device.app ?? "—"],
-					["Device", device.model ?? "—"],
-					["System", device.os ?? "—"],
+					[f.app, device.app ?? "—"],
+					[f.device, device.model ?? "—"],
+					[f.system, device.os ?? "—"],
 				]
 			: [
-					["Browser", device.browser ?? "—"],
-					["System", device.os ?? "—"],
+					[f.browser, device.browser ?? "—"],
+					[f.system, device.os ?? "—"],
 				]) as Array<[string, React.ReactNode]>),
 		// Mobile apps already show their version in the App row.
 		...(report.release && !device.app?.includes(report.release)
 			? ([
 					[
-						"Release",
+						f.release,
 						<span key="rel" className="truncate">
 							{report.release}
 						</span>,
@@ -563,12 +571,12 @@ export function ReportFacts({
 				] as Array<[string, React.ReactNode]>)
 			: []),
 		...(seenIn && seenIn.length > 1
-			? ([["Seen in", <SeenIn key="seen" releases={seenIn} />]] as Array<
+			? ([[f.seenIn, <SeenIn key="seen" releases={seenIn} />]] as Array<
 					[string, React.ReactNode]
 				>)
 			: []),
 		[
-			device.mobile ? "Screen size" : "Window",
+			device.mobile ? f.screenSize : f.window,
 			device.viewport ? (
 				<span key="v" className="num">
 					{device.viewport}
@@ -578,13 +586,12 @@ export function ReportFacts({
 			),
 		],
 		[
-			"Errors",
+			f.errors,
 			<span key="x" className={cn("num", errors > 0 && "text-negative")}>
-				{plural(errors, "error", "errors")} ·{" "}
-				{plural(failed, "failed request", "failed requests")}
+				{e.errors(errors)} · {e.failedRequests(failed)}
 			</span>,
 		],
-		["Sent", <RelativeTime key="s" iso={report.createdAt} />],
+		[f.sent, <RelativeTime key="s" iso={report.createdAt} />],
 	];
 	return (
 		<dl className="grid grid-cols-[88px_minmax(0,1fr)] content-start gap-x-3 gap-y-2.5 self-start">

@@ -22,8 +22,6 @@ import { DuplicateSuggestion } from "#/components/duplicate-suggestion";
 import {
 	Face,
 	IssueNumber,
-	PRIORITY_META,
-	STATUS_META,
 	StatusIcon,
 	TypeIcon,
 } from "#/components/issue-meta";
@@ -46,6 +44,8 @@ import {
 import { errorStatus } from "#/components/status-page";
 import { RelativeTime } from "#/components/time";
 import { Button } from "#/components/ui/button";
+import type { Messages } from "#/i18n";
+import { useI18n } from "#/i18n/react";
 import { useInlineConfirm } from "#/lib/use-inline-confirm";
 import { cn } from "#/lib/utils";
 import {
@@ -60,7 +60,11 @@ import {
 	updateIssueFn,
 } from "#/server/fns";
 import type { IssueDetail, ReportDto } from "#/server/Issues";
-import type { IssueStatus } from "#/shared/issues";
+import {
+	ISSUE_STATUSES,
+	type IssueStatus,
+	PRIORITY_LABELS,
+} from "#/shared/issues";
 
 export const Route = createFileRoute("/_app/p/$projectId/issues/$number")({
 	loader: async ({ params }) => {
@@ -82,49 +86,56 @@ type Patch = Omit<
 	"projectId" | "number"
 >;
 
+/** What an activity entry says after the actor's name, in the reader's language. */
 const describeActivity = (
+	m: Messages,
 	action: string,
 	data: IssueDetail["activity"][number]["data"],
 ) => {
+	const a = m.issues.activity;
 	switch (action) {
 		case "created":
-			return "created the issue";
+			return a.created;
 		case "created_from_report":
-			return "opened it from a widget report";
+			return a.createdFromReport;
 		case "marked_duplicate":
-			return `merged it into #${data?.duplicateOf}`;
+			return a.markedDuplicate(String(data?.duplicateOf));
 		case "merged_duplicate":
-			return `merged #${data?.from} into this issue`;
+			return a.mergedDuplicate(String(data?.from));
 		case "report_attached":
-			return "attached a report";
+			return a.reportAttached;
 		case "dismissed_duplicate":
-			return `said it is not a duplicate of #${data?.suggested}`;
+			return a.dismissedDuplicate(String(data?.suggested));
 		case "regressed":
-			return data?.release
-				? `reopened it: regressed in ${data.release}`
-				: "reopened it: reported again after it was done";
+			return data?.release ? a.regressedIn(String(data.release)) : a.regressed;
 		case "updated": {
 			const changes = (data?.changes ?? {}) as Record<string, { to: unknown }>;
 			return Object.entries(changes)
 				.map(([field, change]) => {
 					const to = change.to;
 					if (field === "status")
-						return `moved it to ${STATUS_META[to as IssueStatus]?.label ?? to}`;
+						return a.movedTo(
+							(ISSUE_STATUSES as readonly unknown[]).includes(to)
+								? m.common.status[to as IssueStatus]
+								: String(to),
+						);
 					if (field === "priority")
-						return `set priority to ${PRIORITY_META[to as number]?.label}`;
+						return a.setPriority(
+							m.common.priority[PRIORITY_LABELS[to as number] ?? "none"],
+						);
 					if (field === "labels")
 						return (to as string[]).length
-							? `labelled it ${(to as string[]).join(", ")}`
-							: "removed the labels";
+							? a.labelled((to as string[]).join(", "))
+							: a.removedLabels;
 					if (field === "assigneeName")
-						return to ? `assigned ${to}` : "unassigned it";
-					if (field === "prUrl") return "linked a pull request";
-					if (field === "title") return "renamed it";
-					if (field === "description") return "edited the description";
+						return to ? a.assigned(String(to)) : a.unassigned;
+					if (field === "prUrl") return a.linkedPullRequest;
+					if (field === "title") return a.renamed;
+					if (field === "description") return a.editedDescription;
 					return null;
 				})
 				.filter(Boolean)
-				.join(", ");
+				.join(a.separator);
 		}
 		default:
 			return action;
@@ -141,11 +152,13 @@ function ReportBlock({
 	/** Only for owners and admins: deleting cannot be undone. */
 	onDelete?: () => Promise<void>;
 }) {
+	const { m, locale } = useI18n();
 	const [open, setOpen] = useState(defaultOpen);
 	const { confirming, setConfirming, trigger, cancel } = useInlineConfirm();
-	const name = report.reporter?.name || report.reporter?.email || "Anonymous";
+	const name =
+		report.reporter?.name || report.reporter?.email || m.issues.page.anonymous;
 	const { errors, failed } = countErrors(report);
-	const signal = errorSignal(errors, failed);
+	const signal = errorSignal(errors, failed, locale);
 	return (
 		<article className="rounded-lg border">
 			<button
@@ -179,7 +192,7 @@ function ReportBlock({
 				{report.awaitingReply && (
 					<span className="flex flex-none items-center gap-1 rounded-full bg-brand-soft px-2 text-xs font-medium text-brand">
 						<MessageCircleIcon className="size-3" />
-						Waiting for your reply
+						{m.issues.page.waitingForReply}
 					</span>
 				)}
 				{signal && (
@@ -196,10 +209,10 @@ function ReportBlock({
 								{confirming ? (
 									<>
 										<span className="text-muted-foreground">
-											Delete this report, its screenshot and logs?
+											{m.issues.page.deleteReportConfirm}
 										</span>
 										<Button size="xs" variant="destructive" onClick={onDelete}>
-											Delete
+											{m.common.actions.delete}
 										</Button>
 										<Button
 											ref={cancel}
@@ -207,7 +220,7 @@ function ReportBlock({
 											variant="ghost"
 											onClick={() => setConfirming(false)}
 										>
-											Keep
+											{m.issues.page.keep}
 										</Button>
 									</>
 								) : (
@@ -219,7 +232,7 @@ function ReportBlock({
 										onClick={() => setConfirming(true)}
 									>
 										<Trash2Icon />
-										Delete report
+										{m.issues.page.deleteReport}
 									</Button>
 								)}
 							</div>
@@ -246,6 +259,7 @@ function Description({
 	value: string;
 	onSave: (description: string) => Promise<boolean>;
 }) {
+	const { m } = useI18n();
 	const [editing, setEditing] = useState(false);
 	const [draft, setDraft] = useState(value);
 	const [saving, setSaving] = useState(false);
@@ -273,8 +287,8 @@ function Description({
 					size="icon-xs"
 					variant="ghost"
 					className="flex-none text-muted-foreground"
-					aria-label="Edit the description"
-					title="Edit the description"
+					aria-label={m.issues.page.editDescription}
+					title={m.issues.page.editDescription}
 					onClick={edit}
 				>
 					<PencilIcon />
@@ -286,7 +300,7 @@ function Description({
 				onClick={edit}
 				className="mt-2 block min-h-12 w-full max-w-[75ch] rounded-md px-0.5 text-left text-[15px] leading-6 text-muted-foreground hover:bg-raised"
 			>
-				Add a description…
+				{m.issues.page.addDescription}
 			</button>
 		);
 
@@ -308,14 +322,14 @@ function Description({
 			}}
 		>
 			<label htmlFor="issue-description" className="sr-only">
-				Description
+				{m.issues.page.description}
 			</label>
 			<MarkdownInput
 				id="issue-description"
 				autoFocus
 				value={draft}
 				onChange={(e) => setDraft(e.target.value)}
-				placeholder="Add a description…"
+				placeholder={m.issues.page.addDescription}
 				headerClassName="px-2 pt-2"
 				className="field-sizing-content block min-h-24 w-full resize-none bg-transparent px-3 py-2 text-[15px] leading-6 outline-none placeholder:text-muted-foreground"
 				previewClassName="min-h-24 px-3 py-2 text-[15px] leading-6"
@@ -327,10 +341,10 @@ function Description({
 					variant="ghost"
 					onClick={() => setEditing(false)}
 				>
-					Cancel
+					{m.common.actions.cancel}
 				</Button>
 				<Button type="submit" size="sm" disabled={saving}>
-					Save
+					{m.common.actions.save}
 					<kbd className="border-white/20 bg-white/10 text-current dark:border-black/20 dark:bg-black/10">
 						⌘↵
 					</kbd>
@@ -346,6 +360,7 @@ function Description({
  * shown as plain text: they are written by anyone using the app.
  */
 function ReporterThread({ report, name }: { report: ReportDto; name: string }) {
+	const { m } = useI18n();
 	const { projectId } = Route.useParams();
 	const router = useRouter();
 	const [body, setBody] = useState("");
@@ -361,27 +376,32 @@ function ReporterThread({ report, name }: { report: ReportDto; name: string }) {
 				data: { projectId, reportId: report.id, body },
 			});
 			setBody("");
-			toast.success(`Sent to ${name}`);
+			toast.success(m.issues.page.sentTo(name));
 			await router.invalidate();
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Not sent");
+			toast.error(
+				error instanceof Error ? error.message : m.common.errors.notSent,
+			);
 		} finally {
 			setSending(false);
 		}
 	};
 
 	return (
-		<section aria-label={`Conversation with ${name}`} className="space-y-3">
+		<section
+			aria-label={m.issues.page.conversationWith(name)}
+			className="space-y-3"
+		>
 			<h3 className="flex flex-wrap items-baseline gap-x-2 font-medium">
-				Conversation with {name}
+				{m.issues.page.conversationWith(name)}
 				<span className="text-xs font-normal text-muted-foreground">
 					{!reachable
-						? "They can't receive replies"
+						? m.issues.page.cantReceive
 						: inApp && email
-							? "They see replies in the app and by email"
+							? m.issues.page.appAndEmail
 							: inApp
-								? "They see replies in the app"
-								: "They get replies by email"}
+								? m.issues.page.appOnly
+								: m.issues.page.emailOnly}
 				</span>
 			</h3>
 			{report.messages.length > 0 && (
@@ -401,7 +421,7 @@ function ReporterThread({ report, name }: { report: ReportDto; name: string }) {
 									{message.from === "team" ? message.author.name : name}
 								</span>
 								{message.from === "team" &&
-									(message.readAt ? " · Seen" : " · Not seen yet")}
+									(message.readAt ? m.issues.page.seen : m.issues.page.notSeen)}
 								{" · "}
 								<RelativeTime iso={message.createdAt} />
 							</p>
@@ -421,7 +441,7 @@ function ReporterThread({ report, name }: { report: ReportDto; name: string }) {
 					}}
 				>
 					<label htmlFor={`reply-${report.id}`} className="sr-only">
-						Reply to {name}
+						{m.issues.page.replyTo(name)}
 					</label>
 					<textarea
 						id={`reply-${report.id}`}
@@ -434,24 +454,21 @@ function ReporterThread({ report, name }: { report: ReportDto; name: string }) {
 								void send();
 							}
 						}}
-						placeholder={`Write to ${name}… they will read this.`}
+						placeholder={m.issues.page.writeTo(name)}
 						className="field-sizing-content block min-h-16 w-full resize-none bg-transparent px-3 py-2.5 outline-none placeholder:text-muted-foreground"
 					/>
 					<div className="flex items-center justify-between gap-2 px-3 pb-2.5">
 						<span className="text-xs text-muted-foreground">
-							Visible to the reporter
+							{m.issues.page.visibleToReporter}
 						</span>
 						<Button type="submit" size="sm" disabled={!body.trim() || sending}>
 							<SendIcon />
-							Reply to reporter
+							{m.issues.page.replyToReporter}
 						</Button>
 					</div>
 				</form>
 			) : (
-				<p className="text-muted-foreground">
-					This report came without an email, from an app whose widget can't show
-					replies.
-				</p>
+				<p className="text-muted-foreground">{m.issues.page.unreachable}</p>
 			)}
 		</section>
 	);
@@ -475,6 +492,8 @@ function PropertyRow({
 const projectRoute = getRouteApi("/_app/p/$projectId");
 
 function IssuePage() {
+	const { m } = useI18n();
+	const p = m.issues.page;
 	const detail = Route.useLoaderData();
 	const { canManage } = projectRoute.useLoaderData();
 	const { projectId } = Route.useParams();
@@ -508,7 +527,7 @@ function IssuePage() {
 			await router.invalidate();
 			return true;
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Update failed");
+			toast.error(error instanceof Error ? error.message : p.updateFailed);
 			return false;
 		}
 	};
@@ -518,10 +537,10 @@ function IssuePage() {
 			await markDuplicateFn({
 				data: { projectId, number: issue.number, duplicateOf: original },
 			});
-			toast.success(`#${issue.number} merged into #${original}`);
+			toast.success(p.merged(issue.number, original));
 			await router.invalidate();
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Merge failed");
+			toast.error(error instanceof Error ? error.message : p.mergeFailed);
 		}
 	};
 
@@ -532,10 +551,10 @@ function IssuePage() {
 			const found = await findDuplicatesFn({
 				data: { projectId, number: issue.number },
 			});
-			if (!found) toast.success("No likely duplicate found");
+			if (!found) toast.success(p.noDuplicate);
 			await router.invalidate();
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Search failed");
+			toast.error(error instanceof Error ? error.message : p.searchFailed);
 		} finally {
 			setChecking(false);
 		}
@@ -550,7 +569,7 @@ function IssuePage() {
 			setComment("");
 			await router.invalidate();
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Comment failed");
+			toast.error(error instanceof Error ? error.message : p.commentFailed);
 		}
 	};
 
@@ -576,7 +595,7 @@ function IssuePage() {
 		<div className="grid min-h-full lg:grid-cols-[minmax(0,1fr)_320px]">
 			<div className="min-w-0 px-6 pt-4 pb-10 lg:px-10">
 				<nav
-					aria-label="Breadcrumb"
+					aria-label={p.breadcrumb}
 					className="flex items-center gap-1.5 text-muted-foreground"
 				>
 					<Link
@@ -584,7 +603,7 @@ function IssuePage() {
 						params={{ projectId }}
 						className="hover:text-ink"
 					>
-						Issues
+						{p.issues}
 					</Link>
 					<span aria-hidden>/</span>
 					<IssueNumber number={issue.number} />
@@ -592,7 +611,7 @@ function IssuePage() {
 
 				{detail.duplicateOf && (
 					<p className="mt-4 rounded-md bg-raised px-3 py-2">
-						Merged into{" "}
+						{p.mergedInto}{" "}
 						<Link
 							to="/p/$projectId/issues/$number"
 							params={{
@@ -603,7 +622,7 @@ function IssuePage() {
 						>
 							#{detail.duplicateOf.number} {detail.duplicateOf.title}
 						</Link>
-						. Its reports live there now.
+						{p.reportsLiveThere}
 					</p>
 				)}
 
@@ -625,7 +644,9 @@ function IssuePage() {
 								await router.invalidate();
 							} catch (error) {
 								toast.error(
-									error instanceof Error ? error.message : "Not saved",
+									error instanceof Error
+										? error.message
+										: m.common.errors.notSaved,
 								);
 							}
 						}}
@@ -636,7 +657,7 @@ function IssuePage() {
 					<TypeIcon type={issue.type} className="mt-2" />
 					<h1 className="min-w-0 flex-1">
 						<label htmlFor="issue-title" className="sr-only">
-							Title
+							{p.title}
 						</label>
 						<textarea
 							id="issue-title"
@@ -673,7 +694,7 @@ function IssuePage() {
 							id="reports"
 							className="flex items-baseline gap-2 font-semibold"
 						>
-							Reports
+							{p.reports}
 							<span className="num font-normal text-muted-foreground">
 								{detail.reports.length}
 							</span>
@@ -690,13 +711,13 @@ function IssuePage() {
 													await deleteReportFn({
 														data: { projectId, reportId: report.id },
 													});
-													toast.success("Report deleted");
+													toast.success(p.reportDeleted);
 													await router.invalidate();
 												} catch (error) {
 													toast.error(
 														error instanceof Error
 															? error.message
-															: "Not deleted",
+															: p.notDeleted,
 													);
 												}
 											}
@@ -709,7 +730,7 @@ function IssuePage() {
 
 				<section aria-labelledby="activity" className="mt-10">
 					<h2 id="activity" className="font-semibold">
-						Activity
+						{p.activity}
 					</h2>
 					<ol className="mt-4 space-y-4 border-l pl-5">
 						{timeline.map((entry) =>
@@ -747,7 +768,7 @@ function IssuePage() {
 												"font-medium text-negative",
 										)}
 									>
-										{describeActivity(entry.item.action, entry.item.data)}
+										{describeActivity(m, entry.item.action, entry.item.data)}
 									</span>
 									<span>
 										{" "}
@@ -771,20 +792,20 @@ function IssuePage() {
 						}}
 					>
 						<label htmlFor="comment" className="sr-only">
-							Comment
+							{p.comment}
 						</label>
 						<MarkdownInput
 							id="comment"
 							value={comment}
 							onChange={(e) => setComment(e.target.value)}
-							placeholder="Leave an internal comment… your team and agents read these, reporters never do."
+							placeholder={p.commentPlaceholder}
 							headerClassName="px-2 pt-2"
 							className="field-sizing-content block min-h-20 w-full resize-none bg-transparent px-4 py-3 outline-none placeholder:text-muted-foreground"
 							previewClassName="min-h-20 px-4 py-3"
 						/>
 						<div className="flex justify-end px-3 pb-3">
 							<Button type="submit" size="sm" disabled={!comment.trim()}>
-								Comment
+								{p.comment}
 								<kbd className="border-white/20 bg-white/10 text-current dark:border-black/20 dark:bg-black/10">
 									⌘↵
 								</kbd>
@@ -795,25 +816,25 @@ function IssuePage() {
 			</div>
 
 			<aside
-				aria-label="Issue properties"
+				aria-label={p.properties}
 				className="border-l bg-surface px-5 py-5 max-lg:order-first max-lg:border-b max-lg:border-l-0"
 			>
 				<div className="space-y-1 lg:sticky lg:top-5">
-					<PropertyRow label="Status">
+					<PropertyRow label={p.status}>
 						<StatusPicker
 							value={issue.status}
 							onChange={(status) => update({ status })}
 							className="w-full"
 						/>
 					</PropertyRow>
-					<PropertyRow label="Priority">
+					<PropertyRow label={p.priority}>
 						<PriorityPicker
 							value={issue.priority}
 							onChange={(priority) => update({ priority })}
 							className="w-full"
 						/>
 					</PropertyRow>
-					<PropertyRow label="Assignee">
+					<PropertyRow label={p.assignee}>
 						<AssigneePicker
 							projectId={projectId}
 							value={
@@ -833,21 +854,21 @@ function IssuePage() {
 											: null,
 									},
 									assignee?.type === "agent"
-										? `${assignee.name} was notified`
+										? p.agentNotified(assignee.name)
 										: undefined,
 								)
 							}
 							className="w-full"
 						/>
 					</PropertyRow>
-					<PropertyRow label="Labels">
+					<PropertyRow label={p.labels}>
 						<LabelsPicker
 							value={issue.labels}
 							onChange={(labels) => update({ labels })}
 							className="w-full"
 						/>
 					</PropertyRow>
-					<PropertyRow label="Pull request">
+					<PropertyRow label={p.pullRequest}>
 						{issue.prUrl ? (
 							<a
 								href={issue.prUrl}
@@ -862,14 +883,14 @@ function IssuePage() {
 							</a>
 						) : (
 							<input
-								aria-label="Pull request URL"
+								aria-label={p.pullRequestUrl}
 								value={prUrl}
 								onChange={(e) => setPrUrl(e.target.value)}
 								onBlur={() => {
 									if (prUrl.trim() && /^https?:\/\//.test(prUrl.trim()))
 										void update({ prUrl: prUrl.trim() });
 								}}
-								placeholder="Paste a link"
+								placeholder={p.pasteLink}
 								className="h-8 w-full rounded-md bg-transparent px-2 outline-none placeholder:text-muted-foreground hover:bg-active focus:bg-active focus-visible:ring-[3px] focus-visible:ring-ring/50"
 							/>
 						)}
@@ -878,21 +899,18 @@ function IssuePage() {
 					<dl className="mt-4 space-y-2 border-t pt-4">
 						{(
 							[
-								["Type", issue.type === "bug" ? "Bug" : "Feature request"],
-								[
-									"Reported by",
-									`${issue.reportCount} ${issue.reportCount === 1 ? "person" : "people"}`,
-								],
+								[p.type, m.common.type[issue.type]],
+								[p.reportedBy, p.people(issue.reportCount)],
 								...(detail.releases.length > 0
 									? [
 											[
-												"Seen in",
+												p.seenIn,
 												<SeenIn key="seen" releases={detail.releases} />,
 											],
 										]
 									: []),
-								["Opened", <RelativeTime key="o" iso={issue.createdAt} />],
-								["Updated", <RelativeTime key="u" iso={issue.updatedAt} />],
+								[p.opened, <RelativeTime key="o" iso={issue.createdAt} />],
+								[p.updated, <RelativeTime key="u" iso={issue.updatedAt} />],
 							] as Array<[string, React.ReactNode]>
 						).map(([label, value]) => (
 							<div
@@ -914,7 +932,7 @@ function IssuePage() {
 								disabled={checking}
 							>
 								<SearchIcon className="size-4" />
-								{checking ? "Looking for duplicates…" : "Find duplicates"}
+								{checking ? p.lookingForDuplicates : p.findDuplicates}
 							</Button>
 							<Button
 								variant="ghost"
@@ -922,7 +940,7 @@ function IssuePage() {
 								onClick={() => setMerging(true)}
 							>
 								<StatusIcon status="duplicate" />
-								Merge into another issue…
+								{p.mergeInto}
 							</Button>
 						</div>
 					)}
@@ -930,11 +948,7 @@ function IssuePage() {
 						<div className="mt-1">
 							{deleting ? (
 								<div className="space-y-2 rounded-lg border border-negative/30 p-3">
-									<p>
-										Delete #{issue.number} with its {issue.reportCount}{" "}
-										{issue.reportCount === 1 ? "report" : "reports"},
-										screenshots and comments? This cannot be undone.
-									</p>
+									<p>{p.deleteConfirm(issue.number, issue.reportCount)}</p>
 									<div className="flex gap-2">
 										<Button
 											size="sm"
@@ -944,7 +958,7 @@ function IssuePage() {
 													await deleteIssueFn({
 														data: { projectId, number: issue.number },
 													});
-													toast.success(`#${issue.number} deleted`);
+													toast.success(p.deleted(issue.number));
 													await navigate({
 														to: "/p/$projectId/issues",
 														params: { projectId },
@@ -953,12 +967,12 @@ function IssuePage() {
 													toast.error(
 														error instanceof Error
 															? error.message
-															: "Not deleted",
+															: p.notDeleted,
 													);
 												}
 											}}
 										>
-											Delete
+											{m.common.actions.delete}
 										</Button>
 										<Button
 											ref={keepIssue}
@@ -966,7 +980,7 @@ function IssuePage() {
 											variant="ghost"
 											onClick={() => setDeleting(false)}
 										>
-											Keep it
+											{p.keepIt}
 										</Button>
 									</div>
 								</div>
@@ -978,7 +992,7 @@ function IssuePage() {
 									onClick={() => setDeleting(true)}
 								>
 									<Trash2Icon className="size-4" />
-									Delete issue…
+									{p.deleteIssue}
 								</Button>
 							)}
 						</div>

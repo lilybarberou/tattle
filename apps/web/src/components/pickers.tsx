@@ -20,15 +20,18 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/ui/popover";
+import { useI18n } from "#/i18n/react";
 import { cn } from "#/lib/utils";
 import { listAssigneesFn } from "#/server/fns";
-import { ISSUE_STATUSES, type IssueStatus } from "#/shared/issues";
+import {
+	ISSUE_STATUSES,
+	type IssueStatus,
+	PRIORITY_LABELS,
+} from "#/shared/issues";
 import {
 	Face,
 	LabelChip,
-	PRIORITY_META,
 	PriorityIcon,
-	STATUS_META,
 	StatusIcon,
 	TypeIcon,
 } from "./issue-meta";
@@ -102,19 +105,20 @@ export function StatusPicker({
 	className?: string;
 	allowTriage?: boolean;
 }) {
+	const { m } = useI18n();
 	const [open, setOpen] = useState(false);
 	const choices = ISSUE_STATUSES.filter(
 		(s) => s !== "duplicate" && (allowTriage || s !== "triage"),
 	) as Exclude<IssueStatus, "duplicate">[];
 	return (
 		<Picker
-			label="Change status"
+			label={m.issues.pickers.changeStatus}
 			open={open}
 			onOpenChange={setOpen}
 			trigger={
 				<Trigger className={className} disabled={value === "duplicate"}>
 					<StatusIcon status={value} />
-					<span className="truncate">{STATUS_META[value].label}</span>
+					<span className="truncate">{m.common.status[value]}</span>
 				</Trigger>
 			}
 		>
@@ -122,14 +126,14 @@ export function StatusPicker({
 				{choices.map((status) => (
 					<CommandItem
 						key={status}
-						value={STATUS_META[status].label}
+						value={m.common.status[status]}
 						onSelect={() => {
 							onChange(status);
 							setOpen(false);
 						}}
 					>
 						<StatusIcon status={status} />
-						<span className="flex-1">{STATUS_META[status].label}</span>
+						<span className="flex-1">{m.common.status[status]}</span>
 						{value === status && <CheckIcon className="size-4" />}
 					</CommandItem>
 				))}
@@ -150,6 +154,7 @@ export function ReleasePicker({
 	onChange: (release: string | undefined) => void;
 	className?: string;
 }) {
+	const { m } = useI18n();
 	const [open, setOpen] = useState(false);
 	const pick = (release: string | undefined) => {
 		onChange(release);
@@ -157,27 +162,32 @@ export function ReleasePicker({
 	};
 	return (
 		<Picker
-			label="Filter by release"
-			placeholder="Find a release…"
+			label={m.issues.pickers.filterByRelease}
+			placeholder={m.issues.pickers.findRelease}
 			searchable={releases.length > 8}
 			open={open}
 			onOpenChange={setOpen}
 			trigger={
 				<Trigger
 					className={cn("border border-control", className)}
-					aria-label={`Filter by release: ${value ?? "All releases"}`}
+					aria-label={m.issues.pickers.filterByReleaseValue(
+						value ?? m.issues.pickers.allReleases,
+					)}
 				>
 					<PackageIcon className="size-4 flex-none text-muted-foreground" />
 					<span className={cn("truncate", !value && "text-muted-foreground")}>
-						{value ?? "All releases"}
+						{value ?? m.issues.pickers.allReleases}
 					</span>
 				</Trigger>
 			}
 		>
-			<CommandEmpty>No release matches.</CommandEmpty>
+			<CommandEmpty>{m.issues.pickers.noRelease}</CommandEmpty>
 			<CommandGroup>
-				<CommandItem value="All releases" onSelect={() => pick(undefined)}>
-					<span className="flex-1">All releases</span>
+				<CommandItem
+					value={m.issues.pickers.allReleases}
+					onSelect={() => pick(undefined)}
+				>
+					<span className="flex-1">{m.issues.pickers.allReleases}</span>
 					{!value && <CheckIcon className="size-4" />}
 				</CommandItem>
 				{releases.map((release) => (
@@ -204,18 +214,21 @@ export function PriorityPicker({
 	onChange: (priority: number) => void;
 	className?: string;
 }) {
+	const { m } = useI18n();
 	const [open, setOpen] = useState(false);
 	const order = [1, 2, 3, 4, 0];
+	const label = (priority: number) =>
+		m.common.priority[PRIORITY_LABELS[priority] ?? "none"];
 	return (
 		<Picker
-			label="Set priority"
+			label={m.issues.pickers.setPriority}
 			open={open}
 			onOpenChange={setOpen}
 			trigger={
 				<Trigger className={className}>
 					<PriorityIcon priority={value} />
 					<span className={cn("truncate", !value && "text-muted-foreground")}>
-						{PRIORITY_META[value]?.label}
+						{label(value)}
 					</span>
 				</Trigger>
 			}
@@ -224,14 +237,14 @@ export function PriorityPicker({
 				{order.map((priority) => (
 					<CommandItem
 						key={priority}
-						value={PRIORITY_META[priority]?.label}
+						value={label(priority)}
 						onSelect={() => {
 							onChange(priority);
 							setOpen(false);
 						}}
 					>
 						<PriorityIcon priority={priority} />
-						<span className="flex-1">{PRIORITY_META[priority]?.label}</span>
+						<span className="flex-1">{label(priority)}</span>
 						{value === priority && <CheckIcon className="size-4" />}
 					</CommandItem>
 				))}
@@ -249,23 +262,22 @@ export function TypePicker({
 	onChange: (type: "bug" | "feature") => void;
 	className?: string;
 }) {
+	const { m } = useI18n();
 	const [open, setOpen] = useState(false);
 	const options = [
-		{ id: "bug" as const, label: "Bug" },
-		{ id: "feature" as const, label: "Feature request" },
+		{ id: "bug" as const, label: m.common.type.bug },
+		{ id: "feature" as const, label: m.common.type.feature },
 	];
 	return (
 		<Picker
-			label="Type"
+			label={m.issues.pickers.type}
 			searchable={false}
 			open={open}
 			onOpenChange={setOpen}
 			trigger={
 				<Trigger className={className}>
 					<TypeIcon type={value} />
-					<span className="truncate">
-						{value === "bug" ? "Bug" : "Feature request"}
-					</span>
+					<span className="truncate">{m.common.type[value]}</span>
 				</Trigger>
 			}
 		>
@@ -300,6 +312,7 @@ export function AssigneePicker({
 	onChange: (assignee: AssigneeValue) => void;
 	className?: string;
 }) {
+	const { m } = useI18n();
 	const [open, setOpen] = useState(false);
 	const { data } = useQuery({
 		queryKey: ["assignees", projectId],
@@ -313,7 +326,7 @@ export function AssigneePicker({
 	};
 	return (
 		<Picker
-			label="Assign to"
+			label={m.issues.pickers.assignTo}
 			open={open}
 			onOpenChange={setOpen}
 			trigger={
@@ -331,15 +344,17 @@ export function AssigneePicker({
 					) : (
 						<>
 							<span className="size-[18px] rounded-full border border-dashed border-control" />
-							<span className="text-muted-foreground">Unassigned</span>
+							<span className="text-muted-foreground">
+								{m.issues.pickers.unassigned}
+							</span>
 						</>
 					)}
 				</Trigger>
 			}
 		>
-			<CommandEmpty>No one matches.</CommandEmpty>
+			<CommandEmpty>{m.issues.pickers.noOne}</CommandEmpty>
 			{data && data.agents.length > 0 && (
-				<CommandGroup heading="Agents">
+				<CommandGroup heading={m.issues.pickers.agents}>
 					{data.agents.map((agent) => (
 						<CommandItem
 							key={agent.id}
@@ -356,7 +371,7 @@ export function AssigneePicker({
 				</CommandGroup>
 			)}
 			{data && (
-				<CommandGroup heading="People">
+				<CommandGroup heading={m.issues.pickers.people}>
 					{data.members.map((member) => (
 						<CommandItem
 							key={member.id}
@@ -369,7 +384,9 @@ export function AssigneePicker({
 							<span className="flex-1 truncate">
 								{member.name}
 								{member.id === data.me && (
-									<span className="text-muted-foreground"> (you)</span>
+									<span className="text-muted-foreground">
+										{m.issues.pickers.you}
+									</span>
 								)}
 							</span>
 							{value?.id === member.id && <CheckIcon className="size-4" />}
@@ -379,9 +396,12 @@ export function AssigneePicker({
 			)}
 			{value && (
 				<CommandGroup>
-					<CommandItem value="unassign" onSelect={() => pick(null)}>
+					<CommandItem
+						value={m.issues.pickers.unassign}
+						onSelect={() => pick(null)}
+					>
 						<UserRoundXIcon />
-						Unassign
+						{m.issues.pickers.unassign}
 					</CommandItem>
 				</CommandGroup>
 			)}
@@ -398,6 +418,7 @@ export function LabelsPicker({
 	onChange: (labels: string[]) => void;
 	className?: string;
 }) {
+	const { m } = useI18n();
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
 	const known = ["ui", "checkout", "payments", "mobile", "performance", "auth"];
@@ -416,17 +437,23 @@ export function LabelsPicker({
 					{value.length === 0 ? (
 						<>
 							<TagIcon className="size-3.5 text-muted-foreground" />
-							<span className="text-muted-foreground">Add labels</span>
+							<span className="text-muted-foreground">
+								{m.issues.pickers.addLabels}
+							</span>
 						</>
 					) : (
 						value.map((label) => <LabelChip key={label}>{label}</LabelChip>)
 					)}
 				</Trigger>
 			</PopoverTrigger>
-			<PopoverContent className="w-60 p-0" align="start" aria-label="Labels">
-				<Command label="Labels">
+			<PopoverContent
+				className="w-60 p-0"
+				align="start"
+				aria-label={m.issues.pickers.labels}
+			>
+				<Command label={m.issues.pickers.labels}>
 					<CommandInput
-						placeholder="Find or create a label…"
+						placeholder={m.issues.pickers.findLabel}
 						value={search}
 						onValueChange={setSearch}
 					/>
@@ -459,7 +486,7 @@ export function LabelsPicker({
 									}}
 								>
 									<PlusIcon />
-									Create “{typed}”
+									{m.issues.pickers.createLabel(typed)}
 								</CommandItem>
 							)}
 						</CommandGroup>
