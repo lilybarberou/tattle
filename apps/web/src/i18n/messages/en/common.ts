@@ -111,6 +111,15 @@ export const common = {
 				"When a webhook, Discord or Slack channel still fails after its retries. Once, until a delivery to it works again.",
 		},
 	},
+	/** A form value the server refused (server functions' validation). */
+	validation: {
+		required: "Fill in this field",
+		tooShort: (min: number) => `Too short: at least ${min} characters`,
+		tooLong: (max: number) => `Too long: at most ${max} characters`,
+		email: "Enter a valid email address",
+		url: "Enter a valid address, starting with https://",
+		invalid: "Some values are not valid. Check the form and try again.",
+	},
 	language: {
 		label: "Language",
 		auto: "Auto (browser language)",

@@ -197,3 +197,26 @@ test("the sign-in page's language selector is remembered, also on the portal", a
 	await expect(html).toHaveAttribute("lang", "en");
 	await expect(page).toHaveURL(`${APP_URL}${path}?lang=en`);
 });
+
+test("a value the server refuses is explained in the page's language", async ({
+	browser,
+	workspace,
+}) => {
+	const path = await publishPortal(workspace.project.id);
+	const context = await browser.newContext({
+		baseURL: APP_URL,
+		locale: "fr-FR",
+	});
+	const page = await context.newPage();
+	await page.goto(path);
+	await page.getByRole("button", { name: "Suggérer une idée" }).click();
+	const title = page.getByRole("textbox", { name: "Votre idée en une ligne" });
+	// Past the form's own check, as a script would: the server checks again.
+	await title.evaluate((input) => input.removeAttribute("minlength"));
+	await title.fill("abc");
+	await page.getByRole("button", { name: "Envoyer l'idée" }).click();
+	await expect(
+		page.getByText("Trop court : au moins 4 caractères"),
+	).toBeVisible();
+	await context.close();
+});

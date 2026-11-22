@@ -108,6 +108,15 @@ export const common: typeof en = {
 				"Quand un webhook, un salon Discord ou Slack échoue encore après ses nouvelles tentatives. Une seule fois, jusqu'à ce qu'un envoi réussisse de nouveau.",
 		},
 	},
+	validation: {
+		required: "Remplissez ce champ",
+		tooShort: (min) => `Trop court : au moins ${min} caractères`,
+		tooLong: (max) => `Trop long : au plus ${max} caractères`,
+		email: "Saisissez une adresse e-mail valide",
+		url: "Saisissez une adresse valide, qui commence par https://",
+		invalid:
+			"Certaines valeurs ne sont pas valides. Vérifiez le formulaire et réessayez.",
+	},
 	language: {
 		label: "Langue",
 		auto: "Automatique (langue du navigateur)",

@@ -1,5 +1,11 @@
 import { createSerializationAdapter } from "@tanstack/react-router";
 import { createStart } from "@tanstack/react-start";
+import {
+	documentLocale,
+	type ValidationIssue,
+	validationIssues,
+	validationMessage,
+} from "#/i18n/validation";
 import { HttpError } from "#/shared/http-error";
 
 /**
@@ -14,6 +20,24 @@ const httpErrorAdapter = createSerializationAdapter({
 	fromSerializable: ({ status, message }) => new HttpError(status, message),
 });
 
+/**
+ * A server function's input that failed validation: its message is the JSON
+ * of zod's issues, for developers. The browser gets a 400 with one sentence
+ * in the page's language instead ("Fill in this field", "Too long…").
+ */
+const validationErrorAdapter = createSerializationAdapter({
+	key: "tattle/validation-error",
+	test: (value): value is Error =>
+		value instanceof Error &&
+		!(value instanceof HttpError) &&
+		validationIssues(value.message) !== null,
+	toSerializable: (error) => ({
+		issues: validationIssues(error.message) as ValidationIssue[],
+	}),
+	fromSerializable: ({ issues }) =>
+		new HttpError(400, validationMessage(issues, documentLocale())),
+});
+
 export const startInstance = createStart(() => ({
-	serializationAdapters: [httpErrorAdapter],
+	serializationAdapters: [httpErrorAdapter, validationErrorAdapter],
 }));
