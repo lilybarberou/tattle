@@ -3,6 +3,7 @@
 import { XIcon } from "lucide-react";
 import { Dialog as SheetPrimitive } from "radix-ui";
 import type * as React from "react";
+import { useI18n } from "#/i18n/react";
 import { cn } from "#/lib/utils";
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
@@ -53,6 +54,7 @@ function SheetContent({
 	side?: "top" | "right" | "bottom" | "left";
 	showCloseButton?: boolean;
 }) {
+	const { m } = useI18n();
 	return (
 		<SheetPortal>
 			<SheetOverlay />
@@ -76,7 +78,7 @@ function SheetContent({
 				{showCloseButton && (
 					<SheetPrimitive.Close className="absolute top-3 right-3 rounded-xs p-1 opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-secondary">
 						<XIcon className="size-4" />
-						<span className="sr-only">Close</span>
+						<span className="sr-only">{m.app.ui.close}</span>
 					</SheetPrimitive.Close>
 				)}
 			</SheetPrimitive.Content>

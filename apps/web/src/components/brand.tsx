@@ -1,3 +1,4 @@
+import { useI18n } from "#/i18n/react";
 import { cn } from "#/lib/utils";
 
 /** The product mark: a speech bubble whose tail is a pin, drawn in the accent. */
@@ -18,10 +19,11 @@ export function BrandMark({ className }: { className?: string }) {
 }
 
 export function Brand({ className }: { className?: string }) {
+	const { m } = useI18n();
 	return (
 		<span className={cn("flex items-center gap-2 font-semibold", className)}>
 			<BrandMark />
-			Tattle
+			{m.common.product}
 		</span>
 	);
 }

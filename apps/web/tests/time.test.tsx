@@ -8,6 +8,7 @@ import {
 	ShortTime,
 	shortTime,
 } from "#/components/time";
+import { I18nProvider } from "#/i18n/react";
 
 // 23:30 UTC: already the next day in Paris, Tokyo or Auckland.
 const LATE = "2026-11-12T23:30:05.000Z";
@@ -70,5 +71,33 @@ describe("the reader's own text", () => {
 		expect(shortTime("2026-11-15T11:51:00Z", now)).toBe("9 min");
 		expect(shortTime("2026-11-15T09:00:00Z", now)).toBe("3 h");
 		expect(shortTime("2026-11-14T06:00:00Z", now)).toBe("Yesterday");
+	});
+
+	it("in French", () => {
+		expect(relativeTime("2026-11-15T11:59:30Z", now, "fr")).toBe("à l'instant");
+		expect(relativeTime("2026-11-15T10:00:00Z", now, "fr")).toBe(
+			"il y a 2 heures",
+		);
+		expect(relativeTime("2026-11-18T12:00:00Z", now, "fr")).toBe(
+			"dans 3 jours",
+		);
+		expect(shortTime("2026-11-15T11:59:50Z", now, "fr")).toBe("maintenant");
+		expect(shortTime("2026-11-15T11:51:00Z", now, "fr")).toBe("9 min");
+		expect(shortTime("2026-11-14T06:00:00Z", now, "fr")).toBe("Hier");
+		expect(shortTime("2026-11-03T06:00:00Z", now, "fr")).toBe("3 nov.");
+	});
+});
+
+describe("dates in French", () => {
+	it("render the same stable text in the page's language", () => {
+		const html = renderToString(
+			<I18nProvider locale="fr">
+				<MonthDay iso={LATE} />
+				<RelativeTime iso={LATE} />
+			</I18nProvider>,
+		);
+		expect(html).toBe(
+			`<time dateTime="${LATE}">12 nov.</time><time dateTime="${LATE}">12 nov. 2026</time>`,
+		);
 	});
 });

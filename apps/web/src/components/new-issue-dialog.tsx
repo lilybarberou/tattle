@@ -8,6 +8,7 @@ import {
 	DialogDescription,
 	DialogTitle,
 } from "#/components/ui/dialog";
+import { useI18n } from "#/i18n/react";
 import { createIssueFn } from "#/server/fns";
 import type { IssueStatus } from "#/shared/issues";
 import { MarkdownInput } from "./markdown";
@@ -35,6 +36,7 @@ export function NewIssueDialog({
 }) {
 	const navigate = useNavigate();
 	const router = useRouter();
+	const { m } = useI18n();
 	const titleRef = useRef<HTMLInputElement>(null);
 	const [title, setTitle] = useState("");
 	const [description, setDescription] = useState("");
@@ -78,7 +80,7 @@ export function NewIssueDialog({
 				},
 			});
 			onOpenChange(false);
-			toast.success(`#${created.number} created`, {
+			toast.success(m.app.newIssue.created(created.number), {
 				description: created.title,
 			});
 			await router.invalidate();
@@ -88,7 +90,7 @@ export function NewIssueDialog({
 			});
 		} catch (error) {
 			toast.error(
-				error instanceof Error ? error.message : "The issue was not created",
+				error instanceof Error ? error.message : m.app.newIssue.notCreated,
 			);
 		} finally {
 			setPending(false);
@@ -122,34 +124,35 @@ export function NewIssueDialog({
 						</span>
 						<span aria-hidden>›</span>
 						<DialogTitle className="text-sm font-normal text-muted-foreground">
-							{type === "bug" ? "New bug" : "New feature request"}
+							{type === "bug"
+								? m.app.newIssue.newBug
+								: m.app.newIssue.newFeature}
 						</DialogTitle>
 					</div>
 					<DialogDescription className="sr-only">
-						Write an issue yourself. It skips Triage unless you choose that
-						status.
+						{m.app.newIssue.description}
 					</DialogDescription>
 					<div className="space-y-1 px-5 pt-3 pb-2">
 						<label htmlFor="new-issue-title" className="sr-only">
-							Title
+							{m.app.newIssue.title}
 						</label>
 						<input
 							ref={titleRef}
 							id="new-issue-title"
 							value={title}
 							onChange={(e) => setTitle(e.target.value)}
-							placeholder="Issue title"
+							placeholder={m.app.newIssue.titlePlaceholder}
 							maxLength={200}
 							className="-mx-1 w-[calc(100%+0.5rem)] rounded-sm bg-transparent px-1 text-lg font-medium outline-none placeholder:text-muted-foreground/70 focus-visible:ring-[3px] focus-visible:ring-ring/50"
 						/>
 						<label htmlFor="new-issue-description" className="sr-only">
-							Description
+							{m.app.newIssue.descriptionLabel}
 						</label>
 						<MarkdownInput
 							id="new-issue-description"
 							value={description}
 							onChange={(e) => setDescription(e.target.value)}
-							placeholder="Add a description: steps to reproduce, what you expected, links…"
+							placeholder={m.app.newIssue.descriptionPlaceholder}
 							rows={5}
 							headerClassName="-mx-2 pt-1 pb-1"
 							className="field-sizing-content -mx-1 block min-h-28 w-[calc(100%+0.5rem)] resize-none rounded-sm bg-transparent px-1 leading-6 outline-none placeholder:text-muted-foreground/70 focus-visible:ring-[3px] focus-visible:ring-ring/50"
@@ -187,11 +190,11 @@ export function NewIssueDialog({
 					<div className="flex items-center justify-between gap-3 border-t px-5 py-3">
 						<p className="text-xs text-muted-foreground">
 							{assignee?.type === "agent"
-								? `${assignee.name} gets an issue.updated webhook and can pick it up.`
-								: "Issues you write skip Triage."}
+								? m.app.newIssue.agentHint(assignee.name)
+								: m.app.newIssue.skipsTriage}
 						</p>
 						<Button type="submit" disabled={pending || !title.trim()}>
-							Create issue
+							{m.app.newIssue.create}
 							<kbd className="border-white/20 bg-white/10 text-current dark:border-black/20 dark:bg-black/10">
 								⌘↵
 							</kbd>

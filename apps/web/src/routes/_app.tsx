@@ -3,7 +3,9 @@ import {
 	Link,
 	Outlet,
 	redirect,
+	useLoaderData,
 	useNavigate,
+	useRouter,
 	useRouterState,
 } from "@tanstack/react-router";
 import {
@@ -13,6 +15,7 @@ import {
 	CheckIcon,
 	ChevronsUpDownIcon,
 	InboxIcon,
+	LanguagesIcon,
 	LightbulbIcon,
 	ListIcon,
 	LogOutIcon,
@@ -24,6 +27,7 @@ import {
 	UsersIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
 	type AppActions,
 	AppActionsContext,
@@ -42,7 +46,12 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuLabel,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
 	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "#/components/ui/dropdown-menu";
 import {
@@ -51,9 +60,19 @@ import {
 	SheetDescription,
 	SheetTitle,
 } from "#/components/ui/sheet";
+import {
+	LOCALE_NAMES,
+	LOCALE_PREFERENCES,
+	type LocalePreference,
+} from "#/i18n/locales";
+import { useI18n } from "#/i18n/react";
 import { authClient } from "#/lib/auth-client";
 import { cn } from "#/lib/utils";
-import { getSessionFn, getWorkspaceFn } from "#/server/fns";
+import {
+	getSessionFn,
+	getWorkspaceFn,
+	setLocalePreferenceFn,
+} from "#/server/fns";
 
 export const Route = createFileRoute("/_app")({
 	beforeLoad: async () => {
@@ -125,6 +144,7 @@ function SidebarContent({
 	const { user } = Route.useRouteContext();
 	const navigate = useNavigate();
 	const { newIssue } = useAppActions();
+	const { m } = useI18n();
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 	const activeId = pathname.match(/^\/p\/([^/]+)/)?.[1];
 	const current = projects.find((p) => p.id === activeId) ?? projects[0];
@@ -143,8 +163,8 @@ function SidebarContent({
 				<Button
 					size="icon-sm"
 					variant="ghost"
-					aria-label="New issue"
-					title="New issue (C)"
+					aria-label={m.app.nav.newIssue}
+					title={m.app.nav.newIssueShortcut}
 					onClick={() => {
 						onNavigate?.();
 						newIssue();
@@ -169,7 +189,7 @@ function SidebarContent({
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="start" className="w-56">
 					<DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-						Projects
+						{m.app.nav.projects}
 					</DropdownMenuLabel>
 					{projects.map((p) => (
 						<DropdownMenuItem
@@ -194,12 +214,12 @@ function SidebarContent({
 						}}
 					>
 						<PlusIcon className="size-4" />
-						New project
+						{m.app.nav.newProject}
 					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
 
-			<nav className="flex flex-col gap-0.5" aria-label="Project">
+			<nav className="flex flex-col gap-0.5" aria-label={m.app.nav.projectNav}>
 				<NavLink
 					to="/p/$projectId/triage"
 					params={params}
@@ -207,7 +227,7 @@ function SidebarContent({
 					count={current.triageCount}
 					onNavigate={onNavigate}
 				>
-					Triage
+					{m.app.nav.triage}
 				</NavLink>
 				<NavLink
 					to="/p/$projectId/issues"
@@ -215,7 +235,7 @@ function SidebarContent({
 					icon={ListIcon}
 					onNavigate={onNavigate}
 				>
-					Issues
+					{m.app.nav.issues}
 				</NavLink>
 				<NavLink
 					to="/p/$projectId/requests"
@@ -223,7 +243,7 @@ function SidebarContent({
 					icon={LightbulbIcon}
 					onNavigate={onNavigate}
 				>
-					Feature requests
+					{m.app.nav.requests}
 				</NavLink>
 				<NavLink
 					to="/p/$projectId/overview"
@@ -231,7 +251,7 @@ function SidebarContent({
 					icon={ChartColumnIcon}
 					onNavigate={onNavigate}
 				>
-					Overview
+					{m.app.nav.overview}
 				</NavLink>
 				<NavLink
 					to="/p/$projectId/settings"
@@ -239,19 +259,22 @@ function SidebarContent({
 					icon={SettingsIcon}
 					onNavigate={onNavigate}
 				>
-					Project settings
+					{m.app.nav.projectSettings}
 				</NavLink>
 			</nav>
 
-			<nav className="mt-auto flex flex-col gap-0.5" aria-label="Workspace">
+			<nav
+				className="mt-auto flex flex-col gap-0.5"
+				aria-label={m.app.nav.workspaceNav}
+			>
 				<NavLink to="/members" icon={UsersIcon} onNavigate={onNavigate}>
-					Members
+					{m.app.nav.members}
 				</NavLink>
 				<NavLink to="/agents" icon={BotIcon} onNavigate={onNavigate}>
-					Agents & API
+					{m.app.nav.agents}
 				</NavLink>
 				<NavLink to="/privacy" icon={ShieldIcon} onNavigate={onNavigate}>
-					Privacy
+					{m.app.nav.privacy}
 				</NavLink>
 				<DropdownMenu>
 					<DropdownMenuTrigger className="flex h-10 items-center gap-2.5 rounded-md px-2 text-left hover:bg-active/70">
@@ -267,9 +290,10 @@ function SidebarContent({
 						<DropdownMenuItem asChild>
 							<Link to="/notifications" onClick={onNavigate}>
 								<BellIcon className="size-4" />
-								Notifications
+								{m.app.nav.notifications}
 							</Link>
 						</DropdownMenuItem>
+						<LanguageMenu />
 						<DropdownMenuItem
 							onSelect={async () => {
 								await authClient.signOut();
@@ -277,7 +301,7 @@ function SidebarContent({
 							}}
 						>
 							<LogOutIcon className="size-4" />
-							Sign out
+							{m.app.nav.signOut}
 						</DropdownMenuItem>
 						<DropdownMenuSeparator />
 						{build.url ? (
@@ -288,12 +312,12 @@ function SidebarContent({
 									rel="noreferrer"
 									className="text-xs text-muted-foreground"
 								>
-									Tattle {build.version}
+									{m.app.nav.version(build.version)}
 								</a>
 							</DropdownMenuItem>
 						) : (
 							<DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-								Tattle {build.version}
+								{m.app.nav.version(build.version)}
 							</DropdownMenuLabel>
 						)}
 					</DropdownMenuContent>
@@ -303,8 +327,52 @@ function SidebarContent({
 	);
 }
 
+/** The dashboard's language: Auto (the browser's), English or Français. */
+function LanguageMenu() {
+	const { m } = useI18n();
+	const router = useRouter();
+	const languages = useLoaderData({ from: "__root__" });
+	const current: LocalePreference = languages?.preference ?? "auto";
+	const choose = async (value: string) => {
+		const preference = LOCALE_PREFERENCES.find((p) => p === value);
+		if (!preference || preference === current) return;
+		try {
+			await setLocalePreferenceFn({ data: { preference } });
+			await router.invalidate();
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : m.app.language.saveFailed,
+			);
+		}
+	};
+	return (
+		<DropdownMenuSub>
+			<DropdownMenuSubTrigger>
+				<LanguagesIcon className="size-4" />
+				<span className="flex-1">{m.common.language.label}</span>
+			</DropdownMenuSubTrigger>
+			<DropdownMenuSubContent className="w-56">
+				<DropdownMenuRadioGroup value={current} onValueChange={choose}>
+					{LOCALE_PREFERENCES.map((preference) => (
+						<DropdownMenuRadioItem
+							key={preference}
+							value={preference}
+							lang={preference === "auto" ? undefined : preference}
+						>
+							{preference === "auto"
+								? m.common.language.auto
+								: LOCALE_NAMES[preference]}
+						</DropdownMenuRadioItem>
+					))}
+				</DropdownMenuRadioGroup>
+			</DropdownMenuSubContent>
+		</DropdownMenuSub>
+	);
+}
+
 function AppLayout() {
 	const { projects } = Route.useLoaderData();
+	const { m } = useI18n();
 	const pathname = useRouterState({ select: (s) => s.location.pathname });
 	const activeId = pathname.match(/^\/p\/([^/]+)/)?.[1];
 	const current = projects.find((p) => p.id === activeId) ?? projects[0];
@@ -351,10 +419,13 @@ function AppLayout() {
 				href="#content"
 				className="fixed top-2 left-2 z-50 -translate-y-[200%] rounded-md border bg-surface px-3 py-2 font-medium text-ink shadow-md focus:translate-y-0 focus-visible:outline-2"
 			>
-				Skip to content
+				{m.app.nav.skipToContent}
 			</a>
 			<div className="grid min-h-dvh md:h-dvh md:grid-cols-[var(--sidebar-width)_minmax(0,1fr)] md:grid-rows-[48px_minmax(0,1fr)]">
-				<aside aria-label="Sidebar" className="row-span-2 max-md:hidden">
+				<aside
+					aria-label={m.app.nav.sidebar}
+					className="row-span-2 max-md:hidden"
+				>
 					<SidebarContent />
 				</aside>
 
@@ -364,7 +435,7 @@ function AppLayout() {
 						size="icon-sm"
 						variant="ghost"
 						className="md:hidden"
-						aria-label="Open menu"
+						aria-label={m.app.nav.openMenu}
 						onClick={() => setMenuOpen(true)}
 					>
 						<MenuIcon className="size-5" />
@@ -376,7 +447,9 @@ function AppLayout() {
 						className="mx-auto hidden h-8 w-full max-w-[548px] items-center gap-2 rounded-md border bg-surface px-3 text-muted-foreground hover:border-control md:flex"
 					>
 						<SearchIcon className="size-4" />
-						<span className="flex-1 text-left">Search issues or jump to…</span>
+						<span className="flex-1 text-left">
+							{m.app.nav.searchPlaceholder}
+						</span>
 						<kbd>⌘K</kbd>
 					</button>
 					<div className="ml-auto flex items-center gap-1 md:ml-0">
@@ -384,7 +457,7 @@ function AppLayout() {
 							size="icon-sm"
 							variant="ghost"
 							className="md:hidden"
-							aria-label="Search"
+							aria-label={m.app.nav.search}
 							onClick={() => setSearchOpen(true)}
 						>
 							<SearchIcon className="size-4" />
@@ -395,7 +468,7 @@ function AppLayout() {
 							onClick={() => setNewIssue({})}
 						>
 							<PlusIcon className="size-4" />
-							New
+							{m.app.nav.newShort}
 						</Button>
 					</div>
 				</header>
@@ -415,9 +488,9 @@ function AppLayout() {
 
 			<Sheet open={menuOpen} onOpenChange={setMenuOpen}>
 				<SheetContent side="left" className="w-[85vw] max-w-80 bg-ground p-0">
-					<SheetTitle className="sr-only">Menu</SheetTitle>
+					<SheetTitle className="sr-only">{m.app.nav.menu}</SheetTitle>
 					<SheetDescription className="sr-only">
-						Projects and navigation
+						{m.app.nav.menuDescription}
 					</SheetDescription>
 					<SidebarContent inSheet onNavigate={() => setMenuOpen(false)} />
 				</SheetContent>

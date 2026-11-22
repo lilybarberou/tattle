@@ -1,7 +1,9 @@
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useState } from "react";
+import { useI18n } from "#/i18n/react";
 
 export function CodeBlock({ code, label }: { code: string; label?: string }) {
+	const { m } = useI18n();
 	const [copied, setCopied] = useState(false);
 	return (
 		<div className="relative rounded-lg border bg-muted/50">
@@ -20,7 +22,7 @@ export function CodeBlock({ code, label }: { code: string; label?: string }) {
 			</pre>
 			<button
 				type="button"
-				aria-label={label ? `Copy: ${label}` : "Copy"}
+				aria-label={label ? m.app.code.copyLabel(label) : m.app.code.copy}
 				onClick={async () => {
 					await navigator.clipboard.writeText(code);
 					setCopied(true);
@@ -36,7 +38,7 @@ export function CodeBlock({ code, label }: { code: string; label?: string }) {
 			</button>
 			{/* Screen readers hear that the copy worked; the check mark is visual. */}
 			<span role="status" className="sr-only">
-				{copied ? "Copied" : ""}
+				{copied ? m.app.code.copied : ""}
 			</span>
 		</div>
 	);

@@ -25,6 +25,7 @@ import {
 	DialogDescription,
 	DialogTitle,
 } from "#/components/ui/dialog";
+import { useI18n } from "#/i18n/react";
 import { searchIssuesFn } from "#/server/fns";
 import { IssueNumber, StatusIcon } from "./issue-meta";
 
@@ -40,6 +41,7 @@ export function CommandMenu({
 	onNewIssue: (type: "bug" | "feature") => void;
 }) {
 	const navigate = useNavigate();
+	const { m } = useI18n();
 	const [query, setQuery] = useState("");
 	const [debounced, setDebounced] = useState("");
 
@@ -65,55 +67,55 @@ export function CommandMenu({
 	const actions = [
 		{
 			id: "new-bug",
-			label: "New issue",
+			label: m.app.command.newIssue,
 			icon: PlusIcon,
 			shortcut: "C",
 			run: () => onNewIssue("bug"),
 		},
 		{
 			id: "new-feature",
-			label: "New feature request",
+			label: m.app.command.newFeature,
 			icon: LightbulbIcon,
 			run: () => onNewIssue("feature"),
 		},
 		{
 			id: "triage",
-			label: "Go to Triage",
+			label: m.app.command.goTriage,
 			icon: InboxIcon,
 			run: () =>
 				navigate({ to: "/p/$projectId/triage", params: { projectId } }),
 		},
 		{
 			id: "issues",
-			label: "Go to Issues",
+			label: m.app.command.goIssues,
 			icon: ListIcon,
 			run: () =>
 				navigate({ to: "/p/$projectId/issues", params: { projectId } }),
 		},
 		{
 			id: "requests",
-			label: "Go to Feature requests",
+			label: m.app.command.goRequests,
 			icon: LightbulbIcon,
 			run: () =>
 				navigate({ to: "/p/$projectId/requests", params: { projectId } }),
 		},
 		{
 			id: "overview",
-			label: "Go to Overview",
+			label: m.app.command.goOverview,
 			icon: ChartColumnIcon,
 			run: () =>
 				navigate({ to: "/p/$projectId/overview", params: { projectId } }),
 		},
 		{
 			id: "settings",
-			label: "Project settings",
+			label: m.app.command.projectSettings,
 			icon: SettingsIcon,
 			run: () =>
 				navigate({ to: "/p/$projectId/settings", params: { projectId } }),
 		},
 		{
 			id: "agents",
-			label: "Agents & API",
+			label: m.app.command.agents,
 			icon: BotIcon,
 			run: () => navigate({ to: "/agents" }),
 		},
@@ -125,21 +127,21 @@ export function CommandMenu({
 				showCloseButton={false}
 				className="top-[20%] translate-y-0 gap-0 overflow-hidden p-0 sm:max-w-xl"
 			>
-				<DialogTitle className="sr-only">Search</DialogTitle>
+				<DialogTitle className="sr-only">{m.app.command.title}</DialogTitle>
 				<DialogDescription className="sr-only">
-					Search issues or run a command
+					{m.app.command.description}
 				</DialogDescription>
 				{/* Server results are already ranked, so cmdk must not re-filter them. */}
 				<Command shouldFilter={false} className="[&_[cmdk-input-wrapper]]:h-12">
 					<CommandInput
-						placeholder="Search issues by words or #number, or type a command…"
+						placeholder={m.app.command.placeholder}
 						value={query}
 						onValueChange={setQuery}
 					/>
 					<CommandList className="max-h-96">
-						<CommandEmpty>Nothing matches “{query}”.</CommandEmpty>
+						<CommandEmpty>{m.app.command.empty(query)}</CommandEmpty>
 						{results.length > 0 && (
-							<CommandGroup heading="Issues">
+							<CommandGroup heading={m.app.command.issues}>
 								{results.map((issue) => (
 									<CommandItem
 										key={issue.id}
@@ -161,7 +163,7 @@ export function CommandMenu({
 							</CommandGroup>
 						)}
 						{actions.length > 0 && (
-							<CommandGroup heading="Commands">
+							<CommandGroup heading={m.app.command.commands}>
 								{actions.map((action) => (
 									<CommandItem
 										key={action.id}

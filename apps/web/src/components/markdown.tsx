@@ -2,6 +2,7 @@ import { ImageIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useI18n } from "#/i18n/react";
 import { cn } from "#/lib/utils";
 
 /*
@@ -28,6 +29,19 @@ export const safeUrl = (value: string) => {
 
 const external = { target: "_blank", rel: "noopener noreferrer nofollow" };
 
+/** An image as a link to it: nothing is loaded from the address. */
+function MarkdownImage({ src, alt }: { src?: string; alt?: string }) {
+	const { m } = useI18n();
+	const label = alt?.trim() || m.app.markdown.image;
+	if (!src) return <span>{label}</span>;
+	return (
+		<a href={src} {...external} className="markdown-image" title={src}>
+			<ImageIcon aria-hidden className="size-[1em]" />
+			{label}
+		</a>
+	);
+}
+
 const components: Components = {
 	a: ({ node: _node, href, children, ...props }) => {
 		if (!href) return <span>{children}</span>;
@@ -47,16 +61,7 @@ const components: Components = {
 			</a>
 		);
 	},
-	img: ({ src, alt }) => {
-		const label = alt?.trim() || "Image";
-		if (!src) return <span>{label}</span>;
-		return (
-			<a href={src} {...external} className="markdown-image" title={src}>
-				<ImageIcon aria-hidden className="size-[1em]" />
-				{label}
-			</a>
-		);
-	},
+	img: ({ src, alt }) => <MarkdownImage src={src} alt={alt} />,
 	table: ({ node: _node, ...props }) => (
 		<div className="markdown-table">
 			<table {...props} />
@@ -99,6 +104,7 @@ export function MarkdownInput({
 	headerClassName?: string;
 	previewClassName?: string;
 }) {
+	const { m } = useI18n();
 	const [preview, setPreview] = useState(false);
 	const ref = useRef<HTMLTextAreaElement>(null);
 	// Once the text is sent or the form reset, the next one starts in Write.
@@ -124,7 +130,7 @@ export function MarkdownInput({
 						requestAnimationFrame(() => ref.current?.focus());
 					}}
 				>
-					Write
+					{m.app.markdown.write}
 				</button>
 				<button
 					type="button"
@@ -132,14 +138,14 @@ export function MarkdownInput({
 					className={tab(preview)}
 					onClick={() => setPreview(true)}
 				>
-					Preview
+					{m.app.markdown.preview}
 				</button>
 				<a
 					href="https://github.github.com/gfm/"
 					{...external}
 					className="ml-auto text-xs text-muted-foreground hover:text-ink"
 				>
-					Markdown supported
+					{m.app.markdown.supported}
 				</a>
 			</div>
 			{preview ? (
@@ -147,7 +153,9 @@ export function MarkdownInput({
 					{value.trim() ? (
 						<Markdown>{value}</Markdown>
 					) : (
-						<p className="text-muted-foreground">Nothing to preview.</p>
+						<p className="text-muted-foreground">
+							{m.app.markdown.nothingToPreview}
+						</p>
 					)}
 				</div>
 			) : (
