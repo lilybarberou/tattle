@@ -12,6 +12,8 @@ export const auth: typeof en = {
 		PASSWORD_TOO_LONG: "Mot de passe trop long",
 		INVALID_TOKEN: "Ce lien n'est pas valide ou a expiré",
 		ORGANIZATION_ALREADY_EXISTS: "Cette organisation existe déjà",
+		PASSWORD_COMPROMISED:
+			"Ce mot de passe figure dans une fuite de données connue. Choisissez-en un autre.",
 	},
 	tooManyAttempts: "Trop de tentatives. Réessayez dans quelques minutes.",
 	login: {

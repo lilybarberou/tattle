@@ -8,6 +8,8 @@ import { haveIBeenPwned, jwt, organization } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { db } from "#/db";
 import * as schema from "#/db/schema";
+import { localeFromAcceptLanguage, messages, preferredLocale } from "#/i18n";
+import { errorText } from "#/server/errors";
 import { sendMail } from "#/server/mailer";
 import { CLIENT_IP_HEADER } from "#/server/rate-limit";
 import { passwordPolicy } from "./password-policy";
@@ -15,6 +17,9 @@ import { checkSetupCode } from "./setup-code";
 import { signupPolicy } from "./signup";
 
 const passwords = passwordPolicy();
+// Sign-up errors, in the language of the browser asking.
+const requestLocale = (request?: Request) =>
+	localeFromAcceptLanguage(request?.headers.get("accept-language"));
 const baseUrl = (
 	process.env.BETTER_AUTH_URL ?? "http://localhost:3000"
 ).replace(/\/$/, "");
@@ -50,12 +55,19 @@ export const auth = betterAuth({
 		resetPasswordTokenExpiresIn: 60 * 60,
 		revokeSessionsOnPasswordReset: true,
 		// Needs SMTP_* in the environment; the login page hides the link otherwise.
-		sendResetPassword: async ({ user, url }) => {
+		// In the person's language; else the language of the browser asking.
+		sendResetPassword: async ({ user, url }, request) => {
+			const locale = preferredLocale(
+				user as { locale?: string | null; detectedLocale?: string | null },
+				localeFromAcceptLanguage(request?.headers.get("accept-language")),
+			);
+			const { emails } = messages(locale);
 			await sendMail({
 				to: user.email,
-				subject: "Reset your Tattle password",
-				text: `Hi ${user.name},\n\nSomeone asked to reset the password of your Tattle account. If it was you, choose a new password with the button below. The link works for one hour.\n\nIf it wasn't you, ignore this email: your password stays the same.`,
-				action: { label: "Choose a new password", url },
+				locale,
+				subject: emails.passwordReset.subject,
+				text: emails.passwordReset.text(user.name),
+				action: { label: emails.passwordReset.action, url },
 			});
 		},
 	},
@@ -74,8 +86,7 @@ export const auth = betterAuth({
 			const { firstUser } = await signupPolicy();
 			if (firstUser && !checkSetupCode(ctx.body?.setupCode)) {
 				throw new APIError("FORBIDDEN", {
-					message:
-						"Wrong setup code. It is in the server logs, on the line that starts with [setup].",
+					message: errorText(requestLocale(ctx.request), "wrongSetupCode"),
 				});
 			}
 		}),
@@ -92,8 +103,7 @@ export const auth = betterAuth({
 					);
 					if (!policy.allowed) {
 						throw new APIError("FORBIDDEN", {
-							message:
-								"Sign-up is closed on this server. Open the invitation link you were sent, or ask a member to invite your email address.",
+							message: errorText(requestLocale(ctx?.request), "signupClosed"),
 						});
 					}
 				},

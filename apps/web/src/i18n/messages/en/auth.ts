@@ -12,6 +12,8 @@ export const auth = {
 		PASSWORD_TOO_LONG: "Password too long",
 		INVALID_TOKEN: "This link is invalid or has expired",
 		ORGANIZATION_ALREADY_EXISTS: "This organization already exists",
+		PASSWORD_COMPROMISED:
+			"This password appears in a known data breach. Choose another one.",
 	},
 	tooManyAttempts: "Too many attempts. Try again in a few minutes.",
 	login: {

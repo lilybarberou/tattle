@@ -22,6 +22,7 @@ import {
 	report,
 	reportMessage,
 } from "#/db/schema";
+import { DEFAULT_LOCALE, messages, normalizeLocale } from "#/i18n";
 import type { DuplicateSuggestionView } from "#/shared/ai";
 import {
 	ISSUE_STATUSES,
@@ -792,14 +793,16 @@ export class Issues extends Context.Service<
 							email: string;
 							name: string | null;
 							report_id: string | null;
+							locale: string | null;
 						}>(sql`
 							select * from (
-								select distinct on (lower(email)) email, name, report_id, stopped from (
+								select distinct on (lower(email)) email, name, report_id, locale, stopped from (
 									select ${report.reporter}->>'email' as email, ${report.reporter}->>'name' as name,
-										${report.id} as report_id, ${report.emailsStoppedAt} is not null as stopped
+										${report.id} as report_id, ${report.locale} as locale,
+										${report.emailsStoppedAt} is not null as stopped
 									from ${report} where ${report.issueId} = ${issueId}
 									union all
-									select ${issueVote.email}, null, null, false from ${issueVote}
+									select ${issueVote.email}, null, null, ${issueVote.locale}, false from ${issueVote}
 									where ${issueVote.issueId} = ${issueId}
 								) asked
 								where email is not null and email <> ''
@@ -813,16 +816,26 @@ export class Issues extends Context.Service<
 							? `${env.baseUrl}/portal/${row.portalSlug}?shipped=true`
 							: undefined;
 					for (const person of people.rows) {
+						// The reporter's device language, or the voter's browser
+						// language when they left their email.
+						const locale = normalizeLocale(person.locale) ?? DEFAULT_LOCALE;
+						const { emails } = messages(locale);
 						yield* Effect.tryPromise(() =>
 							sendMail({
 								to: person.email,
-								subject: `Shipped: ${row.title}`,
-								text: `Hi${person.name ? ` ${person.name}` : ""},\n\nYou asked ${row.project} for “${row.title}”. It's now available.\n\nThanks for taking the time to ask: it's how we decide what to build next.`,
+								locale,
+								subject: emails.shipped.subject(row.title),
+								text: `${emails.greeting(person.name)}\n\n${emails.shipped.text(
+									{
+										project: row.project,
+										title: row.title,
+									},
+								)}`,
 								action: link
-									? { label: "See what else is coming", url: link }
+									? { label: emails.shipped.action, url: link }
 									: undefined,
 								...(person.report_id
-									? reporterUnsubscribe(person.report_id)
+									? reporterUnsubscribe(person.report_id, locale)
 									: {}),
 							}),
 						).pipe(Effect.ignore);

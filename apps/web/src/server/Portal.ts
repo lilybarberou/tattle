@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { Context, Effect, Layer } from "effect";
 import { issue, issueVote, project } from "#/db/schema";
+import type { Locale } from "#/i18n";
 import { Database } from "./Database";
 import { type DbError, InvalidInput, localized, NotFound } from "./errors";
 import { Issues } from "./Issues";
@@ -47,11 +48,18 @@ export class Portal extends Context.Service<
 			number: number,
 			voterKey: string,
 			email: string,
+			/** The visitor's language, for the "shipped" email. */
+			locale?: Locale,
 		) => Effect.Effect<void, NotFound | DbError>;
 		/** A new idea goes to Triage; the author's vote is counted right away. */
 		readonly suggest: (
 			slug: string,
-			input: { title: string; description?: string; email?: string },
+			input: {
+				title: string;
+				description?: string;
+				email?: string;
+				locale?: Locale;
+			},
 			voterKey: string,
 		) => Effect.Effect<{ number: number }, NotFound | InvalidInput | DbError>;
 	}
@@ -200,13 +208,14 @@ export class Portal extends Context.Service<
 				number: number,
 				voterKey: string,
 				email: string,
+				locale?: Locale,
 			) {
 				const p = yield* findProject(slug);
 				const request = yield* findRequest(p.id, number);
 				yield* database.query((db) =>
 					db
 						.update(issueVote)
-						.set({ email: email.trim().toLowerCase() })
+						.set({ email: email.trim().toLowerCase(), locale: locale ?? null })
 						.where(
 							and(
 								eq(issueVote.issueId, request.id),
@@ -218,7 +227,12 @@ export class Portal extends Context.Service<
 
 			const suggest = Effect.fn("Portal.suggest")(function* (
 				slug: string,
-				input: { title: string; description?: string; email?: string },
+				input: {
+					title: string;
+					description?: string;
+					email?: string;
+					locale?: Locale;
+				},
 				voterKey: string,
 			) {
 				const p = yield* findProject(slug);
@@ -237,6 +251,7 @@ export class Portal extends Context.Service<
 						issueId: created.id,
 						voterKey,
 						email: input.email?.trim().toLowerCase() || null,
+						locale: input.email ? (input.locale ?? null) : null,
 					}),
 				);
 				yield* recount(created.id);

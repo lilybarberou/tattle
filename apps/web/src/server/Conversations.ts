@@ -3,6 +3,7 @@ import { and, asc, desc, eq, isNull, ne, or, type SQL, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { Context, Effect, Layer } from "effect";
 import { issue, project, report, reportMessage } from "#/db/schema";
+import { DEFAULT_LOCALE, messages, normalizeLocale } from "#/i18n";
 import {
 	MAX_MESSAGE_LENGTH,
 	type ReporterStatus,
@@ -523,18 +524,28 @@ export class Conversations extends Context.Service<
 							.from(project)
 							.where(eq(project.id, row.report.projectId)),
 					);
-					const name = row.report.reporter?.name;
+					// In the reporter's language, from their device; English when unknown.
+					const locale = normalizeLocale(row.report.locale) ?? DEFAULT_LOCALE;
+					const { emails } = messages(locale);
 					const title = titleFromMessage(row.report.message);
 					yield* Effect.tryPromise(() =>
 						sendMail({
 							to,
-							subject: `Re: ${title}`,
-							text: `Hi${name ? ` ${name}` : ""},\n\n${actor.name} from ${p?.name ?? "the team"} replied to your report:\n\n${body}\n\nYou wrote: “${title}”`,
+							locale,
+							subject: emails.reply.subject(title),
+							text: `${emails.greeting(row.report.reporter?.name)}\n\n${emails.reply.text(
+								{
+									actor: actor.name,
+									project: p?.name ?? emails.reply.teamFallback,
+									body,
+									title,
+								},
+							)}`,
 							action: {
-								label: "Read and reply",
+								label: emails.reply.action,
 								url: threadLinkUrl(signThreadLink(row.report.id)),
 							},
-							...reporterUnsubscribe(row.report.id),
+							...reporterUnsubscribe(row.report.id, locale),
 						}),
 					);
 				},

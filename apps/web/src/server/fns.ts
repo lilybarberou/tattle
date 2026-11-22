@@ -23,8 +23,9 @@ import {
 	DEFAULT_LOCALE,
 	LOCALE_PREFERENCES,
 	LOCALES,
+	messages,
 	normalizeLocale,
-} from "#/i18n/locales";
+} from "#/i18n";
 import { auth } from "#/lib/auth";
 import { passwordPolicy } from "#/lib/password-policy";
 import {
@@ -937,14 +938,27 @@ export const inviteMemberFn = createServerFn({ method: "POST" })
 						.from(organization)
 						.where(eq(organization.id, data.organizationId)),
 				);
-				const workspace = org?.name ?? "their workspace";
+				// In the inviter's language: the invited person has no account yet.
+				const { locale } = yield* Effect.promise(() =>
+					requestLocale(getRequest().headers),
+				);
+				const { emails } = messages(locale);
+				const workspace = org?.name ?? emails.invitation.workspaceFallback;
 				const emailed = yield* Effect.tryPromise({
 					try: () =>
 						sendMail({
 							to: email,
-							subject: `${p.name} invited you to ${workspace} on Tattle`,
-							text: `${p.name} invited you to join ${workspace} on Tattle, where your team triages bug reports and feature requests.\n\nCreate your account with this email address (${email}) within 7 days.`,
-							action: { label: "Accept the invitation", url: link },
+							locale,
+							subject: emails.invitation.subject({
+								inviter: p.name,
+								workspace,
+							}),
+							text: emails.invitation.text({
+								inviter: p.name,
+								workspace,
+								email,
+							}),
+							action: { label: emails.invitation.action, url: link },
 						}),
 					catch: (cause) => cause,
 				}).pipe(
@@ -1477,7 +1491,13 @@ export const portalNotifyFn = createServerFn({ method: "POST" })
 				const key = voterKey(false);
 				if (!key) return yield* new InvalidInput(localized("voteFirst"));
 				const portal = yield* Portal;
-				yield* portal.setVoteEmail(data.slug, data.number, key, data.email);
+				yield* portal.setVoteEmail(
+					data.slug,
+					data.number,
+					key,
+					data.email,
+					visitorLocale(getRequest().headers),
+				);
 				return { ok: true };
 			}),
 		),
@@ -1503,6 +1523,7 @@ export const portalSuggestFn = createServerFn({ method: "POST" })
 						title: data.title,
 						description: data.description,
 						email: data.email || undefined,
+						locale: visitorLocale(getRequest().headers),
 					},
 					voterKey(true) as string,
 				);

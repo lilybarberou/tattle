@@ -101,4 +101,8 @@ export const errors = {
 	aiKeyTooLong: "That key is too long",
 	aiKeyRequired: (p: { provider: string }) =>
 		`Add your ${p.provider} API key to turn suggestions on`,
+	wrongSetupCode:
+		"Wrong setup code. It is in the server logs, on the line that starts with [setup].",
+	signupClosed:
+		"Sign-up is closed on this server. Open the invitation link you were sent, or ask a member to invite your email address.",
 };

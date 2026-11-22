@@ -96,4 +96,8 @@ export const errors: typeof en = {
 	aiKeyTooLong: "Cette clé est trop longue",
 	aiKeyRequired: (p) =>
 		`Ajoutez votre clé d'API ${p.provider} pour activer les suggestions`,
+	wrongSetupCode:
+		"Code de configuration incorrect. Il se trouve dans les journaux du serveur, sur la ligne qui commence par [setup].",
+	signupClosed:
+		"Les inscriptions sont fermées sur ce serveur. Ouvrez le lien d'invitation que vous avez reçu, ou demandez à un membre d'inviter votre adresse e-mail.",
 };

@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { type Locale, messages } from "#/i18n";
 import {
 	NOTIFICATION_TYPES,
 	type NotificationType,
@@ -69,17 +70,13 @@ export const unsubscribeHeaders = (token: string) => ({
 });
 
 /** The footer and headers of an email to someone who reported. */
-export const reporterUnsubscribe = (reportId: string) => {
+export const reporterUnsubscribe = (reportId: string, locale: Locale) => {
 	const token = signUnsubscribe({ kind: "report", reportId });
+	const { emails } = messages(locale);
 	return {
 		footer: {
-			text: "You get this email because you sent this report.",
-			links: [
-				{
-					label: "Stop emails about this report",
-					url: unsubscribePageUrl(token),
-				},
-			],
+			text: emails.reporter.footer,
+			links: [{ label: emails.reporter.stop, url: unsubscribePageUrl(token) }],
 		},
 		headers: unsubscribeHeaders(token),
 	};
