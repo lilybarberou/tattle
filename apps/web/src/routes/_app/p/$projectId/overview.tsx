@@ -1,8 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { IssueNumber, STATUS_META, StatusIcon } from "#/components/issue-meta";
+import { IssueNumber, StatusIcon } from "#/components/issue-meta";
 import { PageHeader } from "#/components/page-header";
 import { ReportsChart } from "#/components/reports-chart";
 import { RelativeTime } from "#/components/time";
+import type { Messages } from "#/i18n";
+import { useI18n } from "#/i18n/react";
 import { cn } from "#/lib/utils";
 import { getOverviewFn } from "#/server/fns";
 import type { OverviewIssue } from "#/server/Overview";
@@ -15,17 +17,17 @@ export const Route = createFileRoute("/_app/p/$projectId/overview")({
 
 const OPEN = ["triage", "backlog", "todo", "in_progress", "in_review"] as const;
 
-const plural = (count: number, one: string, many = `${one}s`) =>
-	`${count.toLocaleString("en")} ${count === 1 ? one : many}`;
-
 /** 45 min, 7 h, 3.5 days: precise enough to compare, short enough to scan. */
-const formatDuration = (seconds: number) => {
+const formatDuration = (
+	m: Messages["overview"]["duration"],
+	seconds: number,
+) => {
 	const minutes = seconds / 60;
-	if (minutes < 60) return `${Math.max(1, Math.round(minutes))} min`;
+	if (minutes < 60) return m.minutes(Math.max(1, Math.round(minutes)));
 	const hours = minutes / 60;
-	if (hours < 48) return `${Math.round(hours)} h`;
+	if (hours < 48) return m.hours(Math.round(hours));
 	const days = hours / 24;
-	return `${days < 10 ? days.toFixed(1).replace(/\.0$/, "") : Math.round(days)} days`;
+	return m.days(days < 10 ? Math.round(days * 10) / 10 : Math.round(days));
 };
 
 function Stat({
@@ -120,35 +122,36 @@ function OverviewPage() {
 	const open = OPEN.reduce((sum, status) => sum + statuses[status], 0);
 	const topStatus = Math.max(1, ...OPEN.map((status) => statuses[status]));
 	const change = reports.last30 - reports.previous30;
+	const { m, number } = useI18n();
+	const t = m.overview;
+	const d = t.description;
 
 	const description =
 		reports.last30 === 0 && reports.previous30 === 0
-			? "Nothing reported in the last 30 days."
-			: `${plural(reports.last30, "report")} in the last 30 days${
+			? d.nothing
+			: `${d.reports(reports.last30)}${
 					reports.previous30 === 0
-						? "."
+						? d.end
 						: change === 0
-							? ", as many as the 30 days before."
-							: `, ${change > 0 ? "up" : "down"} from ${reports.previous30.toLocaleString("en")}.`
-				} ${
-					statuses.triage === 0
-						? "Triage is clear."
-						: `${plural(statuses.triage, "issue")} waiting in Triage.`
-				}`;
+							? d.same
+							: change > 0
+								? d.up(reports.previous30)
+								: d.down(reports.previous30)
+				} ${statuses.triage === 0 ? d.triageClear : d.waiting(statuses.triage)}`;
 
 	return (
 		<>
-			<PageHeader title="Overview" description={description} />
+			<PageHeader title={t.title} description={description} />
 
 			<div className="max-w-5xl space-y-4 px-6 pt-5 pb-10">
 				<div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
 					<Stat
-						label="Reports, 30 days"
-						value={reports.last30.toLocaleString("en")}
+						label={t.reports30}
+						value={number(reports.last30)}
 						detail={
 							reports.previous30 === 0 && reports.last30 === 0
-								? "None yet"
-								: `${reports.previous30.toLocaleString("en")} the 30 days before`
+								? t.noneYet
+								: t.previous30(reports.previous30)
 						}
 					/>
 					<Link
@@ -157,55 +160,49 @@ function OverviewPage() {
 						className="block min-w-0 rounded-lg hover:bg-raised"
 					>
 						<Stat
-							label="In triage"
-							value={statuses.triage.toLocaleString("en")}
+							label={t.inTriage}
+							value={number(statuses.triage)}
 							detail={
 								oldestTriageAt ? (
 									<>
-										Oldest arrived <RelativeTime iso={oldestTriageAt} />
+										{t.oldestArrived} <RelativeTime iso={oldestTriageAt} />
 									</>
 								) : (
-									"Inbox clear"
+									t.inboxClear
 								)
 							}
 						/>
 					</Link>
 					<Stat
-						label="Resolved, 30 days"
-						value={resolution.resolved30.toLocaleString("en")}
-						detail={`${resolution.resolved90.toLocaleString("en")} over 90 days`}
+						label={t.resolved30}
+						value={number(resolution.resolved30)}
+						detail={t.over90(number(resolution.resolved90))}
 					/>
 					<Stat
-						label="Median time to resolve"
+						label={t.medianTime}
 						value={
 							resolution.median30 === null
 								? "–"
-								: formatDuration(resolution.median30)
+								: formatDuration(t.duration, resolution.median30)
 						}
 						detail={
 							resolution.median90 === null
-								? "Nothing moved to Done yet"
-								: `${formatDuration(resolution.median90)} over 90 days`
+								? t.nothingDone
+								: t.over90(formatDuration(t.duration, resolution.median90))
 						}
 					/>
 				</div>
 
-				<Panel
-					title="Reports per day"
-					aside={`Last 30 days, UTC · ${plural(reports.last30, "report")}`}
-				>
+				<Panel title={t.perDay} aside={t.perDayAside(reports.last30)}>
 					{reports.last30 === 0 ? (
-						<Empty>
-							No reports in the last 30 days. When people send a bug or an idea
-							from the widget, each day shows up here.
-						</Empty>
+						<Empty>{t.noReports}</Empty>
 					) : (
 						<ReportsChart days={days} />
 					)}
 				</Panel>
 
 				<div className="grid gap-4 lg:grid-cols-2">
-					<Panel title="Open issues" aside={plural(open, "issue")}>
+					<Panel title={t.openIssues} aside={t.issues(open)}>
 						<ul className="-mx-2">
 							{OPEN.map((status) => (
 								<li key={status}>
@@ -224,7 +221,7 @@ function OverviewPage() {
 										className="grid grid-cols-[14px_96px_minmax(0,1fr)_40px] items-center gap-2.5 rounded-md px-2 py-2 hover:bg-raised"
 									>
 										<StatusIcon status={status} />
-										<span>{STATUS_META[status].label}</span>
+										<span>{m.common.status[status]}</span>
 										<span className="h-[3px] rounded-full bg-rule">
 											<span
 												className="block h-full rounded-full bg-control"
@@ -242,31 +239,28 @@ function OverviewPage() {
 						</ul>
 					</Panel>
 
-					<Panel title="Most reported" aside="Open issues">
+					<Panel title={t.mostReported} aside={t.openIssues}>
 						{overview.topReported.length === 0 ? (
-							<Empty>
-								No open issue has reports yet. Issues that many people run into
-								rise to the top here.
-							</Empty>
+							<Empty>{t.noReported}</Empty>
 						) : (
 							<IssueList
 								issues={overview.topReported}
 								projectId={projectId}
-								measure={(issue) => plural(issue.reportCount, "report")}
+								measure={(issue) => t.reports(issue.reportCount)}
 							/>
 						)}
 					</Panel>
 
 					{overview.topVoted.length > 0 && (
 						<Panel
-							title="Most voted requests"
-							aside="From the public page"
+							title={t.mostVoted}
+							aside={t.fromPublicPage}
 							className="lg:col-span-2"
 						>
 							<IssueList
 								issues={overview.topVoted}
 								projectId={projectId}
-								measure={(issue) => plural(issue.voteCount, "vote")}
+								measure={(issue) => t.votes(issue.voteCount)}
 							/>
 						</Panel>
 					)}

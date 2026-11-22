@@ -1,31 +1,24 @@
 import { useState } from "react";
+import { useI18n } from "#/i18n/react";
 import { cn } from "#/lib/utils";
 
 export type ReportDay = { date: string; bugs: number; features: number };
 
 const SERIES = [
-	{ key: "bugs", label: "Bugs", swatch: "bg-series-bug" },
-	{ key: "features", label: "Feature requests", swatch: "bg-series-feature" },
+	{ key: "bugs", swatch: "bg-series-bug" },
+	{ key: "features", swatch: "bg-series-feature" },
 ] as const;
 
 // Days are UTC days (YYYY-MM-DD): format them in UTC so the server render and
 // the browser agree.
-const dayFormat = new Intl.DateTimeFormat("en", {
-	month: "short",
-	day: "numeric",
-	timeZone: "UTC",
-});
-const longDayFormat = new Intl.DateTimeFormat("en", {
+const DAY = { month: "short", day: "numeric", timeZone: "UTC" } as const;
+const LONG_DAY = {
 	weekday: "short",
 	month: "short",
 	day: "numeric",
 	timeZone: "UTC",
-});
+} as const;
 const asDate = (day: string) => new Date(`${day}T00:00:00Z`);
-const describe = (day: ReportDay | undefined) =>
-	day
-		? `${longDayFormat.format(asDate(day.date))}: ${day.bugs} ${day.bugs === 1 ? "bug" : "bugs"}, ${day.features} ${day.features === 1 ? "feature request" : "feature requests"}`
-		: undefined;
 
 /** The smallest of 1, 2, 5 × 10ⁿ at or above `value`, so the axis reads in round numbers. */
 const niceCeil = (value: number) => {
@@ -43,6 +36,14 @@ const niceCeil = (value: number) => {
  */
 export function ReportsChart({ days }: { days: ReportDay[] }) {
 	const [active, setActive] = useState<number | null>(null);
+	const { m, date } = useI18n();
+	const t = m.overview.chart;
+	const dayFormat = { format: (d: Date) => date(d, DAY) };
+	const longDayFormat = { format: (d: Date) => date(d, LONG_DAY) };
+	const describe = (d: ReportDay | undefined) =>
+		d
+			? t.day(longDayFormat.format(asDate(d.date)), d.bugs, d.features)
+			: undefined;
 	const top = niceCeil(Math.max(0, ...days.map((d) => d.bugs + d.features)));
 	const ticks = top >= 2 && top % 2 === 0 ? [top, top / 2] : [top];
 	const day = active === null ? null : days[active];
@@ -58,7 +59,7 @@ export function ReportsChart({ days }: { days: ReportDay[] }) {
 							aria-hidden
 							className={cn("size-2 rounded-[2px]", s.swatch)}
 						/>
-						{s.label}
+						{t[s.key]}
 					</span>
 				))}
 			</div>
@@ -80,7 +81,7 @@ export function ReportsChart({ days }: { days: ReportDay[] }) {
 				<div
 					tabIndex={0}
 					role="slider"
-					aria-label="Reports per day, last 30 days"
+					aria-label={t.slider}
 					aria-valuemin={0}
 					aria-valuemax={days.length - 1}
 					aria-valuenow={active ?? days.length - 1}
@@ -164,7 +165,7 @@ export function ReportsChart({ days }: { days: ReportDay[] }) {
 									<span className="num font-semibold text-ink">
 										{day[s.key]}
 									</span>
-									<span className="text-muted-foreground">{s.label}</span>
+									<span className="text-muted-foreground">{t[s.key]}</span>
 								</p>
 							))}
 						</div>
@@ -179,13 +180,13 @@ export function ReportsChart({ days }: { days: ReportDay[] }) {
 			</div>
 
 			<table className="sr-only">
-				<caption>Reports per day</caption>
+				<caption>{t.caption}</caption>
 				<thead>
 					<tr>
-						<th scope="col">Day</th>
+						<th scope="col">{t.dayColumn}</th>
 						{SERIES.map((s) => (
 							<th key={s.key} scope="col">
-								{s.label}
+								{t[s.key]}
 							</th>
 						))}
 					</tr>

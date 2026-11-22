@@ -19,7 +19,12 @@ import {
 	webhookDelivery,
 	webhookEndpoint,
 } from "#/db/schema";
-import { LOCALE_PREFERENCES } from "#/i18n/locales";
+import {
+	DEFAULT_LOCALE,
+	LOCALE_PREFERENCES,
+	LOCALES,
+	normalizeLocale,
+} from "#/i18n/locales";
 import { auth } from "#/lib/auth";
 import { passwordPolicy } from "#/lib/password-policy";
 import {
@@ -340,6 +345,7 @@ export const getProjectFn = createServerFn({ method: "GET" })
 					allowedOrigins: row.allowedOrigins,
 					portalEnabled: row.portalEnabled,
 					portalSlug: row.portalSlug,
+					chatLocale: normalizeLocale(row.chatLocale) ?? DEFAULT_LOCALE,
 					// The secret itself: getIdentitySettingsFn, for admins only.
 					identityVerification: row.identitySecret !== null,
 					// Owners and admins change the project's settings and delete
@@ -371,6 +377,8 @@ export const updateProjectFn = createServerFn({ method: "POST" })
 			allowedOrigins: z.array(z.string()).optional(),
 			portalEnabled: z.boolean().optional(),
 			portalSlug: z.string().optional(),
+			// The language of the project's Discord and Slack messages.
+			chatLocale: z.enum(LOCALES).optional(),
 		}),
 	)
 	.handler(({ data }) =>
@@ -403,6 +411,7 @@ export const updateProjectFn = createServerFn({ method: "POST" })
 								allowedOrigins: origins,
 								portalEnabled: data.portalEnabled,
 								portalSlug,
+								chatLocale: data.chatLocale,
 							})
 							.where(eq(project.id, data.projectId)),
 					)
