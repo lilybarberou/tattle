@@ -235,13 +235,16 @@ After that, sign-up is closed: invite your teammates from **Members** (set
 
 Then create your first project. Its page shows the widget snippet.
 
+Tattle is in English and French and follows your browser's language. Each person can pick
+another one under their name → **Language**.
+
 ## 7. Connect your apps and agents
 
 | What | Where | How |
 | --- | --- | --- |
 | **The widget** | Project settings → *Install the widget* | Paste the `<script>` tag into your app, then call `Tattle.identify({ id, email, name })` after sign-in. List your app's address under *Allowed sites* before going live. |
 | **An AI agent (MCP)** | Agents & API | `claude mcp add --transport http tattle https://your-domain/api/mcp`: the agent opens a browser to sign in and asks you to approve. Agents without a browser use an API token instead. |
-| **Discord or Slack** | Project settings → *Discord and Slack* | Paste a channel's webhook URL. New reports, status changes and comments appear there. |
+| **Discord or Slack** | Project settings → *Discord and Slack* | Paste a channel's webhook URL. New reports, status changes and comments appear there, in the language chosen there (English or French). |
 | **Your own server** | Project settings → *Webhooks* | Signed JSON events, retried if your server is down. See the [README](../README.md#webhooks). |
 | **GitHub** | Project settings → *GitHub* | Turn it on, then add a webhook to your repository with the address and secret shown there (Pull requests events only). Merged pull requests move their issues to Done. GitHub must be able to reach your server. |
 | **A public feature request page** | Project settings → *Public feature requests* | Turn it on and pick an address: `https://your-domain/portal/<name>`. |
@@ -269,6 +272,11 @@ webhook stopped working. A daily triage digest lists the new issues waiting in T
 default for owners and admins. Each person changes theirs under their name → **Notifications**, and
 every email has a one-click unsubscribe link. The [README](../README.md#self-host) lists who gets
 what.
+
+**Languages.** Emails are in English or French, in their reader's language: a team member's
+choice under their name → **Language** (on Auto, the language of their browser), the inviter's for
+an invitation, and the reporter's device language for replies and the "shipped" notice. Nothing to
+set on the server. [TRANSLATING.md](TRANSLATING.md) has the details.
 
 **S3.** Screenshots are stored in the `storage` volume by default. To keep them in a bucket
 instead (AWS S3, Cloudflare R2, Scaleway, OVH, Backblaze…), set `STORAGE_DRIVER=s3` and the
