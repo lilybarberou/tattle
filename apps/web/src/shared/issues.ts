@@ -62,28 +62,8 @@ export const reporterStatus = (status: IssueStatus): ReporterStatus => {
 	}
 };
 
-export const REPORTER_STATUS_LABELS: Record<ReporterStatus, string> = {
-	received: "Received",
-	planned: "Planned",
-	in_progress: "In progress",
-	fixed: "Fixed",
-	wont_fix: "Won't fix",
-};
-
 /** Longest message a reporter or the team can send in a conversation. */
 export const MAX_MESSAGE_LENGTH = 5000;
-
-/** Status names as people read them (dashboard, emails, chat messages). */
-export const STATUS_LABELS: Record<string, string> = {
-	triage: "Triage",
-	backlog: "Backlog",
-	todo: "Todo",
-	in_progress: "In progress",
-	in_review: "In review",
-	done: "Done",
-	canceled: "Declined",
-	duplicate: "Duplicate",
-};
 
 export const WEBHOOK_FORMATS = ["json", "discord", "slack"] as const;
 export type WebhookFormat = (typeof WEBHOOK_FORMATS)[number];

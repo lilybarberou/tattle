@@ -7,7 +7,7 @@ import {
 	webhookDelivery,
 	webhookEndpoint,
 } from "#/db/schema";
-import { DEFAULT_LOCALE } from "#/i18n/locales";
+import { DEFAULT_LOCALE, normalizeLocale } from "#/i18n/locales";
 import {
 	WEBHOOK_EVENTS,
 	type WEBHOOK_FORMATS,
@@ -472,7 +472,12 @@ export class Webhooks extends Context.Service<
 						const deliveryId = crypto.randomUUID();
 						let payload: JsonObject;
 						if (endpoint.format === "discord" || endpoint.format === "slack") {
-							const message = describeEvent(event, p.id, data);
+							const message = describeEvent(
+								event,
+								p.id,
+								data,
+								normalizeLocale(p.chatLocale) ?? DEFAULT_LOCALE,
+							);
 							if (!message) continue;
 							payload =
 								endpoint.format === "discord"
