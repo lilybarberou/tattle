@@ -12,7 +12,8 @@ import {
 // The public portal is the page search engines index, so each language has
 // its own address: English at /portal/<slug>, French under /fr. The address
 // alone decides the language; the server never answers the bare address in
-// French. A French-speaking browser arriving there is sent once to /fr.
+// French. A visitor whose language is French (remembered in the cookie, or
+// on a first visit their browser's) is sent from there to /fr, every time.
 // Shared by the server (the redirect, the shipped email) and the browser
 // (links): keep it free of server-only imports.
 
@@ -25,18 +26,23 @@ const PORTAL = /^\/(?:(fr)\/)?portal\/([^/]+)\/?$/;
 export type PortalRedirect = {
 	status: 301 | 302;
 	location: string;
-	/** The language to remember, so the visitor is sent only once. */
+	/** The language to remember from now on (a first visit). */
 	remember?: Locale;
 };
 
 /**
- * Whether a page request for the portal must go elsewhere:
- * - a French-speaking browser (Accept-Language prefers French) on the
- *   English address, with no choice remembered (no `tattle_locale`
- *   cookie), goes once to the French address (302), which remembers "fr";
- * - robots (known crawler user agents, or no Accept-Language) and anyone
- *   with a remembered choice stay where they are;
- * - an old `?lang=` address goes to the address of its language (301).
+ * Whether a page request for the portal must go elsewhere, as sites
+ * usually do. On the English address (/portal/<slug>):
+ * - a remembered French (`tattle_locale=fr`) goes to the French address
+ *   (302), on every visit, whatever Accept-Language says;
+ * - a remembered English (`tattle_locale=en`, picked in the selector)
+ *   stays: the English address serves English;
+ * - a first visit (no cookie) from a browser that prefers French goes to
+ *   the French address (302), and French is remembered from then on;
+ * - robots (known crawler user agents, or no Accept-Language) are never
+ *   redirected, even with a cookie.
+ * The French address is never redirected: a link to it always opens it.
+ * An old `?lang=` address goes to the address of its language (301).
  */
 export const portalRedirect = (request: {
 	url: string;
@@ -65,15 +71,16 @@ export const portalRedirect = (request: {
 	}
 
 	if (prefix) return null;
-	if (localeFromCookie(request.cookie)) return null;
 	if (!request.acceptLanguage?.trim() || isCrawler(request.userAgent))
 		return null;
-	if (localeFromAcceptLanguage(request.acceptLanguage) !== "fr") return null;
-	return {
-		status: 302,
+	const french = {
+		status: 302 as const,
 		location: `${portalPath(slug, "fr")}${url.search}`,
-		remember: "fr",
 	};
+	const remembered = localeFromCookie(request.cookie);
+	if (remembered) return remembered === "fr" ? french : null;
+	if (localeFromAcceptLanguage(request.acceptLanguage) !== "fr") return null;
+	return { ...french, remember: "fr" };
 };
 
 /** The Set-Cookie value that remembers a language, as the selector sets it. */

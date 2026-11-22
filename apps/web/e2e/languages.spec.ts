@@ -82,14 +82,17 @@ const GOOGLEBOT =
 	"Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
 
 test("the portal is English at its address and French under /fr", async ({
-	request,
+	playwright,
 	workspace,
 }) => {
 	const path = await publishPortal(workspace.project.id);
 	const french = `/fr${path}`;
+	// Each request alone, as a new visitor: only the cookie it is given.
 	const get = async (url: string, headers: { [name: string]: string }) => {
+		const request = await playwright.request.newContext({ baseURL: APP_URL });
 		const response = await request.get(url, { headers, maxRedirects: 0 });
 		const html = await response.text();
+		await request.dispose();
 		const links = [...html.matchAll(/<link [^>]*>/g)].map((tag) =>
 			Object.fromEntries(
 				[...tag[0].matchAll(/([a-zA-Z-]+)="([^"]*)"/g)].map((a) => [
@@ -116,7 +119,7 @@ test("the portal is English at its address and French under /fr", async ({
 		"x-default": `${APP_URL}${path}`,
 	};
 
-	await test.step("a French browser is sent to /fr once, and it is remembered", async () => {
+	await test.step("a first visit from a French browser goes to /fr, and French is remembered", async () => {
 		const page = await get(`${path}?shipped=true`, {
 			"accept-language": "fr-FR,fr;q=0.9",
 		});
@@ -126,11 +129,27 @@ test("the portal is English at its address and French under /fr", async ({
 		expect(page.headers.vary).toContain("Accept-Language");
 	});
 
-	await test.step("robots and remembered choices stay on the English address", async () => {
+	await test.step("a remembered French goes to /fr on every visit, whatever the browser says", async () => {
+		const page = await get(`${path}?shipped=true`, {
+			"accept-language": "en-US",
+			cookie: "tattle_locale=fr",
+		});
+		expect(page.status).toBe(302);
+		expect(page.headers.location).toBe(`${french}?shipped=true`);
+		// Already remembered: nothing to set again.
+		expect(page.headers["set-cookie"]).toBeUndefined();
+	});
+
+	await test.step("a remembered English, robots and other browsers stay on the English address", async () => {
 		const cases: Array<{ [name: string]: string }> = [
+			{ "accept-language": "fr-FR", cookie: "tattle_locale=en" },
+			{
+				"accept-language": "fr-FR",
+				"user-agent": GOOGLEBOT,
+				cookie: "tattle_locale=fr",
+			},
 			{ "accept-language": "fr-FR", "user-agent": GOOGLEBOT },
 			{ "accept-language": "" },
-			{ "accept-language": "fr-FR", cookie: "tattle_locale=en" },
 			{ "accept-language": "en-US" },
 		];
 		for (const headers of cases) {
@@ -144,9 +163,10 @@ test("the portal is English at its address and French under /fr", async ({
 		expect(english.alternates).toEqual(alternates);
 	});
 
-	await test.step("/fr is French for any browser, and its own canonical", async () => {
+	await test.step("a link to /fr opens it in French, whatever the cookie", async () => {
 		const cases: Array<{ [name: string]: string }> = [
 			{ "accept-language": "en-US" },
+			{ "accept-language": "fr-FR", cookie: "tattle_locale=en" },
 			{ "accept-language": "en-US", cookie: "tattle_locale=en" },
 			{ "user-agent": GOOGLEBOT },
 		];
@@ -166,7 +186,7 @@ test("the portal is English at its address and French under /fr", async ({
 	});
 });
 
-test("a French browser reads the portal at /fr, and English sticks once chosen", async ({
+test("a French browser is kept on /fr until it picks English", async ({
 	browser,
 	workspace,
 }) => {
@@ -184,6 +204,10 @@ test("a French browser reads the portal at /fr, and English sticks once chosen",
 
 	// The tabs stay at the French address.
 	await page.getByRole("link", { name: /^Disponibles/ }).click();
+	await expect(page).toHaveURL(`${APP_URL}/fr${path}?shipped=true`);
+
+	// Back on the English address later: French is remembered.
+	await page.goto(`${path}?shipped=true`);
 	await expect(page).toHaveURL(`${APP_URL}/fr${path}?shipped=true`);
 
 	// EN in the selector goes to the English address and is never undone.

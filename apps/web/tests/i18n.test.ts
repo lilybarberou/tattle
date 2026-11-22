@@ -173,7 +173,7 @@ describe("the portal's addresses", () => {
 		expect(portalPath("shop", "fr")).toBe("/fr/portal/shop");
 	});
 
-	it("send a French-speaking browser to /fr once, remembering it", () => {
+	it("send a first-time French-speaking browser to /fr, remembering it", () => {
 		expect(
 			open("/portal/shop?shipped=true", { acceptLanguage: "fr-FR,fr;q=0.9" }),
 		).toEqual({
@@ -189,28 +189,59 @@ describe("the portal's addresses", () => {
 		);
 	});
 
-	it("never redirect robots, a remembered choice, or other languages", () => {
-		const french = { acceptLanguage: "fr-FR" };
+	it("send a remembered French to /fr on every visit, whatever the browser says", () => {
+		for (const acceptLanguage of ["en-US", "fr-FR", "de-DE"])
+			expect(
+				open("/portal/shop?shipped=true", {
+					acceptLanguage,
+					cookie: "theme=dark; tattle_locale=fr",
+				}),
+				acceptLanguage,
+			).toEqual({ status: 302, location: "/fr/portal/shop?shipped=true" });
+	});
+
+	it("keep English for a remembered English", () => {
 		expect(
-			open("/portal/shop", { ...french, userAgent: GOOGLEBOT }),
+			open("/portal/shop", {
+				acceptLanguage: "fr-FR",
+				cookie: "tattle_locale=en",
+			}),
 		).toBeNull();
-		expect(open("/portal/shop", {})).toBeNull();
-		expect(
-			open("/portal/shop", { ...french, cookie: "tattle_locale=en" }),
-		).toBeNull();
-		expect(
-			open("/portal/shop", { ...french, cookie: "tattle_locale=fr" }),
-		).toBeNull();
+	});
+
+	it("never redirect robots, even with a cookie", () => {
+		for (const cookie of [undefined, "tattle_locale=fr"]) {
+			expect(
+				open("/portal/shop", {
+					acceptLanguage: "fr-FR",
+					userAgent: GOOGLEBOT,
+					cookie,
+				}),
+			).toBeNull();
+			// No Accept-Language at all: a robot or a script.
+			expect(open("/portal/shop", { cookie })).toBeNull();
+		}
+	});
+
+	it("keep English for other languages and other methods", () => {
 		expect(
 			open("/portal/shop", { acceptLanguage: "en-US,fr;q=0.5" }),
 		).toBeNull();
 		expect(open("/portal/shop", { acceptLanguage: "de-DE" })).toBeNull();
-		expect(open("/portal/shop", french, "POST")).toBeNull();
+		expect(
+			open("/portal/shop", { acceptLanguage: "fr-FR" }, "POST"),
+		).toBeNull();
 	});
 
-	it("serve /fr in French to anyone, without redirecting", () => {
-		expect(open("/fr/portal/shop", { acceptLanguage: "en-US" })).toBeNull();
-		expect(open("/fr/portal/shop", { userAgent: GOOGLEBOT })).toBeNull();
+	it("never redirect a link to /fr, whatever the cookie", () => {
+		for (const cookie of [undefined, "tattle_locale=en", "tattle_locale=fr"]) {
+			expect(
+				open("/fr/portal/shop", { acceptLanguage: "en-US", cookie }),
+			).toBeNull();
+			expect(
+				open("/fr/portal/shop", { userAgent: GOOGLEBOT, cookie }),
+			).toBeNull();
+		}
 	});
 
 	it("move an old ?lang= address to its language's address", () => {

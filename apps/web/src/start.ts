@@ -40,10 +40,11 @@ const validationErrorAdapter = createSerializationAdapter({
 });
 
 /**
- * The portal's addresses (see i18n/portal-address.ts): a French-speaking
- * browser opening /portal/<slug> with no remembered choice is sent once to
- * /fr/portal/<slug>, and the choice is remembered so it never repeats.
- * Robots are never redirected. Page requests only, never server functions.
+ * The portal's addresses (see i18n/portal-address.ts): a visitor whose
+ * language is French (remembered in the cookie, or on a first visit their
+ * browser's) opening /portal/<slug> is sent to /fr/portal/<slug>. A first
+ * visit remembers French. Robots and links to /fr are never redirected.
+ * Page requests only, never server functions.
  */
 const portalAddressMiddleware = createMiddleware().server(
 	({ request, next, handlerType }) => {
