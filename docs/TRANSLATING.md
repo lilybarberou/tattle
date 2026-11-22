@@ -6,16 +6,44 @@ What stays in English on purpose: MCP tool names and descriptions, webhook paylo
 
 ## How the language is chosen
 
+The rule: the language is picked automatically from the browser's (or the device's) on the first visit, a selector changes it, the choice is remembered, robots are never redirected, and the indexable page has one address per language with its hreflang.
+
 | Surface | Language |
 | --- | --- |
-| Dashboard | The person's choice under their name → **Language** (Auto, English, Français). Auto follows the browser (`Accept-Language`), else English. |
-| Sign-in, password reset, onboarding, OAuth consent | The browser's language (the person's choice once signed in). |
-| Public pages: portal, reporter thread, unsubscribe | The visitor's browser language, else English. |
+| Dashboard | The person's choice under their name → **Language** (Auto, English, Français), saved on the account. Auto follows the visitor's language below. |
+| Sign-in, forgot and reset password | The visitor's language, with an EN / FR selector. |
+| Onboarding, OAuth consent | The account's language (signed in), no selector. |
+| Portal, reporter thread, unsubscribe | The visitor's language, with an EN / FR selector, even for a signed-in team member. On the thread page, the report's language when the visitor gives none. |
 | Team emails (assigned, regression, digest, a reporter answered, AI key, webhook failing, password reset) | The recipient's choice; on Auto, the language their browser last asked for; else English. |
 | Invitations | The inviter's dashboard language. |
 | Reporter emails (team reply, "shipped" notice) | The report's language, from the device language the widget or SDK sends. |
 | Portal voters' "shipped" notice | The visitor's browser language when they left their email. |
 | Discord and Slack | Project settings → **Discord and Slack** → Language. English by default. |
+
+### A visitor's language
+
+In order, the first one that names English or French wins:
+
+1. The address: `?lang=fr` or `?lang=en`.
+2. The `tattle_locale` cookie, set by the EN / FR selector and kept a year.
+3. The browser's `Accept-Language`.
+4. The page's default (the thread page: the report's language), else English. Robots (known crawler user agents, or no `Accept-Language`) skip step 3: they get English on an address without a language.
+
+Nothing redirects: every address answers in the language picked above. Someone on Auto who signs in adopts the cookie's language for their emails.
+
+### The portal's addresses
+
+The portal is the only page search engines index. `/portal/<slug>` stays its address and answers in the visitor's language. `/portal/<slug>?lang=en` and `/portal/<slug>?lang=fr` are its English and French versions:
+
+```html
+<!-- on /portal/shop -->
+<link rel="canonical" href="https://tattle.example.org/portal/shop">
+<link rel="alternate" hreflang="en" href="https://tattle.example.org/portal/shop?lang=en">
+<link rel="alternate" hreflang="fr" href="https://tattle.example.org/portal/shop?lang=fr">
+<link rel="alternate" hreflang="x-default" href="https://tattle.example.org/portal/shop">
+```
+
+Each language's address is its own canonical (`?lang=fr` on the French one), and the bare address sends `Vary: Accept-Language, Cookie`. A query parameter rather than a `/fr/` prefix keeps one route per page in the router, and the address people already shared does not change. The thread and unsubscribe pages are private (`noindex`): they have the selector, not the hreflang links.
 
 ## Where the text lives
 
@@ -64,6 +92,8 @@ reports: (count: number) => p(count, { one: "# report", other: "# reports" }),
 French reads 0 as singular ("0 signalement"); English does not ("0 reports"). Dates and numbers go through `useI18n().date(...)` and `.number(...)`, never `toLocaleString("en")`.
 
 Error messages from the server are in `messages/*/errors.ts`. Throw them with their key: `new InvalidInput(localized("titleRequired"))`. The REST API and MCP send the English text; the dashboard and public pages show the reader's.
+
+A server function's input that fails its zod validation reaches the browser as one sentence in the page's language (`common.validation`: required, too short, too long, invalid email or address, else a generic sentence), through the serialization adapter in `src/start.ts`.
 
 `tests/untranslated-jsx.test.ts` fails when a component has English text written straight into its JSX.
 
