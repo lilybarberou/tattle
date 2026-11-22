@@ -46,7 +46,7 @@ export const Route = createFileRoute("/portal/$slug")({
 		}
 	},
 	head: ({ loaderData, matches }) => {
-		const t = headMessages(matches, "visitor").publicPages.portal;
+		const t = headMessages(matches).publicPages.portal;
 		return {
 			meta: [
 				{

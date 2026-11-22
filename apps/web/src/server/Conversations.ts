@@ -487,6 +487,8 @@ export class Conversations extends Context.Service<
 					expired: false as const,
 					project: p?.name ?? "",
 					thread: yield* threadOf(row),
+					// The page's language when the visitor's browser gives none.
+					defaultLocale: normalizeLocale(row.report.locale),
 				};
 			});
 

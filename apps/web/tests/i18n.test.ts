@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
 	i18n,
+	isCrawler,
 	localeFromAcceptLanguage,
+	localeFromCookie,
 	messages,
 	normalizeLocale,
 	preferredLocale,
+	resolveVisitorLocale,
 } from "#/i18n";
 import { en } from "#/i18n/messages/en";
 import { fr } from "#/i18n/messages/fr";
@@ -103,5 +106,54 @@ describe("the catalogues", () => {
 	it("are found by language, English for anything else", () => {
 		expect(messages("fr")).toBe(fr);
 		expect(messages("xx" as never)).toBe(en);
+	});
+});
+
+describe("a visitor's language, resolved", () => {
+	it("takes the address, then the cookie, then the browser", () => {
+		const browser = { acceptLanguage: "fr-FR", userAgent: "Mozilla/5.0" };
+		expect(resolveVisitorLocale(browser)).toEqual({
+			locale: "fr",
+			source: "header",
+		});
+		expect(
+			resolveVisitorLocale({ ...browser, cookie: "a=1; tattle_locale=en" }),
+		).toEqual({ locale: "en", source: "cookie" });
+		expect(
+			resolveVisitorLocale({
+				...browser,
+				cookie: "tattle_locale=en",
+				explicit: "fr",
+			}),
+		).toEqual({ locale: "fr", source: "explicit" });
+	});
+
+	it("ignores a cookie or an address in a language we do not speak", () => {
+		expect(localeFromCookie("tattle_locale=de")).toBeNull();
+		expect(
+			resolveVisitorLocale({
+				explicit: "de",
+				cookie: "tattle_locale=xx",
+				acceptLanguage: "fr",
+			}),
+		).toEqual({ locale: "fr", source: "header" });
+	});
+
+	it("gives English to robots", () => {
+		for (const userAgent of [
+			"Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+			"Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)",
+			"Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)",
+			"facebookexternalhit/1.1",
+		]) {
+			expect(isCrawler(userAgent), userAgent).toBe(true);
+			expect(
+				resolveVisitorLocale({ acceptLanguage: "fr", userAgent }).locale,
+			).toBe("en");
+		}
+		expect(isCrawler("Mozilla/5.0 (Macintosh) Chrome/142 Safari/537.36")).toBe(
+			false,
+		);
+		expect(resolveVisitorLocale({}).locale).toBe("en");
 	});
 });

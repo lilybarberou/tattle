@@ -8,7 +8,7 @@ import { haveIBeenPwned, jwt, organization } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { db } from "#/db";
 import * as schema from "#/db/schema";
-import { localeFromAcceptLanguage, messages, preferredLocale } from "#/i18n";
+import { messages, preferredLocale, resolveVisitorLocale } from "#/i18n";
 import { errorText } from "#/server/errors";
 import { sendMail } from "#/server/mailer";
 import { CLIENT_IP_HEADER } from "#/server/rate-limit";
@@ -17,9 +17,13 @@ import { checkSetupCode } from "./setup-code";
 import { signupPolicy } from "./signup";
 
 const passwords = passwordPolicy();
-// Sign-up errors, in the language of the browser asking.
+// Sign-up errors, in the visitor's language: their choice in the page's
+// selector (cookie), else their browser's.
 const requestLocale = (request?: Request) =>
-	localeFromAcceptLanguage(request?.headers.get("accept-language"));
+	resolveVisitorLocale({
+		cookie: request?.headers.get("cookie"),
+		acceptLanguage: request?.headers.get("accept-language"),
+	}).locale;
 const baseUrl = (
 	process.env.BETTER_AUTH_URL ?? "http://localhost:3000"
 ).replace(/\/$/, "");
@@ -59,7 +63,7 @@ export const auth = betterAuth({
 		sendResetPassword: async ({ user, url }, request) => {
 			const locale = preferredLocale(
 				user as { locale?: string | null; detectedLocale?: string | null },
-				localeFromAcceptLanguage(request?.headers.get("accept-language")),
+				requestLocale(request),
 			);
 			const { emails } = messages(locale);
 			await sendMail({

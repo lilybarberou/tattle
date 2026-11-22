@@ -184,9 +184,10 @@ export const getSessionFn = createServerFn({ method: "GET" }).handler(
 );
 
 /** The languages of this request: the dashboard's, and a visitor's for public pages. */
-export const getLocaleFn = createServerFn({ method: "GET" }).handler(() =>
-	requestLocale(getRequest().headers),
-);
+export const getLocaleFn = createServerFn({ method: "GET" })
+	// The page address's `?lang=`, which wins on pages used without an account.
+	.validator(z.object({ lang: z.string().max(10).optional() }).optional())
+	.handler(({ data }) => requestLocale(getRequest().headers, data?.lang));
 
 /** Sets the signed-in person's dashboard language ("auto": their browser's). */
 export const setLocalePreferenceFn = createServerFn({ method: "POST" })

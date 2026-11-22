@@ -28,7 +28,7 @@ export const Route = createFileRoute("/thread/$token")({
 		}
 	},
 	head: ({ loaderData, matches }) => {
-		const t = headMessages(matches, "visitor").publicPages.thread;
+		const t = headMessages(matches).publicPages.thread;
 		return {
 			meta: [
 				{

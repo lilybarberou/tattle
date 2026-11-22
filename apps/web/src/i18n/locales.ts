@@ -70,3 +70,58 @@ export const preferredLocale = (
 	normalizeLocale(person?.detectedLocale) ??
 	fallback ??
 	DEFAULT_LOCALE;
+
+/**
+ * The cookie that keeps a visitor's choice from the language selector of
+ * the pages people use without an account. It wins over Accept-Language.
+ */
+export const LOCALE_COOKIE = "tattle_locale";
+
+/** One year, like the portal's vote cookie. */
+export const LOCALE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+
+/** The language kept in the cookie header, if any. */
+export const localeFromCookie = (cookieHeader: string | null | undefined) => {
+	if (!cookieHeader) return null;
+	for (const part of cookieHeader.split(";")) {
+		const [name, ...value] = part.trim().split("=");
+		if (name === LOCALE_COOKIE) return normalizeLocale(value.join("="));
+	}
+	return null;
+};
+
+/**
+ * Search engines and link previews (Slack, Discord, WhatsApp…). They are
+ * never redirected and get English on an address without a language.
+ */
+const CRAWLER =
+	/bot\b|bot\/|crawler|spider|slurp|bingpreview|facebookexternalhit|embedly|quora link preview|pinterest|vkshare|w3c_validator|whatsapp|telegram|skypeuripreview|lighthouse/i;
+
+export const isCrawler = (userAgent: string | null | undefined) =>
+	Boolean(userAgent && CRAWLER.test(userAgent));
+
+/**
+ * Where a visitor's language came from: the address (`?lang=fr`), their
+ * choice in the selector (cookie), their browser (Accept-Language), or
+ * nothing (a robot, or a client that sends no language): English, unless
+ * the page has a better default (a thread page: the report's language).
+ */
+export type LocaleSource = "explicit" | "cookie" | "header" | "default";
+
+export const resolveVisitorLocale = (input: {
+	explicit?: unknown;
+	cookie?: string | null;
+	acceptLanguage?: string | null;
+	userAgent?: string | null;
+}): { locale: Locale; source: LocaleSource } => {
+	const explicit = isLocale(input.explicit) ? input.explicit : null;
+	if (explicit) return { locale: explicit, source: "explicit" };
+	const cookie = localeFromCookie(input.cookie);
+	if (cookie) return { locale: cookie, source: "cookie" };
+	if (!input.acceptLanguage?.trim() || isCrawler(input.userAgent))
+		return { locale: DEFAULT_LOCALE, source: "default" };
+	return {
+		locale: localeFromAcceptLanguage(input.acceptLanguage),
+		source: "header",
+	};
+};

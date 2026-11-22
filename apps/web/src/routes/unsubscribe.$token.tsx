@@ -22,7 +22,7 @@ export const Route = createFileRoute("/unsubscribe/$token")({
 	head: ({ matches }) => ({
 		meta: [
 			{
-				title: headMessages(matches, "visitor").publicPages.unsubscribe
+				title: headMessages(matches).publicPages.unsubscribe
 					.pageTitle,
 			},
 			{ name: "robots", content: "noindex" },

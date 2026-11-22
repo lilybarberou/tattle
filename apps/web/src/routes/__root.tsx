@@ -7,9 +7,9 @@ import {
 } from "@tanstack/react-router";
 import { Toaster } from "#/components/ui/sonner";
 import { TooltipProvider } from "#/components/ui/tooltip";
-import { DEFAULT_LOCALE, messages } from "#/i18n";
+import { messages } from "#/i18n";
 import { I18nProvider } from "#/i18n/react";
-import "#/i18n/route";
+import { pageLocale } from "#/i18n/route";
 import { getLocaleFn } from "#/server/fns";
 import appCss from "../styles.css?url";
 
@@ -18,19 +18,26 @@ interface RouterContext {
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({
-	// The page's language: the signed-in person's choice, else the browser's
-	// Accept-Language. Loaded once; changing the choice invalidates the router.
-	loader: () => getLocaleFn(),
+	// The page's languages: the signed-in person's choice, else the visitor's
+	// (the address's `?lang=`, the selector's cookie, Accept-Language). Loaded
+	// once per `?lang=`; changing a choice invalidates the router.
+	loaderDeps: ({ search }) => ({
+		lang:
+			typeof (search as { lang?: unknown }).lang === "string"
+				? (search as { lang: string }).lang
+				: undefined,
+	}),
+	loader: ({ deps }) => getLocaleFn({ data: { lang: deps.lang } }),
 	staleTime: Number.POSITIVE_INFINITY,
 	preloadStaleTime: Number.POSITIVE_INFINITY,
-	head: ({ loaderData }) => ({
+	head: ({ matches }) => ({
 		meta: [
 			{ charSet: "utf-8" },
 			{ name: "viewport", content: "width=device-width, initial-scale=1" },
 			{ title: "Tattle" },
 			{
 				name: "description",
-				content: messages(loaderData?.locale ?? DEFAULT_LOCALE).common.tagline,
+				content: messages(pageLocale(matches)).common.tagline,
 			},
 		],
 		links: [
@@ -45,12 +52,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
-	const languages = Route.useLoaderData();
-	const visitorPage = useMatches({
-		select: (matches) => matches.some((m) => m.staticData?.visitorLocale),
-	});
-	const locale =
-		(visitorPage ? languages?.visitor : languages?.locale) ?? DEFAULT_LOCALE;
+	const locale = useMatches({ select: (matches) => pageLocale(matches) });
 	return (
 		<html lang={locale}>
 			<head>
