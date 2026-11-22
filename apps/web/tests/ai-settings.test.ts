@@ -4,7 +4,12 @@ import { db } from "#/db";
 import { aiSettings } from "#/db/schema";
 import type { Principal } from "#/server/Access";
 import { AiSettings, type AiSettingsInput } from "#/server/AiSettings";
-import { type AiConfig, complete, decryptSecret } from "#/server/ai";
+import {
+	AI_ERROR_KINDS,
+	type AiConfig,
+	complete,
+	decryptSecret,
+} from "#/server/ai";
 import { createOrganization, createPrincipal } from "./helpers/factories";
 import { run, runFailure, setupTestDatabase } from "./helpers/runtime";
 
@@ -332,6 +337,28 @@ describe("AiSettings", () => {
 				kind: "unauthorized",
 				status: 401,
 			});
+		});
+
+		it("names every failure by a kind the dashboard translates", async () => {
+			const org = await createOrganization();
+			const owner = await createPrincipal(org.id);
+			expect(await test(owner, org.id, { provider: "anthropic" })).toEqual({
+				ok: false,
+				error: "Enter an API key",
+				kind: "no_key",
+			});
+			const { en } = await import("#/i18n/messages/en");
+			const { fr } = await import("#/i18n/messages/fr");
+			for (const kind of [
+				...AI_ERROR_KINDS,
+				"no_key",
+				"key_unreadable",
+			] as const) {
+				expect(en.workspace.ai.testError[kind]).toBeTruthy();
+				expect(fr.workspace.ai.testError[kind]).not.toBe(
+					en.workspace.ai.testError[kind],
+				);
+			}
 		});
 
 		it("keeps the body of any answer away from the browser", async () => {

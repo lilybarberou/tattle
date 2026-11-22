@@ -116,6 +116,22 @@ export const workspace: typeof en = {
 		keepSavedKey: " Laissez le champ vide pour garder la clé enregistrée.",
 		keyUnreadable:
 			"La clé enregistrée ne peut plus être lue : le secret du serveur a changé. Collez-la de nouveau.",
+		testError: {
+			no_key: "Saisissez une clé d'API",
+			key_unreadable:
+				"La clé enregistrée n'est plus lisible (le secret du serveur a changé). Saisissez-la de nouveau.",
+			unauthorized: "Le fournisseur a refusé la clé",
+			quota: "Plus de crédit ou limite de requêtes dépassée",
+			not_found: "Introuvable : vérifiez l'URL de base et le modèle",
+			timeout: "Pas de réponse à temps",
+			unreachable: "Impossible de joindre le fournisseur",
+			private_address:
+				"Cette adresse est sur la machine du serveur ou sur son réseau privé. Pour l'appeler, définissez ALLOW_PRIVATE_URLS=true sur le serveur.",
+			http_error: "Le fournisseur a répondu par une erreur",
+			bad_response: "La réponse du fournisseur est illisible",
+			declined: "Le modèle a refusé de répondre",
+		},
+		withStatus: (status, text) => `HTTP ${status} : ${text}`,
 		testFailed: "Le test a échoué",
 		testing: "Test en cours…",
 		test: "Tester",

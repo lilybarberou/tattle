@@ -38,8 +38,17 @@ export function AiSettingsForm({
 	const [apiKey, setApiKey] = useState("");
 	const [enabled, setEnabled] = useState(settings.enabled);
 	const [busy, setBusy] = useState<"save" | "test" | "remove" | null>(null);
+	// A failure's kind picks the translated sentence; a request that failed
+	// on the way has none and shows the error it got.
 	const [tested, setTested] = useState<
-		{ ok: true } | { ok: false; error: string } | null
+		| { ok: true }
+		| {
+				ok: false;
+				error: string;
+				kind: keyof typeof t.testError | null;
+				status?: number;
+		  }
+		| null
 	>(null);
 
 	// After saving or removing, show what the server kept.
@@ -214,6 +223,7 @@ export function AiSettingsForm({
 							setTested({
 								ok: false,
 								error: error instanceof Error ? error.message : t.testFailed,
+								kind: null,
 							});
 						} finally {
 							setBusy(null);
@@ -264,7 +274,13 @@ export function AiSettingsForm({
 					) : (
 						<>
 							<TriangleAlertIcon className="mt-0.5 size-4 flex-none" />
-							<span className="min-w-0 break-words">{tested.error}</span>
+							<span className="min-w-0 break-words">
+								{tested.kind
+									? tested.status
+										? t.withStatus(tested.status, t.testError[tested.kind])
+										: t.testError[tested.kind]
+									: tested.error}
+							</span>
 						</>
 					)}
 				</output>

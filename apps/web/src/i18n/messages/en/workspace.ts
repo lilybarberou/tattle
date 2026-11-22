@@ -113,6 +113,22 @@ export const workspace = {
 		keepSavedKey: " Leave the field empty to keep the saved key.",
 		keyUnreadable:
 			"The saved key can no longer be read: the server secret changed. Paste it again.",
+		testError: {
+			no_key: "Enter an API key",
+			key_unreadable:
+				"The saved key can no longer be read (the server secret changed). Enter it again.",
+			unauthorized: "The provider refused the key",
+			quota: "Out of credit or over the rate limit",
+			not_found: "Not found: check the base URL and the model",
+			timeout: "No answer in time",
+			unreachable: "Could not reach the provider",
+			private_address:
+				"This address is on the server's own machine or private network. To call it, set ALLOW_PRIVATE_URLS=true on the server.",
+			http_error: "The provider answered with an error",
+			bad_response: "The provider's answer could not be read",
+			declined: "The model declined to answer",
+		},
+		withStatus: (status: number, text: string) => `HTTP ${status}: ${text}`,
 		testFailed: "Test failed",
 		testing: "Testing…",
 		test: "Test",

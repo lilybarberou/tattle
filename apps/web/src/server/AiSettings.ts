@@ -37,10 +37,19 @@ export type AiSettingsInput = {
 	enabled: boolean;
 };
 
-/** A failed test says only what kind of failure it was, never the provider's answer. */
+/**
+ * A failed test says only what kind of failure it was, never the provider's
+ * answer. `error` is the English sentence (API, logs); the dashboard shows
+ * its own sentence for `kind`, in the reader's language.
+ */
 export type AiTestResult =
 	| { ok: true }
-	| { ok: false; error: string; kind?: AiErrorKind; status?: number };
+	| {
+			ok: false;
+			error: string;
+			kind: AiErrorKind | "no_key" | "key_unreadable";
+			status?: number;
+	  };
 
 type Row = typeof aiSettings.$inferSelect;
 
@@ -286,6 +295,7 @@ export class AiSettings extends Context.Service<
 								ok: false,
 								error:
 									"The saved key can no longer be read (the server secret changed). Enter it again.",
+								kind: "key_unreadable",
 							} satisfies AiTestResult;
 					}
 				}
@@ -293,6 +303,7 @@ export class AiSettings extends Context.Service<
 					return {
 						ok: false,
 						error: "Enter an API key",
+						kind: "no_key",
 					} satisfies AiTestResult;
 				const result = yield* testConnection({
 					provider: input.provider,
