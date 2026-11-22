@@ -83,7 +83,7 @@ function SettingsPage() {
 	);
 	const [confirmName, setConfirmName] = useState("");
 	const navigate = useNavigate();
-	const { m } = useI18n();
+	const { m, locale } = useI18n();
 	const t = m.settings;
 
 	const save = async (data: {
@@ -796,7 +796,8 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 							)}
 							{project.portalEnabled && project.portalSlug && (
 								<Link
-									to="/portal/$slug"
+									// In the reader's language: the portal has one address per language.
+									to={locale === "fr" ? "/fr/portal/$slug" : "/portal/$slug"}
 									params={{ slug: project.portalSlug }}
 									target="_blank"
 									className="font-medium text-brand hover:underline"

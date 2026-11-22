@@ -1,5 +1,6 @@
 import { createSerializationAdapter } from "@tanstack/react-router";
-import { createStart } from "@tanstack/react-start";
+import { createMiddleware, createStart } from "@tanstack/react-start";
+import { localeCookie, portalRedirect } from "#/i18n/portal-address";
 import {
 	documentLocale,
 	type ValidationIssue,
@@ -38,6 +39,39 @@ const validationErrorAdapter = createSerializationAdapter({
 		new HttpError(400, validationMessage(issues, documentLocale())),
 });
 
+/**
+ * The portal's addresses (see i18n/portal-address.ts): a French-speaking
+ * browser opening /portal/<slug> with no remembered choice is sent once to
+ * /fr/portal/<slug>, and the choice is remembered so it never repeats.
+ * Robots are never redirected. Page requests only, never server functions.
+ */
+const portalAddressMiddleware = createMiddleware().server(
+	({ request, next, handlerType }) => {
+		if (handlerType !== "router") return next();
+		const redirect = portalRedirect({
+			url: request.url,
+			method: request.method,
+			cookie: request.headers.get("cookie"),
+			acceptLanguage: request.headers.get("accept-language"),
+			userAgent: request.headers.get("user-agent"),
+		});
+		if (!redirect) return next();
+		const headers = new Headers({
+			Location: redirect.location,
+			Vary: "Accept-Language, Cookie",
+			"Cache-Control": "private, no-store",
+		});
+		if (redirect.remember) {
+			const secure = (globalThis.process?.env.BETTER_AUTH_URL ?? "").startsWith(
+				"https://",
+			);
+			headers.append("Set-Cookie", localeCookie(redirect.remember, secure));
+		}
+		return new Response(null, { status: redirect.status, headers });
+	},
+);
+
 export const startInstance = createStart(() => ({
 	serializationAdapters: [httpErrorAdapter, validationErrorAdapter],
+	requestMiddleware: [portalAddressMiddleware],
 }));

@@ -23,6 +23,7 @@ import {
 	DEFAULT_LOCALE,
 	LOCALE_PREFERENCES,
 	LOCALES,
+	type Locale,
 	messages,
 	normalizeLocale,
 } from "#/i18n";
@@ -184,10 +185,9 @@ export const getSessionFn = createServerFn({ method: "GET" }).handler(
 );
 
 /** The languages of this request: the dashboard's, and a visitor's for public pages. */
-export const getLocaleFn = createServerFn({ method: "GET" })
-	// The page address's `?lang=`, which wins on pages used without an account.
-	.validator(z.object({ lang: z.string().max(10).optional() }).optional())
-	.handler(({ data }) => requestLocale(getRequest().headers, data?.lang));
+export const getLocaleFn = createServerFn({ method: "GET" }).handler(() =>
+	requestLocale(getRequest().headers),
+);
 
 /** Sets the signed-in person's dashboard language ("auto": their browser's). */
 export const setLocalePreferenceFn = createServerFn({ method: "POST" })
@@ -1448,6 +1448,13 @@ const voterKey = (create: boolean) => {
 	return key;
 };
 
+/** The portal page's language (its address's), sent by the page. */
+const portalLocale = z.enum(LOCALES).optional();
+
+/** Errors in the page's language rather than the browser's. */
+const pageLocale = (data: { locale?: Locale }) =>
+	data.locale ? { locale: () => data.locale as Locale } : undefined;
+
 const portalLimit = () => {
 	const limit = limitPortal(clientIp());
 	return limit.ok
@@ -1462,7 +1469,13 @@ export const getPortalFn = createServerFn({ method: "GET" })
 	);
 
 export const portalVoteFn = createServerFn({ method: "POST" })
-	.validator(z.object({ slug: z.string(), number: z.number().int() }))
+	.validator(
+		z.object({
+			slug: z.string(),
+			number: z.number().int(),
+			locale: portalLocale,
+		}),
+	)
 	.handler(({ data }) =>
 		runPublic(
 			Effect.gen(function* () {
@@ -1474,6 +1487,7 @@ export const portalVoteFn = createServerFn({ method: "POST" })
 					voterKey(true) as string,
 				);
 			}),
+			pageLocale(data),
 		),
 	);
 
@@ -1483,6 +1497,7 @@ export const portalNotifyFn = createServerFn({ method: "POST" })
 			slug: z.string(),
 			number: z.number().int(),
 			email: z.string().email(),
+			locale: portalLocale,
 		}),
 	)
 	.handler(({ data }) =>
@@ -1497,10 +1512,11 @@ export const portalNotifyFn = createServerFn({ method: "POST" })
 					data.number,
 					key,
 					data.email,
-					visitorLocale(getRequest().headers),
+					data.locale ?? visitorLocale(getRequest().headers),
 				);
 				return { ok: true };
 			}),
+			pageLocale(data),
 		),
 	);
 
@@ -1511,6 +1527,7 @@ export const portalSuggestFn = createServerFn({ method: "POST" })
 			title: z.string().trim().min(4).max(140),
 			description: z.string().trim().max(4000).optional(),
 			email: z.string().email().optional().or(z.literal("")),
+			locale: portalLocale,
 		}),
 	)
 	.handler(({ data }) =>
@@ -1524,11 +1541,12 @@ export const portalSuggestFn = createServerFn({ method: "POST" })
 						title: data.title,
 						description: data.description,
 						email: data.email || undefined,
-						locale: visitorLocale(getRequest().headers),
+						locale: data.locale ?? visitorLocale(getRequest().headers),
 					},
 					voterKey(true) as string,
 				);
 			}),
+			pageLocale(data),
 		),
 	);
 

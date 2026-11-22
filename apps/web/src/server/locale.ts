@@ -12,20 +12,18 @@ import { auth } from "#/lib/auth";
 import { env } from "./env";
 
 /**
- * A visitor's language: `explicit` (the address's `?lang=`), else the
- * selector's cookie, else Accept-Language; English for robots and clients
- * that send no language.
+ * A visitor's language: the selector's cookie, else Accept-Language;
+ * English for robots and clients that send no language.
  */
-export const visitorLanguage = (headers: Headers, explicit?: unknown) =>
+export const visitorLanguage = (headers: Headers) =>
 	resolveVisitorLocale({
-		explicit,
 		cookie: headers.get("cookie"),
 		acceptLanguage: headers.get("accept-language"),
 		userAgent: headers.get("user-agent"),
 	});
 
-export const visitorLocale = (headers: Headers, explicit?: unknown): Locale =>
-	visitorLanguage(headers, explicit).locale;
+export const visitorLocale = (headers: Headers): Locale =>
+	visitorLanguage(headers).locale;
 
 export type RequestLocale = {
 	/** The dashboard's language: the person's choice, else the visitor's. */
@@ -46,31 +44,26 @@ export type RequestLocale = {
  * without an account, in the cookie), so emails to someone on "Auto" match
  * what they see.
  */
-export async function requestLocale(
-	headers: Headers,
-	explicit?: unknown,
-): Promise<RequestLocale> {
-	const { locale: visitor, source } = visitorLanguage(headers, explicit);
+export async function requestLocale(headers: Headers): Promise<RequestLocale> {
+	const { locale: visitor, source } = visitorLanguage(headers);
 	const base = { visitor, visitorSource: source, baseUrl: env.baseUrl };
 	const session = await auth.api.getSession({ headers }).catch(() => null);
 	if (!session) return { ...base, locale: visitor, preference: null };
 	const chosen = normalizeLocale(session.user.locale);
-	// The person's own language, without the address's `?lang=`, which is
-	// about one page. Only a real signal (cookie or header) is remembered.
-	const own = visitorLanguage(headers);
+	// Only a real signal (cookie or header) is remembered.
 	if (
-		(own.source === "cookie" || own.source === "header") &&
-		session.user.detectedLocale !== own.locale
+		(source === "cookie" || source === "header") &&
+		session.user.detectedLocale !== visitor
 	) {
 		await db
 			.update(user)
-			.set({ detectedLocale: own.locale })
+			.set({ detectedLocale: visitor })
 			.where(eq(user.id, session.user.id))
 			.catch(() => {});
 	}
 	return {
 		...base,
-		locale: chosen ?? own.locale,
+		locale: chosen ?? visitor,
 		preference: chosen ?? "auto",
 	};
 }

@@ -1,21 +1,30 @@
 import { DEFAULT_LOCALE, isLocale, type Locale, messages } from "./index";
 
-type Match = { loaderData?: unknown; staticData?: { visitorLocale?: boolean } };
+type Match = {
+	loaderData?: unknown;
+	staticData?: { visitorLocale?: boolean; pageLocale?: Locale };
+};
 
 type Languages = {
 	locale: Locale;
 	visitor: Locale;
-	visitorSource?: "explicit" | "cookie" | "header" | "default";
+	visitorSource?: "cookie" | "header" | "default";
 };
 
 /**
- * The language of the page these route matches render. The root route's
- * loader holds the languages. A page used without an account (staticData
- * `visitorLocale`) takes the visitor's; when the visitor gave none (no
- * address language, cookie or Accept-Language), a page's loader may offer a
- * better default as `defaultLocale` (the thread page: the report's).
+ * The language of the page these route matches render:
+ * - a page with one address per language (the portal: staticData
+ *   `pageLocale`) is in its address's language;
+ * - a page used without an account (staticData `visitorLocale`) takes the
+ *   visitor's, from the root route's loader; when the visitor gave none
+ *   (no cookie or Accept-Language), a page's loader may offer a better
+ *   default as `defaultLocale` (the thread page: the report's);
+ * - any other page is in the dashboard's language.
  */
 export const pageLocale = (matches: ReadonlyArray<Match>): Locale => {
+	const fixed = matches.find((m) => m.staticData?.pageLocale)?.staticData
+		?.pageLocale;
+	if (fixed) return fixed;
 	const languages = matches[0]?.loaderData as Languages | undefined;
 	if (!languages) return DEFAULT_LOCALE;
 	if (!matches.some((m) => m.staticData?.visitorLocale))
@@ -45,5 +54,10 @@ declare module "@tanstack/react-router" {
 		 * browser language, never a signed-in person's dashboard choice.
 		 */
 		visitorLocale?: boolean;
+		/**
+		 * A page with one address per language (the portal: /portal/<slug>
+		 * in English, /fr/portal/<slug> in French): always in this language.
+		 */
+		pageLocale?: Locale;
 	}
 }

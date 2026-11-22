@@ -23,6 +23,7 @@ import {
 	reportMessage,
 } from "#/db/schema";
 import { DEFAULT_LOCALE, messages, normalizeLocale } from "#/i18n";
+import { portalPath } from "#/i18n/portal-address";
 import type { DuplicateSuggestionView } from "#/shared/ai";
 import {
 	ISSUE_STATUSES,
@@ -811,10 +812,8 @@ export class Issues extends Context.Service<
 							where not stopped
 						`),
 					);
-					const link =
-						row.portalEnabled && row.portalSlug
-							? `${env.baseUrl}/portal/${row.portalSlug}?shipped=true`
-							: undefined;
+					const portalSlug =
+						row.portalEnabled && row.portalSlug ? row.portalSlug : null;
 					for (const person of people.rows) {
 						// The reporter's device language, or the voter's browser
 						// language when they left their email.
@@ -831,11 +830,11 @@ export class Issues extends Context.Service<
 										title: row.title,
 									},
 								)}`,
-								// The portal in the email's language.
-								action: link
+								// The portal at its address in the email's language.
+								action: portalSlug
 									? {
 											label: emails.shipped.action,
-											url: `${link}&lang=${locale}`,
+											url: `${env.baseUrl}${portalPath(portalSlug, locale)}?shipped=true`,
 										}
 									: undefined,
 								...(person.report_id

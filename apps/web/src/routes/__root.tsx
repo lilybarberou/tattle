@@ -19,15 +19,9 @@ interface RouterContext {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
 	// The page's languages: the signed-in person's choice, else the visitor's
-	// (the address's `?lang=`, the selector's cookie, Accept-Language). Loaded
-	// once per `?lang=`; changing a choice invalidates the router.
-	loaderDeps: ({ search }) => ({
-		lang:
-			typeof (search as { lang?: unknown }).lang === "string"
-				? (search as { lang: string }).lang
-				: undefined,
-	}),
-	loader: ({ deps }) => getLocaleFn({ data: { lang: deps.lang } }),
+	// (the selector's cookie, Accept-Language). Loaded once; changing a
+	// choice invalidates the router. The portal's language is its address's.
+	loader: () => getLocaleFn(),
 	staleTime: Number.POSITIVE_INFINITY,
 	preloadStaleTime: Number.POSITIVE_INFINITY,
 	head: ({ matches }) => ({

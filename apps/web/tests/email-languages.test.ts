@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
-import { issueVote, report, user } from "#/db/schema";
+import { issueVote, project, report, user } from "#/db/schema";
 import { auth } from "#/lib/auth";
 import type { Actor } from "#/server/Access";
 import { backgroundSettled } from "#/server/background";
@@ -212,6 +212,10 @@ describe("an email to someone who reported", () => {
 
 	it("tells reporters and voters a request shipped, each in their language", async () => {
 		const { project: p } = await createWorkspace();
+		await db
+			.update(project)
+			.set({ portalEnabled: true, portalSlug: "shop" })
+			.where(eq(project.id, p.id));
 		const sentReport = await submit(p.publicKey, "fr", "feature");
 		const [row] = await db
 			.select({ issueId: report.issueId })
@@ -250,6 +254,13 @@ describe("an email to someone who reported", () => {
 		);
 		expect(shipped["en@example.com"]?.subject).toBe(
 			"Shipped: The export button is greyed out",
+		);
+		// Each links to the portal at its language's address.
+		expect(shipped["fr@example.com"]?.action?.url).toBe(
+			"http://localhost:3000/fr/portal/shop?shipped=true",
+		);
+		expect(shipped["en@example.com"]?.action?.url).toBe(
+			"http://localhost:3000/portal/shop?shipped=true",
 		);
 	});
 });

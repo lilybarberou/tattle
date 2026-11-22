@@ -1,4 +1,4 @@
-import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import {
 	LOCALE_COOKIE,
 	LOCALE_COOKIE_MAX_AGE,
@@ -16,45 +16,33 @@ const remember = (locale: Locale) => {
 	document.cookie = `${LOCALE_COOKIE}=${locale}; Path=/; Max-Age=${LOCALE_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
 };
 
+const optionClass = (current: boolean) =>
+	cn(
+		"rounded px-2 py-1 uppercase text-muted-foreground hover:text-ink",
+		current && "bg-active text-ink",
+	);
+
 /**
- * EN / FR, for the pages people use without an account (sign-in, password
- * reset, portal, thread, unsubscribe). The choice is kept in a cookie.
+ * EN / FR, for the pages people use without an account. The choice is kept
+ * in a cookie, so it wins over the browser's language on the next visits
+ * (and the portal never sends the visitor back to the other language).
  *
- * Each option is a link to the same page with `?lang=`: search engines
- * follow it to the page's other language, and the address's language wins
- * over the cookie, so it is replaced on the way. With `address` false (the
- * default), a page without `?lang=` stays at its address and just reloads
- * in the new language.
+ * - With `addresses` (the portal, which has one address per language): each
+ *   option is a link to the page's address in that language, with hreflang,
+ *   for people and search engines.
+ * - Without (sign-in, thread, unsubscribe): buttons; the page stays at its
+ *   address and reloads its data in the new language.
  */
 export function LanguageSwitcher({
-	address = false,
+	addresses,
 	className,
 }: {
-	address?: boolean;
+	addresses?: Record<Locale, string>;
 	className?: string;
 }) {
 	const { locale, m } = useI18n();
 	const router = useRouter();
 	const navigate = useNavigate();
-	const location = useLocation();
-	const params = new URLSearchParams(location.searchStr);
-	const hrefFor = (lang: Locale) => {
-		const next = new URLSearchParams(params);
-		next.set("lang", lang);
-		return `${location.pathname}?${next}${location.hash ? `#${location.hash}` : ""}`;
-	};
-
-	const choose = async (
-		event: React.MouseEvent<HTMLAnchorElement>,
-		lang: Locale,
-	) => {
-		if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0)
-			return;
-		event.preventDefault();
-		remember(lang);
-		if (address || params.has("lang")) await navigate({ href: hrefFor(lang) });
-		else await router.invalidate();
-	};
 
 	return (
 		<nav
@@ -64,24 +52,53 @@ export function LanguageSwitcher({
 				className,
 			)}
 		>
-			{LOCALES.map((lang) => (
-				<a
-					key={lang}
-					href={hrefFor(lang)}
-					hrefLang={lang}
-					lang={lang}
-					aria-label={LOCALE_NAMES[lang]}
-					aria-current={lang === locale ? "true" : undefined}
-					title={LOCALE_NAMES[lang]}
-					onClick={(event) => void choose(event, lang)}
-					className={cn(
-						"rounded px-2 py-1 uppercase text-muted-foreground hover:text-ink",
-						lang === locale && "bg-active text-ink",
-					)}
-				>
-					{lang}
-				</a>
-			))}
+			{LOCALES.map((lang) =>
+				addresses ? (
+					<a
+						key={lang}
+						href={addresses[lang]}
+						hrefLang={lang}
+						lang={lang}
+						aria-label={LOCALE_NAMES[lang]}
+						aria-current={lang === locale ? "page" : undefined}
+						title={LOCALE_NAMES[lang]}
+						// Also for a new tab: the choice holds wherever it opens.
+						onAuxClick={() => remember(lang)}
+						onClick={(event) => {
+							remember(lang);
+							if (
+								event.metaKey ||
+								event.ctrlKey ||
+								event.shiftKey ||
+								event.button !== 0
+							)
+								return;
+							event.preventDefault();
+							void navigate({ href: addresses[lang] });
+						}}
+						className={optionClass(lang === locale)}
+					>
+						{lang}
+					</a>
+				) : (
+					<button
+						key={lang}
+						type="button"
+						lang={lang}
+						aria-label={LOCALE_NAMES[lang]}
+						aria-pressed={lang === locale}
+						title={LOCALE_NAMES[lang]}
+						onClick={() => {
+							if (lang === locale) return;
+							remember(lang);
+							void router.invalidate();
+						}}
+						className={optionClass(lang === locale)}
+					>
+						{lang}
+					</button>
+				),
+			)}
 		</nav>
 	);
 }

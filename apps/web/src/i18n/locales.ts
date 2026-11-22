@@ -101,21 +101,20 @@ export const isCrawler = (userAgent: string | null | undefined) =>
 	Boolean(userAgent && CRAWLER.test(userAgent));
 
 /**
- * Where a visitor's language came from: the address (`?lang=fr`), their
- * choice in the selector (cookie), their browser (Accept-Language), or
- * nothing (a robot, or a client that sends no language): English, unless
- * the page has a better default (a thread page: the report's language).
+ * Where a visitor's language came from on a page without its own address
+ * per language (sign-in, thread, unsubscribe): their choice in the
+ * selector (cookie), their browser (Accept-Language), or nothing (a robot,
+ * or a client that sends no language): English, unless the page has a
+ * better default (a thread page: the report's language). The portal's
+ * language is its address's: see portal-address.ts.
  */
-export type LocaleSource = "explicit" | "cookie" | "header" | "default";
+export type LocaleSource = "cookie" | "header" | "default";
 
 export const resolveVisitorLocale = (input: {
-	explicit?: unknown;
 	cookie?: string | null;
 	acceptLanguage?: string | null;
 	userAgent?: string | null;
 }): { locale: Locale; source: LocaleSource } => {
-	const explicit = isLocale(input.explicit) ? input.explicit : null;
-	if (explicit) return { locale: explicit, source: "explicit" };
 	const cookie = localeFromCookie(input.cookie);
 	if (cookie) return { locale: cookie, source: "cookie" };
 	if (!input.acceptLanguage?.trim() || isCrawler(input.userAgent))

@@ -88,20 +88,6 @@ describe("a visitor's language", () => {
 		});
 	});
 
-	it("is the address's language over the cookie and the browser", async () => {
-		requestContext.headers.set("accept-language", "fr");
-		requestContext.cookies.set("tattle_locale", "fr");
-		expect(await fns.getLocaleFn({ data: { lang: "en" } })).toMatchObject({
-			visitor: "en",
-			visitorSource: "explicit",
-		});
-		// Not a language we speak: as if there were none.
-		expect(await fns.getLocaleFn({ data: { lang: "de" } })).toMatchObject({
-			visitor: "fr",
-			visitorSource: "cookie",
-		});
-	});
-
 	it("is English for robots and clients that send no language", async () => {
 		expect(await fns.getLocaleFn()).toMatchObject({
 			visitor: "en",
@@ -116,10 +102,6 @@ describe("a visitor's language", () => {
 			visitor: "en",
 			visitorSource: "default",
 		});
-		// A robot asking for one language explicitly gets it.
-		expect((await fns.getLocaleFn({ data: { lang: "fr" } })).visitor).toBe(
-			"fr",
-		);
 	});
 
 	it("becomes the language of someone on Auto who signs in", async () => {
@@ -144,7 +126,7 @@ describe("a visitor's language", () => {
 
 describe("a page's language", () => {
 	const root = (
-		visitorSource: "explicit" | "cookie" | "header" | "default",
+		visitorSource: "cookie" | "header" | "default",
 		visitor: "en" | "fr" = "en",
 	) => ({
 		loaderData: { locale: "en", visitor, visitorSource },
@@ -158,6 +140,15 @@ describe("a page's language", () => {
 		expect(
 			pageLocale([{ loaderData: { locale: "fr", visitor: "en" } }, {}]),
 		).toBe("fr");
+	});
+
+	it("is the address's on the portal, whatever the visitor's", () => {
+		const portal = (locale: "en" | "fr") => ({
+			staticData: { pageLocale: locale },
+			loaderData: {},
+		});
+		expect(pageLocale([root("header", "fr"), portal("en")])).toBe("en");
+		expect(pageLocale([root("cookie", "en"), portal("fr")])).toBe("fr");
 	});
 
 	it("is the report's on a thread page when the visitor gave none", () => {

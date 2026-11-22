@@ -68,27 +68,7 @@ test("the dashboard switches to French from the user menu, then back to Auto", a
 	});
 });
 
-test("public pages follow the visitor's browser language", async ({
-	browser,
-	workspace,
-}) => {
-	const { project } = workspace;
-	await db().query(
-		"update project set portal_enabled = true, portal_slug = $2 where id = $1",
-		[project.id, `fr-${project.id.slice(0, 8)}`],
-	);
-	const context = await browser.newContext({
-		baseURL: APP_URL,
-		locale: "fr-FR",
-	});
-	const page = await context.newPage();
-	await page.goto(`/portal/fr-${project.id.slice(0, 8)}`);
-	await expect(page.locator("html")).toHaveAttribute("lang", "fr");
-	await expect(page.getByRole("main")).toContainText("Demandes");
-	await context.close();
-});
-
-/** A published portal for the workspace's project; returns its address. */
+/** A published portal for the workspace's project; returns its English address. */
 const publishPortal = async (projectId: string) => {
 	const slug = `lang-${projectId.slice(0, 8)}`;
 	await db().query(
@@ -98,15 +78,17 @@ const publishPortal = async (projectId: string) => {
 	return `/portal/${slug}`;
 };
 
-test("the portal has one address per language and never redirects", async ({
+const GOOGLEBOT =
+	"Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+
+test("the portal is English at its address and French under /fr", async ({
 	request,
 	workspace,
 }) => {
 	const path = await publishPortal(workspace.project.id);
-	const get = async (url: string, headers: Record<string, string>) => {
+	const french = `/fr${path}`;
+	const get = async (url: string, headers: { [name: string]: string }) => {
 		const response = await request.get(url, { headers, maxRedirects: 0 });
-		expect(response.status(), url).toBe(200);
-		expect(response.url()).toBe(`${APP_URL}${url}`);
 		const html = await response.text();
 		const links = [...html.matchAll(/<link [^>]*>/g)].map((tag) =>
 			Object.fromEntries(
@@ -117,6 +99,8 @@ test("the portal has one address per language and never redirects", async ({
 			),
 		);
 		return {
+			status: response.status(),
+			headers: response.headers(),
 			lang: html.match(/<html[^>]* lang="([a-z]+)"/)?.[1],
 			canonical: links.find((l) => l.rel === "canonical")?.href,
 			alternates: Object.fromEntries(
@@ -124,78 +108,117 @@ test("the portal has one address per language and never redirects", async ({
 					.filter((l) => l.rel === "alternate" && l.hreflang)
 					.map((l) => [l.hreflang, l.href]),
 			),
-			vary: response.headers().vary,
 		};
 	};
+	const alternates = {
+		en: `${APP_URL}${path}`,
+		fr: `${APP_URL}${french}`,
+		"x-default": `${APP_URL}${path}`,
+	};
 
-	await test.step("the bare address answers in the browser's language", async () => {
-		const page = await get(path, { "accept-language": "fr-FR,fr;q=0.9" });
-		expect(page.lang).toBe("fr");
-		expect(page.vary).toContain("Accept-Language");
-		// Its canonical is itself; each language has its own address.
-		expect(page.canonical).toBe(`${APP_URL}${path}`);
-		expect(page.alternates).toEqual({
-			en: `${APP_URL}${path}?lang=en`,
-			fr: `${APP_URL}${path}?lang=fr`,
-			"x-default": `${APP_URL}${path}`,
+	await test.step("a French browser is sent to /fr once, and it is remembered", async () => {
+		const page = await get(`${path}?shipped=true`, {
+			"accept-language": "fr-FR,fr;q=0.9",
 		});
+		expect(page.status).toBe(302);
+		expect(page.headers.location).toBe(`${french}?shipped=true`);
+		expect(page.headers["set-cookie"]).toContain("tattle_locale=fr");
+		expect(page.headers.vary).toContain("Accept-Language");
 	});
 
-	await test.step("the cookie wins over the browser, the address over both", async () => {
-		const french = { "accept-language": "fr-FR", cookie: "tattle_locale=en" };
-		expect((await get(path, french)).lang).toBe("en");
-		const explicit = await get(`${path}?lang=fr`, {
-			"accept-language": "en-US",
-			cookie: "tattle_locale=en",
-		});
-		expect(explicit.lang).toBe("fr");
-		expect(explicit.canonical).toBe(`${APP_URL}${path}?lang=fr`);
+	await test.step("robots and remembered choices stay on the English address", async () => {
+		const cases: Array<{ [name: string]: string }> = [
+			{ "accept-language": "fr-FR", "user-agent": GOOGLEBOT },
+			{ "accept-language": "" },
+			{ "accept-language": "fr-FR", cookie: "tattle_locale=en" },
+			{ "accept-language": "en-US" },
+		];
+		for (const headers of cases) {
+			const page = await get(path, headers);
+			expect(page.status, JSON.stringify(headers)).toBe(200);
+			expect(page.lang).toBe("en");
+		}
+		const english = await get(path, { "accept-language": "en-US" });
+		expect(english.headers.vary).toContain("Accept-Language");
+		expect(english.canonical).toBe(`${APP_URL}${path}`);
+		expect(english.alternates).toEqual(alternates);
 	});
 
-	await test.step("robots get English on the bare address", async () => {
-		const googlebot = {
-			"user-agent":
-				"Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-			"accept-language": "fr-FR",
-		};
-		expect((await get(path, googlebot)).lang).toBe("en");
-		expect((await get(path, { "accept-language": "" })).lang).toBe("en");
-		expect((await get(`${path}?lang=fr`, googlebot)).lang).toBe("fr");
+	await test.step("/fr is French for any browser, and its own canonical", async () => {
+		const cases: Array<{ [name: string]: string }> = [
+			{ "accept-language": "en-US" },
+			{ "accept-language": "en-US", cookie: "tattle_locale=en" },
+			{ "user-agent": GOOGLEBOT },
+		];
+		for (const headers of cases) {
+			const page = await get(french, headers);
+			expect(page.status, JSON.stringify(headers)).toBe(200);
+			expect(page.lang).toBe("fr");
+			expect(page.canonical).toBe(`${APP_URL}${french}`);
+			expect(page.alternates).toEqual(alternates);
+		}
+	});
+
+	await test.step("an old ?lang= address moves to its language's address", async () => {
+		const page = await get(`${path}?lang=fr`, {});
+		expect(page.status).toBe(301);
+		expect(page.headers.location).toBe(french);
 	});
 });
 
-test("the sign-in page's language selector is remembered, also on the portal", async ({
-	freshPage,
+test("a French browser reads the portal at /fr, and English sticks once chosen", async ({
+	browser,
 	workspace,
 }) => {
 	const path = await publishPortal(workspace.project.id);
+	const context = await browser.newContext({
+		baseURL: APP_URL,
+		locale: "fr-FR",
+	});
+	const page = await context.newPage();
+	const html = page.locator("html");
+	await page.goto(path);
+	await expect(page).toHaveURL(`${APP_URL}/fr${path}`);
+	await expect(html).toHaveAttribute("lang", "fr");
+	await expect(page.getByRole("main")).toContainText("Demandes");
+
+	// The tabs stay at the French address.
+	await page.getByRole("link", { name: /^Disponibles/ }).click();
+	await expect(page).toHaveURL(`${APP_URL}/fr${path}?shipped=true`);
+
+	// EN in the selector goes to the English address and is never undone.
+	const english = page
+		.getByRole("navigation", { name: "Langue" })
+		.getByRole("link", { name: "English" });
+	await expect(english).toHaveAttribute("href", `${path}?shipped=true`);
+	await english.click();
+	await expect(page).toHaveURL(`${APP_URL}${path}?shipped=true`);
+	await expect(html).toHaveAttribute("lang", "en");
+	await page.goto(path);
+	await expect(page).toHaveURL(`${APP_URL}${path}`);
+	await expect(html).toHaveAttribute("lang", "en");
+	await context.close();
+});
+
+test("the sign-in page's language selector is remembered", async ({
+	freshPage,
+}) => {
 	const page = await freshPage();
 	await page.goto("/login");
 	const html = page.locator("html");
 	await expect(html).toHaveAttribute("lang", "en");
 	await page
 		.getByRole("navigation", { name: "Language" })
-		.getByRole("link", { name: "Français" })
+		.getByRole("button", { name: "Français" })
 		.click();
 	await expect(html).toHaveAttribute("lang", "fr");
 	await expect(
 		page.getByRole("heading", { name: "Se connecter" }),
 	).toBeVisible();
 	// The address stays the same; the choice is kept for the next visits.
-	expect(new URL(page.url()).search).toBe("");
+	expect(new URL(page.url()).pathname).toBe("/login");
 	await page.reload();
 	await expect(html).toHaveAttribute("lang", "fr");
-	await page.goto(path);
-	await expect(html).toHaveAttribute("lang", "fr");
-
-	// On the portal, the selector links to the page's address in each language.
-	const english = page
-		.getByRole("navigation", { name: "Langue" })
-		.getByRole("link", { name: "English" });
-	await expect(english).toHaveAttribute("href", `${path}?lang=en`);
-	await english.click();
-	await expect(html).toHaveAttribute("lang", "en");
-	await expect(page).toHaveURL(`${APP_URL}${path}?lang=en`);
 });
 
 test("a value the server refuses is explained in the page's language", async ({
@@ -208,7 +231,7 @@ test("a value the server refuses is explained in the page's language", async ({
 		locale: "fr-FR",
 	});
 	const page = await context.newPage();
-	await page.goto(path);
+	await page.goto(`/fr${path}`);
 	await page.getByRole("button", { name: "Suggérer une idée" }).click();
 	const title = page.getByRole("textbox", { name: "Votre idée en une ligne" });
 	// Past the form's own check, as a script would: the server checks again.

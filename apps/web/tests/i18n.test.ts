@@ -11,6 +11,7 @@ import {
 } from "#/i18n";
 import { en } from "#/i18n/messages/en";
 import { fr } from "#/i18n/messages/fr";
+import { portalPath, portalRedirect } from "#/i18n/portal-address";
 
 describe("a language tag", () => {
 	it("keeps the language Tattle speaks, whatever the region or case", () => {
@@ -110,7 +111,7 @@ describe("the catalogues", () => {
 });
 
 describe("a visitor's language, resolved", () => {
-	it("takes the address, then the cookie, then the browser", () => {
+	it("takes the cookie, then the browser", () => {
 		const browser = { acceptLanguage: "fr-FR", userAgent: "Mozilla/5.0" };
 		expect(resolveVisitorLocale(browser)).toEqual({
 			locale: "fr",
@@ -119,20 +120,12 @@ describe("a visitor's language, resolved", () => {
 		expect(
 			resolveVisitorLocale({ ...browser, cookie: "a=1; tattle_locale=en" }),
 		).toEqual({ locale: "en", source: "cookie" });
-		expect(
-			resolveVisitorLocale({
-				...browser,
-				cookie: "tattle_locale=en",
-				explicit: "fr",
-			}),
-		).toEqual({ locale: "fr", source: "explicit" });
 	});
 
-	it("ignores a cookie or an address in a language we do not speak", () => {
+	it("ignores a cookie in a language we do not speak", () => {
 		expect(localeFromCookie("tattle_locale=de")).toBeNull();
 		expect(
 			resolveVisitorLocale({
-				explicit: "de",
 				cookie: "tattle_locale=xx",
 				acceptLanguage: "fr",
 			}),
@@ -155,5 +148,84 @@ describe("a visitor's language, resolved", () => {
 			false,
 		);
 		expect(resolveVisitorLocale({}).locale).toBe("en");
+	});
+});
+
+describe("the portal's addresses", () => {
+	const GOOGLEBOT =
+		"Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+	const CHROME = "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/142";
+	const open = (
+		path: string,
+		headers: { cookie?: string; acceptLanguage?: string; userAgent?: string },
+		method = "GET",
+	) =>
+		portalRedirect({
+			url: `https://tattle.example.org${path}`,
+			method,
+			cookie: headers.cookie ?? null,
+			acceptLanguage: headers.acceptLanguage ?? null,
+			userAgent: headers.userAgent ?? CHROME,
+		});
+
+	it("are English at the bare address and French under /fr", () => {
+		expect(portalPath("shop", "en")).toBe("/portal/shop");
+		expect(portalPath("shop", "fr")).toBe("/fr/portal/shop");
+	});
+
+	it("send a French-speaking browser to /fr once, remembering it", () => {
+		expect(
+			open("/portal/shop?shipped=true", { acceptLanguage: "fr-FR,fr;q=0.9" }),
+		).toEqual({
+			status: 302,
+			location: "/fr/portal/shop?shipped=true",
+			remember: "fr",
+		});
+		expect(open("/portal/shop/", { acceptLanguage: "fr-CA" })?.location).toBe(
+			"/fr/portal/shop",
+		);
+		expect(open("/portal/shop", { acceptLanguage: "fr" }, "HEAD")?.status).toBe(
+			302,
+		);
+	});
+
+	it("never redirect robots, a remembered choice, or other languages", () => {
+		const french = { acceptLanguage: "fr-FR" };
+		expect(
+			open("/portal/shop", { ...french, userAgent: GOOGLEBOT }),
+		).toBeNull();
+		expect(open("/portal/shop", {})).toBeNull();
+		expect(
+			open("/portal/shop", { ...french, cookie: "tattle_locale=en" }),
+		).toBeNull();
+		expect(
+			open("/portal/shop", { ...french, cookie: "tattle_locale=fr" }),
+		).toBeNull();
+		expect(
+			open("/portal/shop", { acceptLanguage: "en-US,fr;q=0.5" }),
+		).toBeNull();
+		expect(open("/portal/shop", { acceptLanguage: "de-DE" })).toBeNull();
+		expect(open("/portal/shop", french, "POST")).toBeNull();
+	});
+
+	it("serve /fr in French to anyone, without redirecting", () => {
+		expect(open("/fr/portal/shop", { acceptLanguage: "en-US" })).toBeNull();
+		expect(open("/fr/portal/shop", { userAgent: GOOGLEBOT })).toBeNull();
+	});
+
+	it("move an old ?lang= address to its language's address", () => {
+		expect(open("/portal/shop?lang=fr&shipped=true", {})).toEqual({
+			status: 301,
+			location: "/fr/portal/shop?shipped=true",
+		});
+		expect(open("/fr/portal/shop?lang=en", {})).toEqual({
+			status: 301,
+			location: "/portal/shop",
+		});
+	});
+
+	it("leave other pages alone", () => {
+		for (const path of ["/login", "/portal", "/portal/shop/extra", "/fr"])
+			expect(open(path, { acceptLanguage: "fr" }), path).toBeNull();
 	});
 });
