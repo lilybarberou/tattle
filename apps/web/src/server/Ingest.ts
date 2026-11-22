@@ -7,6 +7,7 @@ import {
 	type Reporter,
 	report,
 } from "#/db/schema";
+import { normalizeLocale } from "#/i18n/locales";
 import { Database } from "./Database";
 import { Duplicates } from "./Duplicates";
 import {
@@ -243,6 +244,8 @@ export class Ingest extends Context.Service<
 							reporter: (payload.reporter as Reporter | undefined) ?? null,
 							context: (payload.context as JsonObject | undefined) ?? null,
 							device: payload.device as JsonObject,
+							// The widget and the SDK send the device's language.
+							locale: normalizeLocale(payload.device.language),
 							console: [...payload.console],
 							network: [...payload.network],
 							breadcrumbs: (payload.breadcrumbs ?? []) as Breadcrumb[],

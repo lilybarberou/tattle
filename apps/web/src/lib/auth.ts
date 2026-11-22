@@ -24,6 +24,13 @@ export const MCP_RESOURCE = `${baseUrl}/api/mcp`;
 
 export const auth = betterAuth({
 	database: drizzleAdapter(db, { provider: "pg", schema }),
+	// The dashboard's language, set from the user menu (never at sign-up).
+	user: {
+		additionalFields: {
+			locale: { type: "string", required: false, input: false },
+			detectedLocale: { type: "string", required: false, input: false },
+		},
+	},
 	disabledPaths: [
 		// OAuth clients get tokens from /oauth2/token only, not from the JWT plugin.
 		"/token",
