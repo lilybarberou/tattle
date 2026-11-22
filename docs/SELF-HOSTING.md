@@ -266,6 +266,12 @@ the report itself when there is one.
 | Reporter message | The reporter's name and email, and the first lines of the message |
 | Reply to a reporter | Its author, whom it went to, and the first lines |
 
+Only two kinds of message stand out: a regression (an issue done, then reported again) starts
+with ⚠️ on an amber bar, and a shipped issue with ✅ on a green one. Everything else is
+informational (blue, teal or grey, and the bug red behind 🐞), so a notification hub that reads a
+level from the title's emoji or the embed's colour files them the same way. Slack messages carry
+no colour: such a hub reads their emoji alone.
+
 **Personal data goes to that channel.** Names, emails and user ids are shown because the channel
 is meant to be your team's own: post to a private channel. What Discord or Slack received stays
 there: erasing a person's data in Tattle does not delete past messages. Never sent: passwords,
