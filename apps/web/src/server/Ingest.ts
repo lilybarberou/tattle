@@ -264,8 +264,10 @@ export class Ingest extends Context.Service<
 						type: row.type,
 						message: row.message,
 						pageUrl: row.pageUrl,
+						pageTitle: row.pageTitle,
 						release: row.release,
 						reporter: row.reporter,
+						device: row.device,
 						hasScreenshot: screenshotKey !== null,
 						consoleErrors: row.console.filter((c) => c.level === "error")
 							.length,

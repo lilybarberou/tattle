@@ -23,6 +23,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
+    "chat-samples": "tsx scripts/chat-samples.ts",
     "e2e:up": "docker compose -f e2e/docker-compose.e2e.yml up -d --wait",
     "e2e:down": "docker compose -f e2e/docker-compose.e2e.yml down --volumes",
     "e2e:build": "pnpm --filter @tattle/widget build && pnpm run build",

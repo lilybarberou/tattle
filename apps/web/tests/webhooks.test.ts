@@ -2,7 +2,11 @@ import { createHmac } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
-import { webhookDelivery, webhookEndpoint } from "#/db/schema";
+import {
+	report as reportTable,
+	webhookDelivery,
+	webhookEndpoint,
+} from "#/db/schema";
 import { Ingest } from "#/server/Ingest";
 import { Issues } from "#/server/Issues";
 import { signPayload, Webhooks } from "#/server/Webhooks";
@@ -141,7 +145,26 @@ describe("chat endpoints", () => {
 		expect(request?.headers["x-tattle-signature"]).toBeUndefined();
 		const body = JSON.parse(request?.body ?? "{}");
 		expect(body.username).toBe("Tattle");
-		expect(body.embeds[0].title).toBe("Bug #1: Checkout button does nothing");
+		const embed = body.embeds[0];
+		expect(embed.title).toBe(`🐞 ${p.name} #1 · Checkout button does nothing`);
+		// The link opens the report itself.
+		const [report] = await db
+			.select({ id: reportTable.id })
+			.from(reportTable)
+			.where(eq(reportTable.projectId, p.id));
+		expect(embed.url).toBe(
+			`http://localhost:3000/p/${p.id}/issues/1#report-${report?.id}`,
+		);
+		expect(
+			embed.fields.map((f: { name: string; value: string }) => [
+				f.name,
+				f.value,
+			]),
+		).toEqual([
+			["Reporter", "Someone"],
+			["Page", "https://shop.example.com/checkout"],
+			["Device", "Firefox 130 · macOS 14.5"],
+		]);
 		await waitFor(
 			async () => (await deliveriesOf(endpoint.id))[0]?.status === "success",
 		);
@@ -171,8 +194,10 @@ describe("chat endpoints", () => {
 			() => receiver.requests.length === 2 && receiver.requests,
 		);
 		const texts = requests.map((r) => JSON.parse(r.body).text as string);
-		expect(texts[0]).toContain("|Bug #1: Checkout button does nothing>");
-		expect(texts[1]).toContain("Triage → *Todo*");
+		expect(texts[0]).toContain(
+			`|🐞 ${p.name} #1 · Checkout button does nothing>`,
+		);
+		expect(texts[1]).toContain("*Status:* Triage → Todo");
 		expect(requests.every((r) => !r.headers["x-tattle-signature"])).toBe(true);
 		// Only two deliveries were queued: the label change produced none.
 		expect(

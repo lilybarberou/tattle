@@ -474,7 +474,7 @@ export class Webhooks extends Context.Service<
 						if (endpoint.format === "discord" || endpoint.format === "slack") {
 							const message = describeEvent(
 								event,
-								p.id,
+								{ id: p.id, name: p.name },
 								data,
 								normalizeLocale(p.chatLocale) ?? DEFAULT_LOCALE,
 							);
