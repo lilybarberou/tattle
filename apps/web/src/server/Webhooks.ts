@@ -7,6 +7,7 @@ import {
 	webhookDelivery,
 	webhookEndpoint,
 } from "#/db/schema";
+import { DEFAULT_LOCALE } from "#/i18n/locales";
 import {
 	WEBHOOK_EVENTS,
 	type WEBHOOK_FORMATS,
@@ -17,7 +18,7 @@ import { errorKind, inBackground } from "./background";
 import { describeEvent, toDiscord, toSlack } from "./chat-format";
 import { Database } from "./Database";
 import { env } from "./env";
-import { type DbError, InvalidInput } from "./errors";
+import { type DbError, errorText, InvalidInput, localized } from "./errors";
 import { Notifications } from "./Notifications";
 import { checkUrlHost } from "./private-address";
 import { postPublic } from "./public-request";
@@ -36,8 +37,10 @@ class DeliveryFailed extends Schema.TaggedError<DeliveryFailed>()(
 	},
 ) {}
 
-export const PRIVATE_WEBHOOK_REFUSED =
-	"This address is on the server's own machine or private network. To send webhooks there, set ALLOW_PRIVATE_URLS=true on the server";
+export const PRIVATE_WEBHOOK_REFUSED = errorText(
+	DEFAULT_LOCALE,
+	"privateWebhookRefused",
+);
 
 /** "private" unless ALLOW_PRIVATE_URLS=true: the URL must not be called. */
 const privateUrl = async (url: string) =>
@@ -515,11 +518,9 @@ export class Webhooks extends Context.Service<
 					url = null;
 				}
 				if (!url || !["http:", "https:"].includes(url.protocol))
-					return yield* new InvalidInput({
-						message: "Enter the endpoint's http or https URL",
-					});
+					return yield* new InvalidInput(localized("webhookUrlRequired"));
 				if (yield* Effect.promise(() => privateUrl(url.href)))
-					return yield* new InvalidInput({ message: PRIVATE_WEBHOOK_REFUSED });
+					return yield* new InvalidInput(localized("privateWebhookRefused"));
 				const [row] = yield* database.query((db) =>
 					db
 						.insert(webhookEndpoint)
@@ -533,9 +534,7 @@ export class Webhooks extends Context.Service<
 						.returning({ id: webhookEndpoint.id }),
 				);
 				if (!row)
-					return yield* new InvalidInput({
-						message: "Webhook could not be created",
-					});
+					return yield* new InvalidInput(localized("webhookNotCreated"));
 				return row;
 			});
 

@@ -5,8 +5,10 @@ import {
 	randomBytes,
 } from "node:crypto";
 import { Effect, Schema } from "effect";
+import { DEFAULT_LOCALE } from "#/i18n/locales";
 import type { AiProvider } from "#/shared/ai";
 import { env } from "./env";
+import { errorText } from "./errors";
 import { checkUrlHost } from "./private-address";
 import {
 	isPrivateAddressRefusal,
@@ -90,8 +92,10 @@ export class AiError extends Schema.TaggedError<AiError>()("AiError", {
 	status: Schema.optional(Schema.Number),
 }) {}
 
-export const PRIVATE_URL_REFUSED =
-	"This address is on the server's own machine or private network. To use a model there (Ollama, LM Studio…), set ALLOW_PRIVATE_URLS=true on the server";
+export const PRIVATE_URL_REFUSED = errorText(
+	DEFAULT_LOCALE,
+	"privateAiUrlRefused",
+);
 
 /** Our own sentence for a failed call, for the admin testing their settings. */
 export const aiErrorMessage = (error: {

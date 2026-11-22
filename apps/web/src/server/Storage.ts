@@ -10,7 +10,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { Context, Effect, Layer } from "effect";
 import { env } from "./env";
-import { NotFound, StorageError } from "./errors";
+import { localized, NotFound, StorageError } from "./errors";
 
 type Backend = {
 	readonly put: (
@@ -187,7 +187,7 @@ export class Storage extends Context.Service<
 				get: (key) =>
 					Effect.tryPromise({
 						try: () => backend.get(key),
-						catch: () => new NotFound({ message: "File not found" }),
+						catch: () => new NotFound(localized("fileNotFound")),
 					}),
 				remove: (keys) =>
 					keys.length === 0

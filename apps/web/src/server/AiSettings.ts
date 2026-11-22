@@ -13,13 +13,18 @@ import {
 	aiErrorMessage,
 	decryptSecret,
 	encryptSecret,
-	PRIVATE_URL_REFUSED,
 	testConnection,
 } from "./ai";
 import { inBackground } from "./background";
 import { Database } from "./Database";
 import { env } from "./env";
-import { type DbError, type Forbidden, InvalidInput } from "./errors";
+import {
+	type DbError,
+	type ErrorKey,
+	type Forbidden,
+	InvalidInput,
+	localized,
+} from "./errors";
 import { Notifications } from "./Notifications";
 import { checkUrlHost } from "./private-address";
 
@@ -39,7 +44,7 @@ export type AiTestResult =
 
 type Row = typeof aiSettings.$inferSelect;
 
-const ADMIN_ONLY = "Only owners and admins can change the AI settings";
+const ADMIN_ONLY = "onlyAdminsAiSettings" satisfies ErrorKey;
 
 /** Answers that say the key itself is the problem, not the request. */
 const REFUSED_STATUSES = [401, 402, 403, 429];
@@ -67,10 +72,7 @@ const normalizeBaseUrl = (provider: AiProvider, baseUrl?: string | null) =>
 			url = null;
 		}
 		if (!url || !["http:", "https:"].includes(url.protocol)) {
-			return yield* new InvalidInput({
-				message:
-					"Enter the server's base URL, e.g. https://api.mistral.ai/v1 or http://localhost:11434/v1",
-			});
+			return yield* new InvalidInput(localized("aiBaseUrlRequired"));
 		}
 		// Checked again before each call and on the connection itself (ai.ts),
 		// since a name can later resolve elsewhere.
@@ -78,9 +80,7 @@ const normalizeBaseUrl = (provider: AiProvider, baseUrl?: string | null) =>
 			!env.allowPrivateUrls &&
 			(yield* Effect.promise(() => checkUrlHost(url.href))) === "private"
 		) {
-			return yield* new InvalidInput({
-				message: PRIVATE_URL_REFUSED,
-			});
+			return yield* new InvalidInput(localized("privateAiUrlRefused"));
 		}
 		return value.replace(/\/+$/, "");
 	});
@@ -88,12 +88,9 @@ const normalizeBaseUrl = (provider: AiProvider, baseUrl?: string | null) =>
 const normalizeModel = (provider: AiProvider, model?: string) =>
 	Effect.gen(function* () {
 		const value = model?.trim() || AI_PROVIDER_META[provider].defaultModel;
-		if (!value)
-			return yield* new InvalidInput({ message: "Enter the model to use" });
+		if (!value) return yield* new InvalidInput(localized("aiModelRequired"));
 		if (value.length > 200)
-			return yield* new InvalidInput({
-				message: "That model name is too long",
-			});
+			return yield* new InvalidInput(localized("aiModelTooLong"));
 		return value;
 	});
 
@@ -210,7 +207,7 @@ export class AiSettings extends Context.Service<
 				const model = yield* normalizeModel(input.provider, input.model);
 				const typedKey = input.apiKey?.trim() ?? "";
 				if (typedKey.length > 500)
-					return yield* new InvalidInput({ message: "That key is too long" });
+					return yield* new InvalidInput(localized("aiKeyTooLong"));
 
 				// A key belongs to one provider and one server: switching either
 				// drops it, so it is never sent to a host it was not typed for.
@@ -224,9 +221,11 @@ export class AiSettings extends Context.Service<
 					apiKeyLast4 = current.apiKeyLast4;
 				}
 				if (input.enabled && needsKey(input.provider) && !apiKeyEncrypted) {
-					return yield* new InvalidInput({
-						message: `Add your ${AI_PROVIDER_META[input.provider].label} API key to turn suggestions on`,
-					});
+					return yield* new InvalidInput(
+						localized("aiKeyRequired", {
+							provider: AI_PROVIDER_META[input.provider].label,
+						}),
+					);
 				}
 
 				const values = {

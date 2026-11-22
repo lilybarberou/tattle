@@ -34,7 +34,7 @@ import { errorKind, inBackground } from "./background";
 import { Database } from "./Database";
 import { openSuggestion } from "./Duplicates";
 import { env } from "./env";
-import { type DbError, InvalidInput, NotFound } from "./errors";
+import { type DbError, InvalidInput, localized, NotFound } from "./errors";
 import { sendMail } from "./mailer";
 import { Notifications } from "./Notifications";
 import { Storage } from "./Storage";
@@ -141,12 +141,12 @@ const MAX_COMMENT = 20_000;
 /** Why a title or description is too long, or null. */
 const lengthError = (fields: { title?: string; description?: string }) => {
 	if (fields.title !== undefined && fields.title.length > MAX_TITLE)
-		return `A title takes at most ${MAX_TITLE} characters`;
+		return localized("titleTooLong", { max: MAX_TITLE });
 	if (
 		fields.description !== undefined &&
 		fields.description.length > MAX_DESCRIPTION
 	)
-		return `A description takes at most ${MAX_DESCRIPTION.toLocaleString("en")} characters`;
+		return localized("descriptionTooLong", { max: MAX_DESCRIPTION });
 	return null;
 };
 
@@ -289,7 +289,9 @@ export class Issues extends Context.Service<
 						),
 				);
 				if (!row)
-					return yield* new NotFound({ message: `Issue #${number} not found` });
+					return yield* new NotFound(
+						localized("issueNumberNotFound", { number }),
+					);
 				return row;
 			});
 
@@ -680,7 +682,7 @@ export class Issues extends Context.Service<
 							and(eq(report.projectId, projectId), eq(report.id, reportId)),
 						),
 				);
-				if (!row) return yield* new NotFound({ message: "Report not found" });
+				if (!row) return yield* new NotFound(localized("reportNotFound"));
 				return reportDto(row, yield* messagesOf([row.id]));
 			});
 
@@ -715,13 +717,12 @@ export class Issues extends Context.Service<
 				actor: Actor,
 			) {
 				const title = input.title.trim();
-				if (!title)
-					return yield* new InvalidInput({ message: "Title is required" });
+				if (!title) return yield* new InvalidInput(localized("titleRequired"));
 				const tooLong = lengthError({
 					title,
 					description: input.description,
 				});
-				if (tooLong) return yield* new InvalidInput({ message: tooLong });
+				if (tooLong) return yield* new InvalidInput(tooLong);
 				const row = yield* insertIssue(projectId, {
 					type: input.type,
 					title,
@@ -845,15 +846,13 @@ export class Issues extends Context.Service<
 					title: patch.title?.trim(),
 					description: patch.description,
 				});
-				if (tooLong) return yield* new InvalidInput({ message: tooLong });
+				if (tooLong) return yield* new InvalidInput(tooLong);
 				if (
 					patch.prUrl !== undefined &&
 					patch.prUrl !== null &&
 					!isHttpUrl(patch.prUrl)
 				)
-					return yield* new InvalidInput({
-						message: "The pull request URL must start with http:// or https://",
-					});
+					return yield* new InvalidInput(localized("prUrlInvalid"));
 				const current = yield* findIssue(projectId, number);
 				const set: Partial<typeof issue.$inferInsert> = {};
 				const changes: JsonObject = {};
@@ -866,18 +865,14 @@ export class Issues extends Context.Service<
 
 				if (patch.title !== undefined) {
 					if (!patch.title.trim())
-						return yield* new InvalidInput({
-							message: "Title cannot be empty",
-						});
+						return yield* new InvalidInput(localized("titleEmpty"));
 					track("title", patch.title.trim());
 				}
 				if (patch.description !== undefined)
 					track("description", patch.description);
 				if (patch.status !== undefined) {
 					if (patch.status === "duplicate") {
-						return yield* new InvalidInput({
-							message: "Use mark_duplicate to mark an issue as a duplicate",
-						});
+						return yield* new InvalidInput(localized("useMarkDuplicate"));
 					}
 					track("status", patch.status);
 					if (current.status === "duplicate") track("duplicateOfId", null);
@@ -888,9 +883,7 @@ export class Issues extends Context.Service<
 						patch.priority < 0 ||
 						patch.priority > 4
 					) {
-						return yield* new InvalidInput({
-							message: "Priority must be an integer from 0 to 4",
-						});
+						return yield* new InvalidInput(localized("priorityRange"));
 					}
 					track("priority", patch.priority);
 				}
@@ -948,13 +941,11 @@ export class Issues extends Context.Service<
 				actor: Actor,
 			) {
 				if (!body.trim())
-					return yield* new InvalidInput({
-						message: "Comment cannot be empty",
-					});
+					return yield* new InvalidInput(localized("commentEmpty"));
 				if (body.length > MAX_COMMENT)
-					return yield* new InvalidInput({
-						message: `A comment takes at most ${MAX_COMMENT.toLocaleString("en")} characters`,
-					});
+					return yield* new InvalidInput(
+						localized("commentTooLong", { max: MAX_COMMENT }),
+					);
 				const current = yield* findIssue(projectId, number);
 				const [row] = yield* database.query((db) =>
 					db
@@ -992,15 +983,13 @@ export class Issues extends Context.Service<
 				actor: Actor,
 			) {
 				if (number === duplicateOfNumber) {
-					return yield* new InvalidInput({
-						message: "An issue cannot duplicate itself",
-					});
+					return yield* new InvalidInput(localized("cannotDuplicateItself"));
 				}
 				const duplicate = yield* findIssue(projectId, number);
 				const original = yield* findIssue(projectId, duplicateOfNumber);
-				const notOriginal = new InvalidInput({
-					message: `#${duplicateOfNumber} is itself a duplicate; use its original instead`,
-				});
+				const notOriginal = new InvalidInput(
+					localized("duplicateOfDuplicate", { number: duplicateOfNumber }),
+				);
 				if (original.status === "duplicate") return yield* notOriginal;
 				// Both issues locked (in id order, so two merges cannot deadlock),
 				// the original checked again, then the reports moved and the issue
@@ -1073,7 +1062,7 @@ export class Issues extends Context.Service<
 							and(eq(report.projectId, projectId), eq(report.id, reportId)),
 						),
 				);
-				if (!row) return yield* new NotFound({ message: "Report not found" });
+				if (!row) return yield* new NotFound(localized("reportNotFound"));
 				yield* database.query((db) =>
 					db
 						.update(report)

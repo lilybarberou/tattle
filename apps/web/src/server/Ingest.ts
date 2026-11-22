@@ -13,6 +13,7 @@ import { Duplicates } from "./Duplicates";
 import {
 	type DbError,
 	InvalidInput,
+	localized,
 	NotFound,
 	type StorageError,
 } from "./errors";
@@ -189,22 +190,16 @@ export class Ingest extends Context.Service<
 					),
 				);
 				const target = yield* findProject(payload.projectKey);
-				if (!target)
-					return yield* new NotFound({ message: "Unknown project key" });
+				if (!target) return yield* new NotFound(localized("unknownProjectKey"));
 				if (!originAllowed(target.allowedOrigins, origin)) {
-					return yield* new InvalidInput({
-						message: "This origin is not allowed for this project",
-					});
+					return yield* new InvalidInput(localized("originNotAllowed"));
 				}
 
 				if (
 					payload.reporterKey !== undefined &&
 					!REPORTER_KEY_PATTERN.test(payload.reporterKey)
 				) {
-					return yield* new InvalidInput({
-						message:
-							"reporterKey must be 32 to 128 letters, digits, dashes or underscores",
-					});
+					return yield* new InvalidInput(localized("reporterKeyInvalid"));
 				}
 				const userId = payload.reporter?.id;
 				const verifiedUserId =
@@ -218,13 +213,9 @@ export class Ingest extends Context.Service<
 				if (payload.screenshot) {
 					const image = parseDataUrl(payload.screenshot);
 					if (!image)
-						return yield* new InvalidInput({
-							message: "Screenshot must be a PNG, JPEG or WebP data URL",
-						});
+						return yield* new InvalidInput(localized("screenshotFormat"));
 					if (image.bytes.byteLength > MAX_SCREENSHOT_BYTES) {
-						return yield* new InvalidInput({
-							message: "Screenshot is larger than 8 MB",
-						});
+						return yield* new InvalidInput(localized("screenshotTooLarge"));
 					}
 					screenshotKey = `${target.id}/reports/${reportId}.${image.extension}`;
 					yield* storage.put(screenshotKey, image.bytes);
@@ -259,10 +250,7 @@ export class Ingest extends Context.Service<
 						})
 						.returning(),
 				);
-				if (!row)
-					return yield* new InvalidInput({
-						message: "Report could not be saved",
-					});
+				if (!row) return yield* new InvalidInput(localized("reportNotSaved"));
 
 				const created: IssueDto = yield* issues.createFromReport(
 					target.id,

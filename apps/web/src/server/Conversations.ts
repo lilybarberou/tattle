@@ -12,7 +12,7 @@ import type { Actor } from "./Access";
 import { errorKind, inBackground } from "./background";
 import { Database } from "./Database";
 import { env } from "./env";
-import { type DbError, InvalidInput, NotFound } from "./errors";
+import { type DbError, InvalidInput, localized, NotFound } from "./errors";
 import { originAllowed } from "./Ingest";
 import {
 	issueDto,
@@ -133,17 +133,17 @@ const original = alias(issue, "original_issue");
 const cleanBody = (body: string) => {
 	const text = body.trim();
 	if (!text)
-		return Effect.fail(new InvalidInput({ message: "Write a message first" }));
+		return Effect.fail(new InvalidInput(localized("writeMessageFirst")));
 	if (text.length > MAX_MESSAGE_LENGTH)
 		return Effect.fail(
-			new InvalidInput({
-				message: `Messages are limited to ${MAX_MESSAGE_LENGTH} characters`,
-			}),
+			new InvalidInput(
+				localized("messageTooLong", { max: MAX_MESSAGE_LENGTH }),
+			),
 		);
 	return Effect.succeed(text);
 };
 
-const notFound = () => new NotFound({ message: "Report not found" });
+const notFound = () => new NotFound(localized("reportNotFound"));
 
 /**
  * Conversations between the team and the people who sent reports. Reporters
@@ -225,12 +225,9 @@ export class Conversations extends Context.Service<
 						.from(project)
 						.where(eq(project.publicKey, auth.projectKey)),
 				);
-				if (!row)
-					return yield* new NotFound({ message: "Unknown project key" });
+				if (!row) return yield* new NotFound(localized("unknownProjectKey"));
 				if (!originAllowed(row.allowedOrigins, auth.origin))
-					return yield* new InvalidInput({
-						message: "This origin is not allowed for this project",
-					});
+					return yield* new InvalidInput(localized("originNotAllowed"));
 				const keyHash =
 					auth.reporterKey && REPORTER_KEY_PATTERN.test(auth.reporterKey)
 						? hashReporterKey(auth.reporterKey)
@@ -397,9 +394,7 @@ export class Conversations extends Context.Service<
 						.returning(),
 				);
 				if (!created)
-					return yield* new InvalidInput({
-						message: "The message could not be saved",
-					});
+					return yield* new InvalidInput(localized("messageNotSaved"));
 				yield* touchIssue(row.report.issueId);
 				const dto = messageDto(created);
 				yield* webhooks.emit(row.report.projectId, "message.created", {
@@ -500,7 +495,7 @@ export class Conversations extends Context.Service<
 			) {
 				const row = yield* fromLink(token);
 				if (row === "expired")
-					return yield* new InvalidInput({ message: "This link has expired" });
+					return yield* new InvalidInput(localized("linkExpired"));
 				return yield* postAsReporter(row, body);
 			});
 
@@ -558,9 +553,7 @@ export class Conversations extends Context.Service<
 				actor: Actor,
 			) {
 				if (actor.type === "system")
-					return yield* new InvalidInput({
-						message: "Only people and agents can reply",
-					});
+					return yield* new InvalidInput(localized("onlyPeopleAndAgentsReply"));
 				const text = yield* cleanBody(body);
 				const row = yield* findReport(
 					eq(report.projectId, projectId),
