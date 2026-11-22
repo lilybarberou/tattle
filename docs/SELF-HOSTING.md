@@ -244,11 +244,51 @@ another one under their name → **Language**.
 | --- | --- | --- |
 | **The widget** | Project settings → *Install the widget* | Paste the `<script>` tag into your app, then call `Tattle.identify({ id, email, name })` after sign-in. List your app's address under *Allowed sites* before going live. |
 | **An AI agent (MCP)** | Agents & API | `claude mcp add --transport http tattle https://your-domain/api/mcp`: the agent opens a browser to sign in and asks you to approve. Agents without a browser use an API token instead. |
-| **Discord or Slack** | Project settings → *Discord and Slack* | Paste a channel's webhook URL. New reports, status changes and comments appear there, in the language chosen there (English or French). |
+| **Discord or Slack** | Project settings → *Discord and Slack* | Paste a channel's webhook URL. New reports, status changes and comments appear there, in the language chosen there (English or French). See [below](#what-discord-and-slack-messages-say) for what they show. |
 | **Your own server** | Project settings → *Webhooks* | Signed JSON events, retried if your server is down. See the [README](../README.md#webhooks). |
 | **GitHub** | Project settings → *GitHub* | Turn it on, then add a webhook to your repository with the address and secret shown there (Pull requests events only). Merged pull requests move their issues to Done. GitHub must be able to reach your server. |
 | **A public feature request page** | Project settings → *Public feature requests* | Turn it on and pick an address: `https://your-domain/portal/<name>` in English, `https://your-domain/fr/portal/<name>` in French. |
 | **AI duplicate suggestions** (optional) | Agents & API → *Duplicate suggestions* | Paste an Anthropic, OpenAI or OpenAI-compatible (Mistral, OpenRouter, Ollama…) key. Off by default, and then nothing is sent anywhere. A model on this machine or your network (Ollama…) needs `ALLOW_PRIVATE_URLS=true`. The [README](../README.md#duplicate-suggestions) lists what is sent when it's on. |
+
+### What Discord and Slack messages say
+
+Each message stands on its own, so whoever reads it on a phone knows who, what, where and on
+which device without opening Tattle. The title starts with the project's name and the issue
+number (`🐞 Acme Shop #42 · Checkout fails when I tap "Pay"`), and the link opens that issue, or
+the report itself when there is one.
+
+| Event | Fields |
+| --- | --- |
+| New report | Reporter's name and email, user id, up to 3 identify traits, page (web) or screen (app), browser and system or phone and system, app version or release, device language, evidence (console errors, failed requests, screenshot) |
+| New issue (from the dashboard, MCP or the API) | Type, who created it (person, or agent with its token's name), priority and labels when set, and the start of the description |
+| Status or assignee change | Old → new status, the issue it was merged into, the release of a regression, assignee, pull request when in review, who did it |
+| Comment | Author, and the first lines of the comment |
+| Reporter message | The reporter's name and email, and the first lines of the message |
+| Reply to a reporter | Its author, whom it went to, and the first lines |
+
+**Personal data goes to that channel.** Names, emails and user ids are shown because the channel
+is meant to be your team's own: post to a private channel. What Discord or Slack received stays
+there: erasing a person's data in Tattle does not delete past messages. Never sent: passwords,
+tokens, API keys, signatures, the identity hash, the reporter key, cookies, console and network
+logs (only their counts), and identify traits whose name suggests a secret (`password`, `token`,
+`apiKey`, `session`…) or whose value is not a plain text, number or true/false. Reporter text
+cannot ping anyone (`@everyone`, roles, `<!channel>`), and long values are cut.
+
+To see every message without sending a report, print the samples (fake data, titles marked
+"(test)"), in English and French:
+
+```sh
+pnpm -s --filter web chat-samples                    # all of them, readable
+pnpm -s --filter web chat-samples report.created fr  # one Discord payload
+pnpm -s --filter web chat-samples "report.created mobile" en --slack
+```
+
+and post one to a test channel:
+
+```sh
+pnpm -s --filter web chat-samples report.created fr \
+  | curl -sS -H 'content-type: application/json' -d @- "$DISCORD_WEBHOOK_URL"
+```
 
 ## 8. Optional: email and S3
 
