@@ -831,8 +831,12 @@ export class Issues extends Context.Service<
 										title: row.title,
 									},
 								)}`,
+								// The portal in the email's language.
 								action: link
-									? { label: emails.shipped.action, url: link }
+									? {
+											label: emails.shipped.action,
+											url: `${link}&lang=${locale}`,
+										}
 									: undefined,
 								...(person.report_id
 									? reporterUnsubscribe(person.report_id, locale)

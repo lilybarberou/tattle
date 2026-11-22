@@ -98,6 +98,72 @@ const publishPortal = async (projectId: string) => {
 	return `/portal/${slug}`;
 };
 
+test("the portal has one address per language and never redirects", async ({
+	request,
+	workspace,
+}) => {
+	const path = await publishPortal(workspace.project.id);
+	const get = async (url: string, headers: Record<string, string>) => {
+		const response = await request.get(url, { headers, maxRedirects: 0 });
+		expect(response.status(), url).toBe(200);
+		expect(response.url()).toBe(`${APP_URL}${url}`);
+		const html = await response.text();
+		const links = [...html.matchAll(/<link [^>]*>/g)].map((tag) =>
+			Object.fromEntries(
+				[...tag[0].matchAll(/([a-zA-Z-]+)="([^"]*)"/g)].map((a) => [
+					a[1]?.toLowerCase(),
+					a[2]?.replaceAll("&amp;", "&"),
+				]),
+			),
+		);
+		return {
+			lang: html.match(/<html[^>]* lang="([a-z]+)"/)?.[1],
+			canonical: links.find((l) => l.rel === "canonical")?.href,
+			alternates: Object.fromEntries(
+				links
+					.filter((l) => l.rel === "alternate" && l.hreflang)
+					.map((l) => [l.hreflang, l.href]),
+			),
+			vary: response.headers().vary,
+		};
+	};
+
+	await test.step("the bare address answers in the browser's language", async () => {
+		const page = await get(path, { "accept-language": "fr-FR,fr;q=0.9" });
+		expect(page.lang).toBe("fr");
+		expect(page.vary).toContain("Accept-Language");
+		// Its canonical is itself; each language has its own address.
+		expect(page.canonical).toBe(`${APP_URL}${path}`);
+		expect(page.alternates).toEqual({
+			en: `${APP_URL}${path}?lang=en`,
+			fr: `${APP_URL}${path}?lang=fr`,
+			"x-default": `${APP_URL}${path}`,
+		});
+	});
+
+	await test.step("the cookie wins over the browser, the address over both", async () => {
+		const french = { "accept-language": "fr-FR", cookie: "tattle_locale=en" };
+		expect((await get(path, french)).lang).toBe("en");
+		const explicit = await get(`${path}?lang=fr`, {
+			"accept-language": "en-US",
+			cookie: "tattle_locale=en",
+		});
+		expect(explicit.lang).toBe("fr");
+		expect(explicit.canonical).toBe(`${APP_URL}${path}?lang=fr`);
+	});
+
+	await test.step("robots get English on the bare address", async () => {
+		const googlebot = {
+			"user-agent":
+				"Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+			"accept-language": "fr-FR",
+		};
+		expect((await get(path, googlebot)).lang).toBe("en");
+		expect((await get(path, { "accept-language": "" })).lang).toBe("en");
+		expect((await get(`${path}?lang=fr`, googlebot)).lang).toBe("fr");
+	});
+});
+
 test("the sign-in page's language selector is remembered, also on the portal", async ({
 	freshPage,
 	workspace,

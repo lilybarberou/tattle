@@ -21,6 +21,7 @@ import {
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { Textarea } from "#/components/ui/textarea";
+import { LOCALES, type Locale } from "#/i18n/locales";
 import { useI18n } from "#/i18n/react";
 import { headMessages } from "#/i18n/route";
 import { lenient } from "#/lib/search-params";
@@ -37,7 +38,11 @@ import type { PortalRequest } from "#/server/Portal";
 // a visitor is a random id in a cookie, and may leave an email to hear when an
 // idea ships.
 export const Route = createFileRoute("/portal/$slug")({
-	validateSearch: z.object({ shipped: lenient(z.boolean()) }),
+	validateSearch: z.object({
+		shipped: lenient(z.boolean()),
+		// The page in one language: `/portal/<slug>?lang=fr`.
+		lang: lenient(z.enum(LOCALES)),
+	}),
 	staticData: { visitorLocale: true },
 	loader: async ({ params }) => {
 		try {
@@ -46,7 +51,7 @@ export const Route = createFileRoute("/portal/$slug")({
 			throw notFound();
 		}
 	},
-	head: ({ loaderData, matches }) => {
+	head: ({ loaderData, matches, params }) => {
 		const t = headMessages(matches).publicPages.portal;
 		return {
 			meta: [
@@ -54,11 +59,45 @@ export const Route = createFileRoute("/portal/$slug")({
 					title: loaderData ? t.pageTitle(loaderData.project.name) : t.title,
 				},
 			],
+			links: portalLanguageLinks(matches, params.slug),
 		};
 	},
+	// The address without `?lang=` answers in the visitor's language: caches
+	// must keep one copy per language.
+	headers: () => ({ Vary: "Accept-Language, Cookie" }),
 	notFoundComponent: NotPublished,
 	component: PortalPage,
 });
+
+/**
+ * One address per language for search engines: `?lang=en` and `?lang=fr`,
+ * with the address without a language as x-default (it answers in the
+ * visitor's language, English for robots). Each page is its own canonical.
+ */
+const portalLanguageLinks = (
+	matches: ReadonlyArray<{ loaderData?: unknown }>,
+	slug: string,
+) => {
+	const languages = matches[0]?.loaderData as
+		| { baseUrl: string; visitor: Locale; visitorSource: string }
+		| undefined;
+	if (!languages) return [];
+	const bare = `${languages.baseUrl}/portal/${encodeURIComponent(slug)}`;
+	const at = (lang: Locale) => `${bare}?lang=${lang}`;
+	return [
+		{
+			rel: "canonical",
+			href:
+				languages.visitorSource === "explicit" ? at(languages.visitor) : bare,
+		},
+		...LOCALES.map((lang) => ({
+			rel: "alternate",
+			hrefLang: lang,
+			href: at(lang),
+		})),
+		{ rel: "alternate", hrefLang: "x-default", href: bare },
+	];
+};
 
 function NotPublished() {
 	const { m } = useI18n();
@@ -209,7 +248,7 @@ function PortalPage() {
 								key={tab.label}
 								to="/portal/$slug"
 								params={{ slug }}
-								search={{ shipped: tab.value }}
+								search={(prev) => ({ ...prev, shipped: tab.value })}
 								className={cn(
 									"-mb-px flex h-11 items-center gap-1.5 border-b-2 border-transparent text-muted-foreground hover:text-ink",
 									Boolean(shipped) === Boolean(tab.value) &&
