@@ -9,6 +9,7 @@ import { RelativeTime } from "#/components/time";
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
+import { useI18n } from "#/i18n/react";
 import {
 	getInvitationLinkFn,
 	getWorkspaceFn,
@@ -30,27 +31,34 @@ export const Route = createFileRoute("/_app/members")({
 	component: MembersPage,
 });
 
-const roleLabel = (role: string) =>
-	role === "owner" ? "Owner" : role === "admin" ? "Admin" : "Member";
-
 function MembersPage() {
 	const { organization, members, invitations, canManage } =
 		Route.useLoaderData();
 	const router = useRouter();
+	const { m: t } = useI18n();
+	const roleLabel = (role: string) =>
+		role === "owner"
+			? t.common.role.owner
+			: role === "admin"
+				? t.common.role.admin
+				: t.common.role.member;
 	const [role, setRole] = useState<"member" | "admin">("member");
 	const [link, setLink] = useState<{ email: string; url: string } | null>(null);
 
 	return (
 		<>
 			<PageHeader
-				title="Members"
-				description={`${members.length} ${members.length === 1 ? "person" : "people"} in ${organization.name}. Sign-up is closed: people join with an invitation.`}
+				title={t.workspace.members.title}
+				description={t.workspace.members.description(
+					members.length,
+					organization.name,
+				)}
 			/>
 			<div className="px-6 pb-10">
 				<SettingsSection
 					id="people"
-					title="People"
-					description="Everyone here sees every project, triages reports and can create API tokens for agents."
+					title={t.workspace.members.peopleTitle}
+					description={t.workspace.members.peopleDescription}
 				>
 					<ul className="divide-y divide-rule rounded-lg border">
 						{members.map((m) => (
@@ -70,8 +78,8 @@ function MembersPage() {
 
 				<SettingsSection
 					id="invite"
-					title="Invite someone"
-					description="We email the invitation when SMTP is set up on this server; the link works too. It is valid 7 days: they create their account with that email and join right away."
+					title={t.workspace.members.inviteTitle}
+					description={t.workspace.members.inviteDescription}
 				>
 					{canManage ? (
 						<form
@@ -87,31 +95,36 @@ function MembersPage() {
 									};
 									const result = await inviteMemberFn({ data });
 									setLink({ email: data.email, url: result.link });
-									if (result.emailed) toast.success("Invitation sent by email");
+									if (result.emailed)
+										toast.success(t.workspace.members.invitationEmailed);
 									form.reset();
 									await router.invalidate();
 								} catch (error) {
 									toast.error(
 										error instanceof Error
 											? error.message
-											: "Invitation failed",
+											: t.workspace.members.invitationFailed,
 									);
 								}
 							}}
 						>
 							<div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
 								<div className="space-y-2">
-									<Label htmlFor="invite-email">Email</Label>
+									<Label htmlFor="invite-email">
+										{t.workspace.members.email}
+									</Label>
 									<Input
 										id="invite-email"
 										name="email"
 										type="email"
 										required
-										placeholder="camille@atelier-nord.fr"
+										placeholder={t.workspace.members.emailPlaceholder}
 									/>
 								</div>
 								<fieldset className="flex rounded-md border border-control p-0.5">
-									<legend className="sr-only">Role</legend>
+									<legend className="sr-only">
+										{t.workspace.members.role}
+									</legend>
 									{(["member", "admin"] as const).map((r) => (
 										<button
 											key={r}
@@ -129,22 +142,26 @@ function MembersPage() {
 									))}
 								</fieldset>
 							</div>
-							<Button type="submit">Create invitation</Button>
+							<Button type="submit">
+								{t.workspace.members.createInvitation}
+							</Button>
 						</form>
 					) : (
 						<p className="rounded-lg border border-dashed px-4 py-3 text-muted-foreground">
-							Only owners and admins can invite people.
+							{t.workspace.members.onlyAdminsInvite}
 						</p>
 					)}
 					{link && (
 						<CodeBlock
-							label={`Invitation link for ${link.email} (also usable if the email gets lost)`}
+							label={t.workspace.members.invitationLink(link.email)}
 							code={link.url}
 						/>
 					)}
 					{invitations.length > 0 && (
 						<div>
-							<h3 className="mb-2 font-medium">Waiting to join</h3>
+							<h3 className="mb-2 font-medium">
+								{t.workspace.members.waiting}
+							</h3>
 							<ul className="divide-y divide-rule rounded-lg border">
 								{invitations.map((invite) => (
 									<li
@@ -154,7 +171,7 @@ function MembersPage() {
 										<div className="min-w-0 flex-1">
 											<p className="truncate">{invite.email}</p>
 											<p className="text-muted-foreground">
-												{roleLabel(invite.role)} · expires{" "}
+												{roleLabel(invite.role)} · {t.workspace.members.expires}{" "}
 												<RelativeTime iso={invite.expiresAt} />
 											</p>
 										</div>
@@ -175,13 +192,13 @@ function MembersPage() {
 														toast.error(
 															error instanceof Error
 																? error.message
-																: "Link unavailable",
+																: t.workspace.members.linkUnavailable,
 														);
 														await router.invalidate();
 													}
 												}}
 											>
-												Show link
+												{t.workspace.members.showLink}
 											</Button>
 										)}
 										{canManage && (
@@ -195,11 +212,11 @@ function MembersPage() {
 															invitationId: invite.id,
 														},
 													});
-													toast.success("Invitation canceled");
+													toast.success(t.workspace.members.invitationCanceled);
 													await router.invalidate();
 												}}
 											>
-												Cancel
+												{t.workspace.members.cancel}
 											</Button>
 										)}
 									</li>

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { PageHeader } from "#/components/page-header";
 import { SettingsSection } from "#/components/settings-section";
 import { Checkbox } from "#/components/ui/checkbox";
+import { useI18n } from "#/i18n/react";
 import {
 	getNotificationSettingsFn,
 	updateNotificationSettingFn,
@@ -13,6 +14,7 @@ import {
 	NOTIFICATION_TYPES,
 	type NotificationSettingsView,
 	type NotificationType,
+	REPORTER_REPLY_WINDOW_MINUTES,
 } from "#/shared/notifications";
 
 export const Route = createFileRoute("/_app/notifications")({
@@ -24,6 +26,7 @@ const hour = (h: number) => `${String(h).padStart(2, "0")}:00 UTC`;
 
 function NotificationsPage() {
 	const initial = Route.useLoaderData();
+	const { m } = useI18n();
 	const [view, setView] = useState<NotificationSettingsView>(initial);
 	const [saving, setSaving] = useState<NotificationType | null>(null);
 
@@ -34,14 +37,20 @@ function NotificationsPage() {
 			setView(await updateNotificationSettingFn({ data: { type, on } }));
 		} catch (error) {
 			setView((v) => ({ ...v, settings: { ...v.settings, [type]: !on } }));
-			toast.error(error instanceof Error ? error.message : "Not saved");
+			toast.error(
+				error instanceof Error ? error.message : m.common.errors.notSaved,
+			);
 		} finally {
 			setSaving(null);
 		}
 	};
 
 	const row = (type: NotificationType) => {
-		const meta = NOTIFICATION_META[type];
+		const text = m.common.notificationType[type];
+		const description =
+			typeof text.description === "function"
+				? text.description(REPORTER_REPLY_WINDOW_MINUTES)
+				: text.description;
 		return (
 			<li key={type} className="px-4 py-3">
 				<label htmlFor={`notify-${type}`} className="flex items-start gap-3">
@@ -53,11 +62,11 @@ function NotificationsPage() {
 						onCheckedChange={(v) => void toggle(type, v === true)}
 					/>
 					<span className="min-w-0 space-y-0.5">
-						<span className="block font-medium">{meta.label}</span>
+						<span className="block font-medium">{text.label}</span>
 						<span className="block text-muted-foreground">
 							{type === "triage_digest"
-								? `${meta.description} Sent around ${hour(view.digestHourUtc)}.`
-								: meta.description}
+								? `${description} ${m.workspace.notifications.sentAround(hour(view.digestHourUtc))}`
+								: description}
 						</span>
 					</span>
 				</label>
@@ -75,20 +84,19 @@ function NotificationsPage() {
 	return (
 		<>
 			<PageHeader
-				title="Notifications"
-				description={`Emails to ${view.email} for things you need to act on. Discord, Slack and webhooks cover everything else.`}
+				title={m.workspace.notifications.title}
+				description={m.workspace.notifications.description(view.email)}
 			/>
 			<div className="px-6 pb-10">
 				{!view.mailEnabled && (
 					<p className="mb-2 rounded-lg border border-dashed px-4 py-3 text-muted-foreground">
-						This server has no SMTP settings, so no email is sent. Your choices
-						are kept for when it does.
+						{m.workspace.notifications.noSmtp}
 					</p>
 				)}
 				<SettingsSection
 					id="work"
-					title="Your work"
-					description="Never for what you did yourself. Every email also has a link to stop its kind."
+					title={m.workspace.notifications.workTitle}
+					description={m.workspace.notifications.workDescription}
 				>
 					<ul className="divide-y divide-rule rounded-lg border">
 						{team.map(row)}
@@ -96,8 +104,8 @@ function NotificationsPage() {
 				</SettingsSection>
 				<SettingsSection
 					id="digest"
-					title="Digest"
-					description="One email a day at most, only when something new waits in Triage."
+					title={m.workspace.notifications.digestTitle}
+					description={m.workspace.notifications.digestDescription}
 				>
 					<ul className="divide-y divide-rule rounded-lg border">
 						{row("triage_digest")}
@@ -106,8 +114,8 @@ function NotificationsPage() {
 				{view.isAdmin && (
 					<SettingsSection
 						id="workspace"
-						title="Workspace health"
-						description="For owners and admins: when something set up for the workspace stops working."
+						title={m.workspace.notifications.healthTitle}
+						description={m.workspace.notifications.healthDescription}
 					>
 						<ul className="divide-y divide-rule rounded-lg border">
 							{adminOnly.map(row)}

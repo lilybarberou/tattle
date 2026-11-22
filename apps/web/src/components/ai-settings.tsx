@@ -6,6 +6,7 @@ import { Button } from "#/components/ui/button";
 import { Checkbox } from "#/components/ui/checkbox";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
+import { useI18n } from "#/i18n/react";
 import {
 	removeAiSettingsFn,
 	saveAiSettingsFn,
@@ -27,6 +28,10 @@ export function AiSettingsForm({
 	settings: AiSettingsView;
 }) {
 	const router = useRouter();
+	const { m } = useI18n();
+	const t = m.workspace.ai;
+	const providerLabel = (p: AiProvider) =>
+		p === "openai_compatible" ? t.openaiCompatible : AI_PROVIDER_META[p].label;
 	const [provider, setProvider] = useState<AiProvider>(settings.provider);
 	const [baseUrl, setBaseUrl] = useState(settings.baseUrl);
 	const [model, setModel] = useState(settings.model);
@@ -50,9 +55,9 @@ export function AiSettingsForm({
 		return (
 			<p className="rounded-lg border border-dashed px-4 py-3 text-muted-foreground">
 				{settings.enabled
-					? `On: ${AI_PROVIDER_META[settings.provider].label}, ${settings.model}. `
-					: "Off: only near-identical wording is suggested. "}
-				Only owners and admins can change it.
+					? t.on(providerLabel(settings.provider), settings.model)
+					: t.off}
+				{t.onlyAdmins}
 			</p>
 		);
 	}
@@ -90,12 +95,12 @@ export function AiSettingsForm({
 				setBusy("save");
 				try {
 					await saveAiSettingsFn({ data: { ...input, enabled } });
-					toast.success(
-						enabled ? "Duplicate suggestions use your AI" : "Settings saved",
-					);
+					toast.success(enabled ? t.usesYourAi : t.settingsSaved);
 					await router.invalidate();
 				} catch (error) {
-					toast.error(error instanceof Error ? error.message : "Not saved");
+					toast.error(
+						error instanceof Error ? error.message : m.common.errors.notSaved,
+					);
 				} finally {
 					setBusy(null);
 				}
@@ -110,11 +115,11 @@ export function AiSettingsForm({
 					checked={enabled}
 					onCheckedChange={(v) => setEnabled(v === true)}
 				/>
-				Judge duplicates with AI
+				{t.judge}
 			</label>
 
 			<fieldset className="space-y-2">
-				<legend className="mb-2">Provider</legend>
+				<legend className="mb-2">{t.provider}</legend>
 				<div className="flex w-fit flex-wrap rounded-md border border-control p-0.5">
 					{AI_PROVIDERS.map((p) => (
 						<button
@@ -128,7 +133,7 @@ export function AiSettingsForm({
 									: "rounded px-3 py-1 text-muted-foreground hover:text-ink"
 							}
 						>
-							{AI_PROVIDER_META[p].label}
+							{providerLabel(p)}
 						</button>
 					))}
 				</div>
@@ -136,7 +141,7 @@ export function AiSettingsForm({
 
 			{provider === "openai_compatible" && (
 				<div className="space-y-2">
-					<Label htmlFor="ai-base-url">Base URL</Label>
+					<Label htmlFor="ai-base-url">{t.baseUrl}</Label>
 					<Input
 						id="ai-base-url"
 						type="url"
@@ -146,19 +151,18 @@ export function AiSettingsForm({
 						placeholder="https://api.mistral.ai/v1"
 					/>
 					<p className="text-muted-foreground">
-						The address before{" "}
-						<span className="font-mono text-xs">/chat/completions</span>, e.g.
-						https://openrouter.ai/api/v1. Addresses on the server's own machine
-						or private network, like http://localhost:11434/v1 for Ollama, need{" "}
+						{t.baseUrlBefore}{" "}
+						<span className="font-mono text-xs">/chat/completions</span>
+						{t.baseUrlHelp}{" "}
 						<span className="font-mono text-xs">ALLOW_PRIVATE_URLS=true</span>{" "}
-						on the server.
+						{t.baseUrlAfter}
 					</p>
 				</div>
 			)}
 
 			<div className="grid gap-4 sm:grid-cols-2">
 				<div className="space-y-2">
-					<Label htmlFor="ai-model">Model</Label>
+					<Label htmlFor="ai-model">{t.model}</Label>
 					<Input
 						id="ai-model"
 						value={model}
@@ -170,33 +174,32 @@ export function AiSettingsForm({
 					/>
 				</div>
 				<div className="space-y-2">
-					<Label htmlFor="ai-key">API key</Label>
+					<Label htmlFor="ai-key">{t.apiKey}</Label>
 					<Input
 						id="ai-key"
 						type="password"
 						value={apiKey}
 						onChange={(e) => setApiKey(e.target.value)}
-						placeholder={savedKey ? `Saved: ••••${savedKey}` : "Paste the key"}
+						placeholder={savedKey ? t.savedKey(savedKey) : t.pasteKey}
 						autoComplete="off"
 						spellCheck={false}
 					/>
 				</div>
 			</div>
 			<p className="text-muted-foreground">
-				{meta.keyHelp} It is stored encrypted and never shown again.
-				{savedKey && " Leave the field empty to keep the saved key."}
+				{t.keyHelp[provider]} {t.storedEncrypted}
+				{savedKey && t.keepSavedKey}
 			</p>
 			{settings.keyUnreadable && provider === settings.provider && (
 				<p className="flex items-start gap-2 rounded-md bg-pill-warning px-3 py-2 text-pill-warning-ink">
 					<TriangleAlertIcon className="mt-0.5 size-4 flex-none" />
-					The saved key can no longer be read: the server secret changed. Paste
-					it again.
+					{t.keyUnreadable}
 				</p>
 			)}
 
 			<div className="flex flex-wrap items-center gap-2">
 				<Button type="submit" disabled={busy !== null}>
-					Save
+					{m.common.actions.save}
 				</Button>
 				<Button
 					type="button"
@@ -210,14 +213,14 @@ export function AiSettingsForm({
 						} catch (error) {
 							setTested({
 								ok: false,
-								error: error instanceof Error ? error.message : "Test failed",
+								error: error instanceof Error ? error.message : t.testFailed,
 							});
 						} finally {
 							setBusy(null);
 						}
 					}}
 				>
-					{busy === "test" ? "Testing…" : "Test"}
+					{busy === "test" ? t.testing : t.test}
 				</Button>
 				{settings.configured && (
 					<Button
@@ -230,18 +233,18 @@ export function AiSettingsForm({
 							try {
 								await removeAiSettingsFn({ data: { organizationId } });
 								setTested(null);
-								toast.success("AI settings and key removed");
+								toast.success(t.removed);
 								await router.invalidate();
 							} catch (error) {
 								toast.error(
-									error instanceof Error ? error.message : "Not removed",
+									error instanceof Error ? error.message : t.notRemoved,
 								);
 							} finally {
 								setBusy(null);
 							}
 						}}
 					>
-						Remove key
+						{t.removeKey}
 					</Button>
 				)}
 			</div>
@@ -256,7 +259,7 @@ export function AiSettingsForm({
 					{tested.ok ? (
 						<>
 							<CheckIcon className="mt-0.5 size-4 flex-none" />
-							{model || meta.defaultModel} answered.
+							{t.answered(model || meta.defaultModel)}
 						</>
 					) : (
 						<>
