@@ -1,6 +1,7 @@
-import { pluralizer } from "../../format";
+import { numberer, pluralizer } from "../../format";
 
 const p = pluralizer("en");
+const n = numberer("en");
 
 /** Triage, Feature requests, duplicate suggestions and the merge dialog. */
 export const triage = {
@@ -15,9 +16,9 @@ export const triage = {
 		`#${number} merged into #${original}`,
 	queueLabel: "Reports waiting for a decision",
 	nothingWaiting: "Nothing is waiting for a decision.",
-	withErrors: (count: string, total: string) =>
-		`${count} of ${total} came with console errors or failed requests.`,
-	newOldestFirst: (count: string) => `${count} new, oldest first.`,
+	withErrors: (count: number, total: string) =>
+		`${n(count)} of ${total} came with console errors or failed requests.`,
+	newOldestFirst: (count: number) => `${n(count)} new, oldest first.`,
 	emptyText:
 		"New reports from the widget land here. Your agent can sort them too, through MCP.",
 	installWidget: "Install the widget",
@@ -64,9 +65,9 @@ export const triage = {
 	},
 	requests: {
 		title: "Feature requests",
-		shippedCount: (count: string) => `${count} shipped.`,
-		summary: (people: number, ideas: string, leader: string, demand: string) =>
-			`${p(people, { one: "# request", other: "# requests" })} across ${ideas} ideas. Most asked: “${leader}” (${demand}).`,
+		shippedCount: (count: number) => `${n(count)} shipped.`,
+		summary: (people: number, ideas: number, leader: string, demand: string) =>
+			`${p(people, { one: "# request", other: "# requests" })} across ${p(ideas, { one: "# idea", other: "# ideas" })}. Most asked: “${leader}” (${demand}).`,
 		newRequest: "New request",
 		views: "Views",
 		mostRequested: "Most requested",

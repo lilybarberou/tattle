@@ -15,8 +15,15 @@ export const triage: typeof en = {
 	queueLabel: "Signalements en attente de décision",
 	nothingWaiting: "Rien n'attend de décision.",
 	withErrors: (count, total) =>
-		`${count} sur ${total} sont arrivés avec des erreurs de console ou des requêtes en échec.`,
-	newOldestFirst: (count) => `${count} nouveaux, les plus anciens d'abord.`,
+		p(count, {
+			one: `# sur ${total} est arrivé avec des erreurs de console ou des requêtes en échec.`,
+			other: `# sur ${total} sont arrivés avec des erreurs de console ou des requêtes en échec.`,
+		}),
+	newOldestFirst: (count) =>
+		p(count, {
+			one: "# nouveau, les plus anciens d'abord.",
+			other: "# nouveaux, les plus anciens d'abord.",
+		}),
 	emptyText:
 		"Les nouveaux signalements du widget arrivent ici. Votre agent peut aussi les trier, via MCP.",
 	installWidget: "Installer le widget",
@@ -63,9 +70,10 @@ export const triage: typeof en = {
 	},
 	requests: {
 		title: "Demandes",
-		shippedCount: (count) => `${count} disponibles.`,
+		shippedCount: (count) =>
+			p(count, { one: "# disponible.", other: "# disponibles." }),
 		summary: (people, ideas, leader, demand) =>
-			`${p(people, { one: "# demande", other: "# demandes" })} pour ${ideas} idées. La plus demandée : « ${leader} » (${demand}).`,
+			`${p(people, { one: "# demande", other: "# demandes" })} pour ${p(ideas, { one: "# idée", other: "# idées" })}. La plus demandée : « ${leader} » (${demand}).`,
 		newRequest: "Nouvelle demande",
 		views: "Vues",
 		mostRequested: "Les plus demandées",

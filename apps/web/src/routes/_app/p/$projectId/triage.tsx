@@ -334,8 +334,8 @@ function TriagePage() {
 						{issues.length === 0
 							? m.triage.nothingWaiting
 							: withErrors > 0
-								? m.triage.withErrors(number(withErrors), number(issues.length))
-								: m.triage.newOldestFirst(number(issues.length))}
+								? m.triage.withErrors(withErrors, number(issues.length))
+								: m.triage.newOldestFirst(issues.length)}
 					</p>
 				</header>
 				{issues.length === 0 ? (

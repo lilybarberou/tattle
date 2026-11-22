@@ -50,11 +50,11 @@ function RequestsPage() {
 				title={t.title}
 				description={
 					shipped
-						? t.shippedCount(number(requests.length))
+						? t.shippedCount(requests.length)
 						: leader
 							? t.summary(
 									people,
-									number(requests.length),
+									requests.length,
 									leader.title,
 									number(leader.demand),
 								)
