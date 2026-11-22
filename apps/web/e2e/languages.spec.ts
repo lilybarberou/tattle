@@ -87,3 +87,47 @@ test("public pages follow the visitor's browser language", async ({
 	await expect(page.getByRole("main")).toContainText("Demandes");
 	await context.close();
 });
+
+/** A published portal for the workspace's project; returns its address. */
+const publishPortal = async (projectId: string) => {
+	const slug = `lang-${projectId.slice(0, 8)}`;
+	await db().query(
+		"update project set portal_enabled = true, portal_slug = $2 where id = $1",
+		[projectId, slug],
+	);
+	return `/portal/${slug}`;
+};
+
+test("the sign-in page's language selector is remembered, also on the portal", async ({
+	freshPage,
+	workspace,
+}) => {
+	const path = await publishPortal(workspace.project.id);
+	const page = await freshPage();
+	await page.goto("/login");
+	const html = page.locator("html");
+	await expect(html).toHaveAttribute("lang", "en");
+	await page
+		.getByRole("navigation", { name: "Language" })
+		.getByRole("link", { name: "Français" })
+		.click();
+	await expect(html).toHaveAttribute("lang", "fr");
+	await expect(
+		page.getByRole("heading", { name: "Se connecter" }),
+	).toBeVisible();
+	// The address stays the same; the choice is kept for the next visits.
+	expect(new URL(page.url()).search).toBe("");
+	await page.reload();
+	await expect(html).toHaveAttribute("lang", "fr");
+	await page.goto(path);
+	await expect(html).toHaveAttribute("lang", "fr");
+
+	// On the portal, the selector links to the page's address in each language.
+	const english = page
+		.getByRole("navigation", { name: "Langue" })
+		.getByRole("link", { name: "English" });
+	await expect(english).toHaveAttribute("href", `${path}?lang=en`);
+	await english.click();
+	await expect(html).toHaveAttribute("lang", "en");
+	await expect(page).toHaveURL(`${APP_URL}${path}?lang=en`);
+});

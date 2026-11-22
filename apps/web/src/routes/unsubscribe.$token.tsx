@@ -2,6 +2,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { BrandMark } from "#/components/brand";
+import { LanguageSwitcher } from "#/components/language-switcher";
 import { Button } from "#/components/ui/button";
 import { useI18n } from "#/i18n/react";
 import { headMessages } from "#/i18n/route";
@@ -22,8 +23,7 @@ export const Route = createFileRoute("/unsubscribe/$token")({
 	head: ({ matches }) => ({
 		meta: [
 			{
-				title: headMessages(matches).publicPages.unsubscribe
-					.pageTitle,
+				title: headMessages(matches).publicPages.unsubscribe.pageTitle,
 			},
 			{ name: "robots", content: "noindex" },
 			{ name: "referrer", content: "no-referrer" },
@@ -45,7 +45,8 @@ function LinkBroken() {
 
 function Shell({ children }: { children: React.ReactNode }) {
 	return (
-		<main className="flex min-h-dvh items-center justify-center bg-ground px-4">
+		<main className="relative flex min-h-dvh items-center justify-center bg-ground px-4">
+			<LanguageSwitcher className="absolute top-4 right-4" />
 			<div className="w-full max-w-md space-y-3 rounded-2xl border bg-surface p-6">
 				<BrandMark className="size-5" />
 				{children}

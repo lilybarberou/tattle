@@ -8,6 +8,7 @@ import { useState } from "react";
 import * as z from "zod/mini";
 import { authErrorMessage } from "#/components/auth-shell";
 import { Brand } from "#/components/brand";
+import { LanguageSwitcher } from "#/components/language-switcher";
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
@@ -123,7 +124,8 @@ function LoginPage() {
 
 	if (wrongAccount) {
 		return (
-			<main className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-ground px-4 py-10">
+			<main className="relative flex min-h-dvh flex-col items-center justify-center gap-6 bg-ground px-4 py-10">
+				<LanguageSwitcher className="absolute top-4 right-4" />
 				<Brand className="text-base" />
 				<div className="w-full max-w-sm space-y-6 rounded-2xl border bg-surface p-7">
 					<div className="space-y-2">
@@ -156,7 +158,8 @@ function LoginPage() {
 	}
 
 	return (
-		<main className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-ground px-4 py-10">
+		<main className="relative flex min-h-dvh flex-col items-center justify-center gap-6 bg-ground px-4 py-10">
+			<LanguageSwitcher className="absolute top-4 right-4" />
 			<Brand className="text-base" />
 			<div className="w-full max-w-sm space-y-6 rounded-2xl border bg-surface p-7">
 				<div className="space-y-1">

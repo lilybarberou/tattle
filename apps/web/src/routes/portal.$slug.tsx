@@ -9,6 +9,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import * as z from "zod/mini";
 import { BrandMark } from "#/components/brand";
+import { LanguageSwitcher } from "#/components/language-switcher";
 import { Button } from "#/components/ui/button";
 import {
 	Dialog,
@@ -177,6 +178,10 @@ function PortalPage() {
 	return (
 		<div className="min-h-dvh bg-ground">
 			<main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+				{/* Links to this page in each language (`?lang=`), for people and search engines. */}
+				<div className="mb-2 flex justify-end">
+					<LanguageSwitcher address />
+				</div>
 				<header className="flex flex-wrap items-end justify-between gap-4">
 					<div>
 						<p className="flex items-center gap-2 font-medium text-muted-foreground">

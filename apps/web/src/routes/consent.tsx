@@ -53,6 +53,7 @@ function Consent() {
 
 	return (
 		<AuthShell
+			languages={false}
 			title={t.title(name)}
 			intro={
 				<>

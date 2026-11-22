@@ -3,6 +3,7 @@ import { SendIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { BrandMark } from "#/components/brand";
+import { LanguageSwitcher } from "#/components/language-switcher";
 import { RelativeTime } from "#/components/time";
 import { Button } from "#/components/ui/button";
 import { Textarea } from "#/components/ui/textarea";
@@ -66,7 +67,8 @@ function LinkBroken() {
 
 function Notice({ title, text }: { title: string; text: string }) {
 	return (
-		<main className="flex min-h-dvh items-center justify-center bg-ground px-4 text-center">
+		<main className="relative flex min-h-dvh items-center justify-center bg-ground px-4 text-center">
+			<LanguageSwitcher className="absolute top-4 right-4" />
 			<div className="max-w-md space-y-2">
 				<h1 className="text-xl font-semibold">{title}</h1>
 				<p className="text-muted-foreground">{text}</p>
@@ -114,10 +116,13 @@ function ThreadPage() {
 	return (
 		<div className="min-h-dvh bg-ground">
 			<main className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
-				<p className="flex items-center gap-2 font-medium text-muted-foreground">
-					<BrandMark className="size-4" />
-					{project}
-				</p>
+				<div className="flex items-center justify-between gap-4">
+					<p className="flex items-center gap-2 font-medium text-muted-foreground">
+						<BrandMark className="size-4" />
+						{project}
+					</p>
+					<LanguageSwitcher />
+				</div>
 				<div className="mt-2 flex flex-wrap items-center gap-3">
 					<h1 className="min-w-0 flex-1 text-[22px] leading-8 font-semibold tracking-[-0.01em] break-words">
 						{thread.title}
