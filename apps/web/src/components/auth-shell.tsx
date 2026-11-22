@@ -1,4 +1,22 @@
+import type { Messages } from "#/i18n";
 import { Brand } from "./brand";
+
+/**
+ * A Better Auth error in the reader's language: its code when we know it,
+ * else its own message (the server's hooks already write theirs in the
+ * reader's language), else the fallback.
+ */
+export const authErrorMessage = (
+	m: Messages,
+	error: { code?: string; message?: string; status?: number },
+	fallback: string,
+) => {
+	if (error.status === 429) return m.auth.tooManyAttempts;
+	const known = error.code
+		? (m.auth.errorCodes as Record<string, string>)[error.code]
+		: undefined;
+	return known ?? error.message ?? fallback;
+};
 
 /** The frame of the signed-out pages: the mark above one white card. */
 export function AuthShell({

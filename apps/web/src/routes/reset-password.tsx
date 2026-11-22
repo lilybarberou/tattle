@@ -2,10 +2,11 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import * as z from "zod/mini";
-import { AuthShell } from "#/components/auth-shell";
+import { AuthShell, authErrorMessage } from "#/components/auth-shell";
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
+import { useI18n } from "#/i18n/react";
 import { authClient } from "#/lib/auth-client";
 import { lenient } from "#/lib/search-params";
 import { getSignupStateFn } from "#/server/fns";
@@ -25,27 +26,26 @@ function ResetPassword() {
 	const { token, error: linkError } = Route.useSearch();
 	const { minPasswordLength } = Route.useLoaderData();
 	const navigate = useNavigate();
+	const { m } = useI18n();
+	const t = m.auth.reset;
 	const [error, setError] = useState<string | null>(null);
 	const [pending, setPending] = useState(false);
 
 	if (!token || linkError) {
 		return (
-			<AuthShell
-				title="This link no longer works"
-				intro="Reset links work once, for one hour. Ask for a new one."
-			>
+			<AuthShell title={t.expiredTitle} intro={t.expiredIntro}>
 				<Link
 					to="/forgot-password"
 					className="block text-center font-medium underline underline-offset-4"
 				>
-					Send a new link
+					{t.sendNew}
 				</Link>
 			</AuthShell>
 		);
 	}
 
 	return (
-		<AuthShell title="Choose a new password">
+		<AuthShell title={t.title}>
 			<form
 				className="space-y-4"
 				onSubmit={async (event) => {
@@ -53,7 +53,7 @@ function ResetPassword() {
 					const form = new FormData(event.currentTarget);
 					const password = String(form.get("password"));
 					if (password !== String(form.get("confirm"))) {
-						setError("The two passwords are different.");
+						setError(t.different);
 						return;
 					}
 					setPending(true);
@@ -64,15 +64,15 @@ function ResetPassword() {
 					});
 					setPending(false);
 					if (result.error) {
-						setError(result.error.message ?? "The password was not changed");
+						setError(authErrorMessage(m, result.error, t.notChanged));
 						return;
 					}
-					toast.success("Password changed. Sign in with the new one.");
+					toast.success(t.changed);
 					await navigate({ to: "/login" });
 				}}
 			>
 				<div className="space-y-1.5">
-					<Label htmlFor="password">New password</Label>
+					<Label htmlFor="password">{t.newPassword}</Label>
 					<Input
 						id="password"
 						name="password"
@@ -82,12 +82,11 @@ function ResetPassword() {
 						autoComplete="new-password"
 					/>
 					<p className="text-xs text-muted-foreground">
-						At least {minPasswordLength} characters. You'll be signed out
-						everywhere else.
+						{t.help(minPasswordLength)}
 					</p>
 				</div>
 				<div className="space-y-1.5">
-					<Label htmlFor="confirm">Repeat it</Label>
+					<Label htmlFor="confirm">{t.repeat}</Label>
 					<Input
 						id="confirm"
 						name="confirm"
@@ -99,7 +98,7 @@ function ResetPassword() {
 				</div>
 				{error && <p className="text-destructive">{error}</p>}
 				<Button type="submit" className="w-full" disabled={pending}>
-					Change password
+					{t.change}
 				</Button>
 			</form>
 		</AuthShell>

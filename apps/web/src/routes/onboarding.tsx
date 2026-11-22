@@ -1,9 +1,11 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { authErrorMessage } from "#/components/auth-shell";
 import { Brand } from "#/components/brand";
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
+import { useI18n } from "#/i18n/react";
 import { authClient } from "#/lib/auth-client";
 import { createProjectFn, getSessionFn, getWorkspaceFn } from "#/server/fns";
 
@@ -18,6 +20,8 @@ export const Route = createFileRoute("/onboarding")({
 function Onboarding() {
 	const workspace = Route.useLoaderData();
 	const navigate = useNavigate();
+	const { m } = useI18n();
+	const t = m.auth.onboarding;
 	const existingOrg = workspace.organizations[0];
 	const [error, setError] = useState<string | null>(null);
 	const [pending, setPending] = useState(false);
@@ -40,7 +44,9 @@ function Onboarding() {
 				const result = await authClient.organization.create({ name, slug });
 				if (result.error || !result.data)
 					throw new Error(
-						result.error?.message ?? "Could not create the organization",
+						result.error
+							? authErrorMessage(m, result.error, t.orgNotCreated)
+							: t.orgNotCreated,
 					);
 				organizationId = result.data.id;
 			}
@@ -52,7 +58,7 @@ function Onboarding() {
 				params: { projectId: created.id },
 			});
 		} catch (e) {
-			setError(e instanceof Error ? e.message : "Something went wrong");
+			setError(e instanceof Error ? e.message : m.common.errors.generic);
 			setPending(false);
 		}
 	};
@@ -65,30 +71,32 @@ function Onboarding() {
 				className="w-full max-w-sm rounded-2xl border bg-surface p-7 space-y-5"
 			>
 				<div className="space-y-1">
-					<h1 className="text-xl font-semibold">Create a project</h1>
-					<p className="text-muted-foreground">
-						A project receives the reports of one app. You get its widget
-						snippet right after.
-					</p>
+					<h1 className="text-xl font-semibold">{t.title}</h1>
+					<p className="text-muted-foreground">{t.intro}</p>
 				</div>
 				{!existingOrg && (
 					<div className="space-y-1.5">
-						<Label htmlFor="organization">Organization</Label>
+						<Label htmlFor="organization">{t.organization}</Label>
 						<Input
 							id="organization"
 							name="organization"
 							required
-							placeholder="Atelier Nord"
+							placeholder={t.organizationPlaceholder}
 						/>
 					</div>
 				)}
 				<div className="space-y-1.5">
-					<Label htmlFor="project">Project name</Label>
-					<Input id="project" name="project" required placeholder="My app" />
+					<Label htmlFor="project">{t.projectName}</Label>
+					<Input
+						id="project"
+						name="project"
+						required
+						placeholder={t.projectPlaceholder}
+					/>
 				</div>
 				{error && <p className="text-destructive">{error}</p>}
 				<Button type="submit" className="w-full" disabled={pending}>
-					Create project
+					{t.create}
 				</Button>
 			</form>
 		</main>
