@@ -157,7 +157,7 @@ export class Notifications extends Context.Service<
 		readonly describeUnsubscribe: (
 			token: string,
 		) => Effect.Effect<
-			| { kind: "team"; label: string }
+			| { kind: "team"; type: NotificationType }
 			| { kind: "report"; project: string; title: string }
 			| null,
 			DbError
@@ -733,10 +733,7 @@ export class Notifications extends Context.Service<
 				const target = readUnsubscribe(token);
 				if (!target) return null;
 				if (target.kind === "team")
-					return {
-						kind: "team" as const,
-						label: NOTIFICATION_META[target.type].label,
-					};
+					return { kind: "team" as const, type: target.type };
 				const [row] = yield* database.query((db) =>
 					db
 						.select({ message: report.message, project: project.name })

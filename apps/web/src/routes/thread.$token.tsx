@@ -6,21 +6,20 @@ import { BrandMark } from "#/components/brand";
 import { RelativeTime } from "#/components/time";
 import { Button } from "#/components/ui/button";
 import { Textarea } from "#/components/ui/textarea";
+import { useI18n } from "#/i18n/react";
+import { headMessages } from "#/i18n/route";
 import { cn } from "#/lib/utils";
 import {
 	getThreadLinkFn,
 	markThreadLinkReadFn,
 	replyThreadLinkFn,
 } from "#/server/fns";
-import {
-	MAX_MESSAGE_LENGTH,
-	REPORTER_STATUS_LABELS,
-	type ReporterStatus,
-} from "#/shared/issues";
+import { MAX_MESSAGE_LENGTH, type ReporterStatus } from "#/shared/issues";
 
 // The conversation about one report, opened from the link in a reply email.
 // No account: the signed, expiring token in the address is the access.
 export const Route = createFileRoute("/thread/$token")({
+	staticData: { visitorLocale: true },
 	loader: async ({ params }) => {
 		try {
 			return await getThreadLinkFn({ data: { token: params.token } });
@@ -28,24 +27,22 @@ export const Route = createFileRoute("/thread/$token")({
 			throw notFound();
 		}
 	},
-	head: ({ loaderData }) => ({
-		meta: [
-			{
-				title:
-					loaderData && !loaderData.expired
-						? `${loaderData.project} · Your report`
-						: "Your report",
-			},
-			{ name: "robots", content: "noindex" },
-			{ name: "referrer", content: "no-referrer" },
-		],
-	}),
-	notFoundComponent: () => (
-		<Notice
-			title="This link doesn't work"
-			text="It may be incomplete: open it again from the email, without changing it."
-		/>
-	),
+	head: ({ loaderData, matches }) => {
+		const t = headMessages(matches, "visitor").publicPages.thread;
+		return {
+			meta: [
+				{
+					title:
+						loaderData && !loaderData.expired
+							? t.pageTitle(loaderData.project)
+							: t.title,
+				},
+				{ name: "robots", content: "noindex" },
+				{ name: "referrer", content: "no-referrer" },
+			],
+		};
+	},
+	notFoundComponent: LinkBroken,
 	component: ThreadPage,
 });
 
@@ -56,6 +53,16 @@ const STATUS_CLASS: Record<ReporterStatus, string> = {
 	fixed: "bg-pill-positive text-pill-positive-ink",
 	wont_fix: "bg-pill-neutral text-pill-neutral-ink",
 };
+
+function LinkBroken() {
+	const { m } = useI18n();
+	return (
+		<Notice
+			title={m.publicPages.linkBroken}
+			text={m.publicPages.linkBrokenHelp}
+		/>
+	);
+}
 
 function Notice({ title, text }: { title: string; text: string }) {
 	return (
@@ -75,6 +82,8 @@ function ThreadPage() {
 	const [body, setBody] = useState("");
 	const [sending, setSending] = useState(false);
 	const expired = data.expired;
+	const { m } = useI18n();
+	const t = m.publicPages.thread;
 
 	// Opening the page reads the team's messages.
 	useEffect(() => {
@@ -82,13 +91,7 @@ function ThreadPage() {
 			void markThreadLinkReadFn({ data: { token } }).catch(() => undefined);
 	}, [expired, token]);
 
-	if (data.expired)
-		return (
-			<Notice
-				title="This link has expired"
-				text="Links in our emails work for 30 days. The next reply from the team brings a new one, and the app's feedback button shows your reports too."
-			/>
-		);
+	if (data.expired) return <Notice title={t.expired} text={t.expiredHelp} />;
 	const { project, thread } = data;
 
 	const send = async () => {
@@ -97,10 +100,12 @@ function ThreadPage() {
 		try {
 			await replyThreadLinkFn({ data: { token, body } });
 			setBody("");
-			toast.success("Sent. The team will read it.");
+			toast.success(t.sent);
 			await router.invalidate();
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Not sent");
+			toast.error(
+				error instanceof Error ? error.message : m.common.errors.notSent,
+			);
 		} finally {
 			setSending(false);
 		}
@@ -123,11 +128,11 @@ function ThreadPage() {
 							STATUS_CLASS[thread.status],
 						)}
 					>
-						{REPORTER_STATUS_LABELS[thread.status]}
+						{m.common.reporterStatus[thread.status]}
 					</span>
 				</div>
 				<p className="mt-1 text-muted-foreground">
-					{thread.type === "bug" ? "Bug report" : "Idea"} sent{" "}
+					{thread.type === "bug" ? t.bugSent : t.ideaSent}{" "}
 					<RelativeTime iso={thread.createdAt} />
 				</p>
 
@@ -135,7 +140,7 @@ function ThreadPage() {
 					<ol className="space-y-3">
 						<li className="ml-auto max-w-[85%] rounded-lg bg-raised px-3 py-2">
 							<p className="text-xs text-muted-foreground">
-								<span className="font-medium text-ink">You</span> ·{" "}
+								<span className="font-medium text-ink">{t.you}</span> ·{" "}
 								<RelativeTime iso={thread.createdAt} />
 							</p>
 							<p className="mt-0.5 break-words whitespace-pre-wrap">
@@ -155,7 +160,7 @@ function ThreadPage() {
 								<p className="text-xs text-muted-foreground">
 									<span className="font-medium text-ink">
 										{message.from === "reporter"
-											? "You"
+											? t.you
 											: (message.name ?? project)}
 									</span>{" "}
 									· <RelativeTime iso={message.createdAt} />
@@ -175,7 +180,7 @@ function ThreadPage() {
 						}}
 					>
 						<label htmlFor="reply" className="sr-only">
-							Your reply
+							{t.yourReply}
 						</label>
 						<Textarea
 							id="reply"
@@ -183,17 +188,16 @@ function ThreadPage() {
 							onChange={(e) => setBody(e.target.value)}
 							rows={4}
 							maxLength={MAX_MESSAGE_LENGTH}
-							placeholder="Write to the team…"
+							placeholder={t.placeholder}
 						/>
 						<Button type="submit" disabled={!body.trim() || sending}>
 							<SendIcon className="size-4" />
-							Send
+							{t.send}
 						</Button>
 					</form>
 				</section>
 				<p className="mt-6 text-center text-xs text-muted-foreground">
-					Anyone with this link can read this conversation and reply. It works
-					for 30 days.
+					{t.footer}
 				</p>
 			</main>
 		</div>

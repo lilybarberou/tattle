@@ -20,6 +20,8 @@ import {
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { Textarea } from "#/components/ui/textarea";
+import { useI18n } from "#/i18n/react";
+import { headMessages } from "#/i18n/route";
 import { lenient } from "#/lib/search-params";
 import { cn } from "#/lib/utils";
 import {
@@ -35,6 +37,7 @@ import type { PortalRequest } from "#/server/Portal";
 // idea ships.
 export const Route = createFileRoute("/portal/$slug")({
 	validateSearch: z.object({ shipped: lenient(z.boolean()) }),
+	staticData: { visitorLocale: true },
 	loader: async ({ params }) => {
 		try {
 			return await getPortalFn({ data: { slug: params.slug } });
@@ -42,46 +45,42 @@ export const Route = createFileRoute("/portal/$slug")({
 			throw notFound();
 		}
 	},
-	head: ({ loaderData }) => ({
-		meta: [
-			{
-				title: loaderData
-					? `${loaderData.project.name} · Feature requests`
-					: "Feature requests",
-			},
-		],
-	}),
-	notFoundComponent: () => (
-		<main className="flex min-h-dvh items-center justify-center bg-ground px-4 text-center">
-			<div className="space-y-2">
-				<h1 className="text-xl font-semibold">This page isn't published</h1>
-				<p className="text-muted-foreground">
-					The address may be wrong, or the team turned this page off.
-				</p>
-			</div>
-		</main>
-	),
+	head: ({ loaderData, matches }) => {
+		const t = headMessages(matches, "visitor").publicPages.portal;
+		return {
+			meta: [
+				{
+					title: loaderData ? t.pageTitle(loaderData.project.name) : t.title,
+				},
+			],
+		};
+	},
+	notFoundComponent: NotPublished,
 	component: PortalPage,
 });
 
-const STATUS: Record<
-	PortalRequest["status"],
-	{ label: string; className: string }
-> = {
-	backlog: {
-		label: "Considering",
-		className: "bg-pill-neutral text-pill-neutral-ink",
-	},
-	todo: {
-		label: "Planned",
-		className: "bg-pill-neutral text-pill-neutral-ink",
-	},
-	in_progress: { label: "In progress", className: "bg-brand-soft text-brand" },
-	in_review: { label: "In progress", className: "bg-brand-soft text-brand" },
-	done: {
-		label: "Shipped",
-		className: "bg-pill-positive text-pill-positive-ink",
-	},
+function NotPublished() {
+	const { m } = useI18n();
+	return (
+		<main className="flex min-h-dvh items-center justify-center bg-ground px-4 text-center">
+			<div className="space-y-2">
+				<h1 className="text-xl font-semibold">
+					{m.publicPages.portal.notPublished}
+				</h1>
+				<p className="text-muted-foreground">
+					{m.publicPages.portal.notPublishedHelp}
+				</p>
+			</div>
+		</main>
+	);
+}
+
+const STATUS_CLASS: Record<PortalRequest["status"], string> = {
+	backlog: "bg-pill-neutral text-pill-neutral-ink",
+	todo: "bg-pill-neutral text-pill-neutral-ink",
+	in_progress: "bg-brand-soft text-brand",
+	in_review: "bg-brand-soft text-brand",
+	done: "bg-pill-positive text-pill-positive-ink",
 };
 
 function RequestRow({
@@ -97,6 +96,8 @@ function RequestRow({
 	const [demand, setDemand] = useState(request.demand);
 	const [pending, setPending] = useState(false);
 	const shipped = request.status === "done";
+	const { m } = useI18n();
+	const t = m.publicPages.portal;
 
 	const vote = async () => {
 		setPending(true);
@@ -113,9 +114,7 @@ function RequestRow({
 		} catch (error) {
 			setVoted(voted);
 			setDemand(demand);
-			toast.error(
-				error instanceof Error ? error.message : "Your vote wasn't saved",
-			);
+			toast.error(error instanceof Error ? error.message : t.voteNotSaved);
 		} finally {
 			setPending(false);
 		}
@@ -139,9 +138,9 @@ function RequestRow({
 				<ChevronUpIcon className="size-4" aria-hidden />
 				{/* The name includes the visible count, so "click 13" works too.
 				    It stays the same when voted: aria-pressed tells that. */}
-				<span className="sr-only">Vote, </span>
+				<span className="sr-only">{t.voteLabel}</span>
 				<span className="num font-semibold">{demand}</span>
-				<span className="sr-only">{demand === 1 ? " vote" : " votes"}</span>
+				<span className="sr-only">{t.votes(demand)}</span>
 			</button>
 			<div className="min-w-0 flex-1">
 				<p className="font-medium text-pretty">{request.title}</p>
@@ -149,10 +148,10 @@ function RequestRow({
 			<span
 				className={cn(
 					"inline-flex h-6 flex-none items-center rounded-full px-2.5 text-xs font-medium",
-					STATUS[request.status].className,
+					STATUS_CLASS[request.status],
 				)}
 			>
-				{STATUS[request.status].label}
+				{t.status[request.status]}
 			</span>
 		</li>
 	);
@@ -167,6 +166,8 @@ function PortalPage() {
 	const [justVoted, setJustVoted] = useState<number | null>(null);
 	const [notifyEmail, setNotifyEmail] = useState("");
 	const [sending, setSending] = useState(false);
+	const { m } = useI18n();
+	const t = m.publicPages.portal;
 
 	const open = requests.filter((r) => r.status !== "done");
 	const done = requests.filter((r) => r.status === "done");
@@ -183,24 +184,21 @@ function PortalPage() {
 							{project.name}
 						</p>
 						<h1 className="mt-2 text-[28px] leading-9 font-semibold tracking-[-0.01em]">
-							Feature requests
+							{t.title}
 						</h1>
-						<p className="mt-1 text-muted-foreground">
-							Vote for what you want next, or suggest something new. We read
-							every idea.
-						</p>
+						<p className="mt-1 text-muted-foreground">{t.intro}</p>
 					</div>
 					<Button onClick={() => setSuggesting(true)}>
 						<PlusIcon className="size-4" />
-						Suggest an idea
+						{t.suggest}
 					</Button>
 				</header>
 
 				<section className="mt-8 rounded-2xl border bg-surface px-5 pt-2 pb-3 sm:px-6">
-					<nav aria-label="Views" className="flex gap-5 border-b">
+					<nav aria-label={t.views} className="flex gap-5 border-b">
 						{[
-							{ label: "Open", count: open.length, value: undefined },
-							{ label: "Shipped", count: done.length, value: true },
+							{ label: t.open, count: open.length, value: undefined },
+							{ label: t.shipped, count: done.length, value: true },
 						].map((tab) => (
 							<Link
 								key={tab.label}
@@ -233,11 +231,13 @@ function PortalPage() {
 											email: notifyEmail,
 										},
 									});
-									toast.success("We'll email you when it ships");
+									toast.success(t.emailWhenShips);
 									setJustVoted(null);
 								} catch (error) {
 									toast.error(
-										error instanceof Error ? error.message : "Not saved",
+										error instanceof Error
+											? error.message
+											: m.common.errors.notSaved,
 									);
 								} finally {
 									setSending(false);
@@ -245,7 +245,7 @@ function PortalPage() {
 							}}
 						>
 							<label htmlFor="notify-email" className="min-w-0 flex-1 basis-56">
-								Get an email when “{votedRequest.title}” ships?
+								{t.notifyQuestion(votedRequest.title)}
 							</label>
 							<Input
 								id="notify-email"
@@ -253,27 +253,25 @@ function PortalPage() {
 								required
 								value={notifyEmail}
 								onChange={(e) => setNotifyEmail(e.target.value)}
-								placeholder="you@company.com"
+								placeholder={t.emailPlaceholder}
 								className="w-56 bg-surface"
 							/>
 							<Button type="submit" variant="outline" disabled={sending}>
-								Notify me
+								{t.notifyMe}
 							</Button>
 							<Button
 								type="button"
 								variant="ghost"
 								onClick={() => setJustVoted(null)}
 							>
-								No thanks
+								{t.noThanks}
 							</Button>
 						</form>
 					)}
 
 					{shown.length === 0 ? (
 						<p className="py-10 text-center text-muted-foreground">
-							{shipped
-								? "Nothing shipped from this list yet."
-								: "No ideas yet. Be the first to suggest one."}
+							{shipped ? t.nothingShipped : t.noIdeas}
 						</p>
 					) : (
 						<ul className="divide-y divide-rule">
@@ -291,8 +289,7 @@ function PortalPage() {
 					)}
 				</section>
 				<p className="mt-6 text-center text-xs text-muted-foreground">
-					Your votes are remembered in this browser. We only use your email to
-					tell you when an idea ships.
+					{t.privacy}
 				</p>
 			</main>
 
@@ -314,11 +311,13 @@ function PortalPage() {
 									},
 								});
 								setSuggesting(false);
-								toast.success("Thanks! The team will review your idea.");
+								toast.success(t.thanks);
 								await router.invalidate();
 							} catch (error) {
 								toast.error(
-									error instanceof Error ? error.message : "Not sent",
+									error instanceof Error
+										? error.message
+										: m.common.errors.notSent,
 								);
 							} finally {
 								setSending(false);
@@ -326,13 +325,11 @@ function PortalPage() {
 						}}
 					>
 						<DialogHeader>
-							<DialogTitle>Suggest an idea</DialogTitle>
-							<DialogDescription>
-								The team reviews new ideas before they appear on this page.
-							</DialogDescription>
+							<DialogTitle>{t.suggest}</DialogTitle>
+							<DialogDescription>{t.suggestIntro}</DialogDescription>
 						</DialogHeader>
 						<div className="space-y-2">
-							<Label htmlFor="idea-title">Your idea in one line</Label>
+							<Label htmlFor="idea-title">{t.ideaTitle}</Label>
 							<Input
 								id="idea-title"
 								name="title"
@@ -342,9 +339,7 @@ function PortalPage() {
 							/>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="idea-description">
-								What would it help you do?
-							</Label>
+							<Label htmlFor="idea-description">{t.ideaDescription}</Label>
 							<Textarea
 								id="idea-description"
 								name="description"
@@ -353,16 +348,16 @@ function PortalPage() {
 							/>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor="idea-email">Email (optional)</Label>
+							<Label htmlFor="idea-email">{t.ideaEmail}</Label>
 							<Input
 								id="idea-email"
 								name="email"
 								type="email"
-								placeholder="To hear when it ships"
+								placeholder={t.ideaEmailPlaceholder}
 							/>
 						</div>
 						<Button type="submit" className="w-full" disabled={sending}>
-							Send the idea
+							{t.send}
 						</Button>
 					</form>
 				</DialogContent>
