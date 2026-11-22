@@ -3,9 +3,14 @@ import {
 	createRootRouteWithContext,
 	HeadContent,
 	Scripts,
+	useMatches,
 } from "@tanstack/react-router";
 import { Toaster } from "#/components/ui/sonner";
 import { TooltipProvider } from "#/components/ui/tooltip";
+import { DEFAULT_LOCALE, messages } from "#/i18n";
+import { I18nProvider } from "#/i18n/react";
+import "#/i18n/route";
+import { getLocaleFn } from "#/server/fns";
 import appCss from "../styles.css?url";
 
 interface RouterContext {
@@ -13,15 +18,19 @@ interface RouterContext {
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({
-	head: () => ({
+	// The page's language: the signed-in person's choice, else the browser's
+	// Accept-Language. Loaded once; changing the choice invalidates the router.
+	loader: () => getLocaleFn(),
+	staleTime: Number.POSITIVE_INFINITY,
+	preloadStaleTime: Number.POSITIVE_INFINITY,
+	head: ({ loaderData }) => ({
 		meta: [
 			{ charSet: "utf-8" },
 			{ name: "viewport", content: "width=device-width, initial-scale=1" },
 			{ title: "Tattle" },
 			{
 				name: "description",
-				content:
-					"Bug reports and feature requests from your users, triaged by your agents.",
+				content: messages(loaderData?.locale ?? DEFAULT_LOCALE).common.tagline,
 			},
 		],
 		links: [
@@ -36,8 +45,14 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+	const languages = Route.useLoaderData();
+	const visitorPage = useMatches({
+		select: (matches) => matches.some((m) => m.staticData?.visitorLocale),
+	});
+	const locale =
+		(visitorPage ? languages?.visitor : languages?.locale) ?? DEFAULT_LOCALE;
 	return (
-		<html lang="en">
+		<html lang={locale}>
 			<head>
 				<HeadContent />
 				{/* Tints the browser chrome to match the app frame (--ground). Written
@@ -54,7 +69,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 				/>
 			</head>
 			<body>
-				<TooltipProvider>{children}</TooltipProvider>
+				<I18nProvider locale={locale}>
+					<TooltipProvider>{children}</TooltipProvider>
+				</I18nProvider>
 				<Toaster />
 				<Scripts />
 			</body>

@@ -1,4 +1,5 @@
 import { Cause, Effect, Exit, Layer, ManagedRuntime } from "effect";
+import { DEFAULT_LOCALE, type Locale } from "#/i18n/locales";
 import { HttpError } from "#/shared/http-error";
 import { Access } from "./Access";
 import { AiSettings } from "./AiSettings";
@@ -7,7 +8,7 @@ import { Conversations } from "./Conversations";
 import { Database } from "./Database";
 import { DataLifecycle } from "./DataLifecycle";
 import { Duplicates } from "./Duplicates";
-import { type AppError, httpStatus, publicMessage } from "./errors";
+import { type AppError, errorText, httpStatus, publicMessage } from "./errors";
 import { GitHub } from "./GitHub";
 import { Ingest } from "./Ingest";
 import { Issues } from "./Issues";
@@ -78,10 +79,19 @@ const isAppError = (error: unknown): error is AppError =>
 		"InvalidInput",
 	].includes((error as { _tag: string })._tag);
 
-/** Runs a program; typed failures become `HttpError`, defects are logged and hidden. */
+/**
+ * Runs a program; typed failures become `HttpError`, defects are logged and
+ * hidden. `locale` gives the reader's language for the error's message (the
+ * dashboard and public pages); without it, errors are in English (the API).
+ */
 export const run = async <A>(
 	program: Effect.Effect<A, AppError, Services>,
+	options?: { locale?: () => Locale | Promise<Locale> },
 ): Promise<A> => {
+	const locale = async () =>
+		(await Promise.resolve()
+			.then(() => options?.locale?.())
+			.catch(() => undefined)) ?? DEFAULT_LOCALE;
 	const exit = await runtime.runPromiseExit(program);
 	if (Exit.isSuccess(exit)) return exit.value;
 	const failure = Cause.findErrorOption(exit.cause);
@@ -98,11 +108,11 @@ export const run = async <A>(
 		}
 		throw new HttpError(
 			httpStatus(failure.value),
-			publicMessage(failure.value),
+			publicMessage(failure.value, await locale()),
 		);
 	}
 	await runtime.runPromise(Effect.logError(Cause.pretty(exit.cause)));
-	throw new HttpError(500, "Internal server error");
+	throw new HttpError(500, errorText(await locale(), "internal"));
 };
 
 /** Same as `run`, but returns a JSON Response for API routes. */

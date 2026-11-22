@@ -19,6 +19,7 @@ import {
 	webhookDelivery,
 	webhookEndpoint,
 } from "#/db/schema";
+import { LOCALE_PREFERENCES } from "#/i18n/locales";
 import { auth } from "#/lib/auth";
 import { passwordPolicy } from "#/lib/password-policy";
 import {
@@ -53,18 +54,20 @@ import {
 	type DbError,
 	Forbidden,
 	InvalidInput,
+	localized,
 	NotFound,
 	violatedConstraint,
 } from "./errors";
 import { GitHub } from "./GitHub";
 import { Issues } from "./Issues";
+import { requestLocale, visitorLocale } from "./locale";
 import { mailEnabled, sendMail } from "./mailer";
 import { Notifications } from "./Notifications";
 import { Overview } from "./Overview";
 import { Portal } from "./Portal";
 import { clientIp, limitPortal, limitReporter } from "./rate-limit";
 import { generateIdentitySecret } from "./reporter-identity";
-import { run } from "./runtime";
+import { run as runProgram } from "./runtime";
 import { Webhooks } from "./Webhooks";
 
 // Helpers are functions (not top-level values) so the client bundle, where
@@ -139,6 +142,21 @@ const resolveAssignee = (
 		return { type: "agent" as const, id: row.id, name: row.name };
 	});
 
+/** Dashboard server functions: errors in the signed-in person's language. */
+const run: typeof runProgram = (program, options) =>
+	runProgram(program, {
+		locale: () =>
+			requestLocale(getRequest().headers).then((languages) => languages.locale),
+		...options,
+	});
+
+/** Public pages (portal, thread, unsubscribe): errors in the visitor's language. */
+const runPublic: typeof runProgram = (program, options) =>
+	runProgram(program, {
+		locale: () => visitorLocale(getRequest().headers),
+		...options,
+	});
+
 // ---------- Session & workspace ----------
 
 export const getSessionFn = createServerFn({ method: "GET" }).handler(
@@ -157,6 +175,34 @@ export const getSessionFn = createServerFn({ method: "GET" }).handler(
 			: null;
 	},
 );
+
+/** The languages of this request: the dashboard's, and a visitor's for public pages. */
+export const getLocaleFn = createServerFn({ method: "GET" }).handler(() =>
+	requestLocale(getRequest().headers),
+);
+
+/** Sets the signed-in person's dashboard language ("auto": their browser's). */
+export const setLocalePreferenceFn = createServerFn({ method: "POST" })
+	.validator(z.object({ preference: z.enum(LOCALE_PREFERENCES) }))
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				const p = yield* principal();
+				if (p.kind !== "user")
+					return yield* new Forbidden(localized("onlyPeopleHaveSettings"));
+				const database = yield* Database;
+				yield* database.query((db) =>
+					db
+						.update(user)
+						.set({
+							locale: data.preference === "auto" ? null : data.preference,
+						})
+						.where(eq(user.id, p.userId)),
+				);
+				return { ok: true };
+			}),
+		),
+	);
 
 /**
  * An invited person joins the organization from the link they were sent,
@@ -1421,13 +1467,13 @@ const portalLimit = () => {
 export const getPortalFn = createServerFn({ method: "GET" })
 	.validator(z.object({ slug: z.string() }))
 	.handler(({ data }) =>
-		run(Portal.use((portal) => portal.get(data.slug, voterKey(false)))),
+		runPublic(Portal.use((portal) => portal.get(data.slug, voterKey(false)))),
 	);
 
 export const portalVoteFn = createServerFn({ method: "POST" })
 	.validator(z.object({ slug: z.string(), number: z.number().int() }))
 	.handler(({ data }) =>
-		run(
+		runPublic(
 			Effect.gen(function* () {
 				yield* portalLimit();
 				const portal = yield* Portal;
@@ -1449,7 +1495,7 @@ export const portalNotifyFn = createServerFn({ method: "POST" })
 		}),
 	)
 	.handler(({ data }) =>
-		run(
+		runPublic(
 			Effect.gen(function* () {
 				yield* portalLimit();
 				const key = voterKey(false);
@@ -1471,7 +1517,7 @@ export const portalSuggestFn = createServerFn({ method: "POST" })
 		}),
 	)
 	.handler(({ data }) =>
-		run(
+		runPublic(
 			Effect.gen(function* () {
 				yield* portalLimit();
 				const portal = yield* Portal;
@@ -1506,7 +1552,7 @@ const tokenSchema = z.string().max(300);
 export const getThreadLinkFn = createServerFn({ method: "GET" })
 	.validator(z.object({ token: tokenSchema }))
 	.handler(({ data }) =>
-		run(
+		runPublic(
 			Effect.gen(function* () {
 				yield* reporterLimit(false);
 				const conversations = yield* Conversations;
@@ -1518,7 +1564,7 @@ export const getThreadLinkFn = createServerFn({ method: "GET" })
 export const markThreadLinkReadFn = createServerFn({ method: "POST" })
 	.validator(z.object({ token: tokenSchema }))
 	.handler(({ data }) =>
-		run(
+		runPublic(
 			Effect.gen(function* () {
 				yield* reporterLimit(false);
 				const conversations = yield* Conversations;
@@ -1533,7 +1579,7 @@ export const replyThreadLinkFn = createServerFn({ method: "POST" })
 		z.object({ token: tokenSchema, body: z.string().min(1).max(5000) }),
 	)
 	.handler(({ data }) =>
-		run(
+		runPublic(
 			Effect.gen(function* () {
 				yield* reporterLimit(true);
 				const conversations = yield* Conversations;
@@ -1587,7 +1633,7 @@ export const updateNotificationSettingFn = createServerFn({ method: "POST" })
 export const getUnsubscribeFn = createServerFn({ method: "GET" })
 	.validator(z.object({ token: tokenSchema }))
 	.handler(({ data }) =>
-		run(
+		runPublic(
 			Effect.gen(function* () {
 				yield* reporterLimit(false);
 				const found = yield* (yield* Notifications).describeUnsubscribe(
@@ -1602,7 +1648,7 @@ export const getUnsubscribeFn = createServerFn({ method: "GET" })
 export const unsubscribeFn = createServerFn({ method: "POST" })
 	.validator(z.object({ token: tokenSchema }))
 	.handler(({ data }) =>
-		run(
+		runPublic(
 			Effect.gen(function* () {
 				yield* reporterLimit(true);
 				const done = yield* (yield* Notifications).unsubscribe(data.token);
