@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "#/db";
 import {
+	project as projectTable,
 	report as reportTable,
 	webhookDelivery,
 	webhookEndpoint,
@@ -207,6 +208,41 @@ describe("chat endpoints", () => {
 });
 
 describe("ping", () => {
+	it("sends Discord and Slack a chat message in the project's language", async () => {
+		receiver = await startReceiver(204);
+		const { project: p } = await createWorkspace();
+		await db
+			.update(projectTable)
+			.set({ chatLocale: "fr" })
+			.where(eq(projectTable.id, p.id));
+		const discord = await createWebhookEndpoint(p.id, receiver.url, {
+			format: "discord",
+		});
+		const slack = await createWebhookEndpoint(p.id, receiver.url, {
+			format: "slack",
+		});
+		expect(await run(Webhooks.use((w) => w.ping(p.id, discord.id)))).toEqual({
+			ok: true,
+			status: 204,
+		});
+		expect(await run(Webhooks.use((w) => w.ping(p.id, slack.id)))).toEqual({
+			ok: true,
+			status: 204,
+		});
+		const [toDiscord, toSlack] = receiver.requests.map((r) =>
+			JSON.parse(r.body),
+		);
+		expect(toDiscord.allowed_mentions).toEqual({ parse: [] });
+		expect(toDiscord.embeds[0]).toMatchObject({
+			title: `✅ ${p.name} · Tattle est connecté`,
+			url: `http://localhost:3000/p/${p.id}/settings`,
+		});
+		expect(toSlack.text).toContain(`|✅ ${p.name} · Tattle est connecté>`);
+		expect(
+			receiver.requests.every((r) => !r.headers["x-tattle-signature"]),
+		).toBe(true);
+	});
+
 	it("reports the endpoint's answer", async () => {
 		receiver = await startReceiver();
 		const { project: p } = await createWorkspace();
