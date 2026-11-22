@@ -12,8 +12,10 @@ export const overview: typeof en = {
 			`${p(count, { one: "# signalement", other: "# signalements" })} ces 30 derniers jours`,
 		end: ".",
 		same: ", autant que les 30 jours précédents.",
-		up: (previous) => `, contre ${n(previous)} auparavant.`,
-		down: (previous) => `, contre ${n(previous)} auparavant.`,
+		up: (previous) =>
+			`, en hausse par rapport aux ${n(previous)} des 30 jours précédents.`,
+		down: (previous) =>
+			`, en baisse par rapport aux ${n(previous)} des 30 jours précédents.`,
 		triageClear: "Le Triage est vide.",
 		waiting: (count) =>
 			`${p(count, { one: "# ticket attend", other: "# tickets attendent" })} dans le Triage.`,
