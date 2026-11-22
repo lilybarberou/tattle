@@ -36,6 +36,8 @@ import {
 } from "#/components/report-evidence";
 import { ShortTime } from "#/components/time";
 import { Button } from "#/components/ui/button";
+import type { Messages } from "#/i18n";
+import { useI18n } from "#/i18n/react";
 import { lenient } from "#/lib/search-params";
 import { cn } from "#/lib/utils";
 import {
@@ -93,9 +95,9 @@ const isTyping = (target: EventTarget | null) =>
 const OVERLAY =
 	"[role=dialog], [role=alertdialog], [role=menu], [role=listbox]";
 
-function reporterName(item: IssueListItem) {
+function reporterName(item: IssueListItem, m: Messages) {
 	const r = item.lastReport?.reporter;
-	return r?.name || r?.email || "Anonymous";
+	return r?.name || r?.email || m.triage.anonymous;
 }
 
 function InboxRow({
@@ -109,12 +111,13 @@ function InboxRow({
 	projectId: string;
 	onPick: () => void;
 }) {
+	const { m, number } = useI18n();
 	const report = item.lastReport;
 	const signals = [
-		report?.consoleErrors
-			? `${report.consoleErrors} ${report.consoleErrors === 1 ? "error" : "errors"}`
+		report?.consoleErrors ? m.triage.errors(report.consoleErrors) : null,
+		report?.failedRequests
+			? m.triage.failed(number(report.failedRequests))
 			: null,
-		report?.failedRequests ? `${report.failedRequests} failed` : null,
 	].filter(Boolean);
 	return (
 		<li>
@@ -137,12 +140,12 @@ function InboxRow({
 					/>
 				)}
 				<Face
-					name={reporterName(item)}
+					name={reporterName(item, m)}
 					id={report?.reporter?.id ?? report?.reporter?.email}
 					size={20}
 					className="row-span-2 mt-0.5"
 				/>
-				<span className="truncate font-semibold">{reporterName(item)}</span>
+				<span className="truncate font-semibold">{reporterName(item, m)}</span>
 				<span className="num text-xs text-muted-foreground">
 					<ShortTime iso={item.createdAt} />
 				</span>
@@ -150,7 +153,10 @@ function InboxRow({
 				<span className="flex items-center gap-1.5 text-muted-foreground">
 					{item.awaitingReply && <AwaitingReply />}
 					{report?.hasScreenshot && (
-						<ImageIcon className="size-3.5" aria-label="Has a screenshot" />
+						<ImageIcon
+							className="size-3.5"
+							aria-label={m.triage.hasScreenshot}
+						/>
 					)}
 					<TypeIcon type={item.type} />
 				</span>
@@ -165,6 +171,7 @@ function InboxRow({
 }
 
 function TriagePage() {
+	const { m, number } = useI18n();
 	const { issues, detail, recent } = Route.useLoaderData();
 	const { projectId } = Route.useParams();
 	const { projects } = appRoute.useLoaderData();
@@ -205,34 +212,34 @@ function TriagePage() {
 				await router.invalidate();
 			} catch (error) {
 				toast.error(
-					error instanceof Error ? error.message : "Something went wrong",
+					error instanceof Error ? error.message : m.common.errors.generic,
 				);
 			} finally {
 				setBusy(false);
 			}
 		},
-		[busy, index, issues, router, select, selected],
+		[busy, index, issues, router, select, selected, m],
 	);
 
 	const accept = useCallback(
 		() =>
 			selected &&
-			decide(`#${selected.number} accepted into Backlog`, () =>
+			decide(m.triage.accepted(selected.number), () =>
 				updateIssueFn({
 					data: { projectId, number: selected.number, status: "backlog" },
 				}),
 			),
-		[decide, projectId, selected],
+		[decide, projectId, selected, m],
 	);
 	const decline = useCallback(
 		() =>
 			selected &&
-			decide(`#${selected.number} declined`, () =>
+			decide(m.triage.declined(selected.number), () =>
 				updateIssueFn({
 					data: { projectId, number: selected.number, status: "canceled" },
 				}),
 			),
-		[decide, projectId, selected],
+		[decide, projectId, selected, m],
 	);
 
 	// "Not a duplicate" keeps the report in the queue: only the hint goes away.
@@ -246,12 +253,12 @@ function TriagePage() {
 			await router.invalidate();
 		} catch (error) {
 			toast.error(
-				error instanceof Error ? error.message : "Something went wrong",
+				error instanceof Error ? error.message : m.common.errors.generic,
 			);
 		} finally {
 			setBusy(false);
 		}
-	}, [busy, projectId, router, selected]);
+	}, [busy, projectId, router, selected, m]);
 
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
@@ -310,7 +317,7 @@ function TriagePage() {
 		<div className="grid h-full min-h-[calc(100dvh-48px)] md:min-h-0 lg:grid-cols-[minmax(300px,384px)_minmax(0,1fr)]">
 			{/* Queue */}
 			<section
-				aria-label="Reports waiting for a decision"
+				aria-label={m.triage.queueLabel}
 				className={cn(
 					"flex min-h-0 flex-col max-lg:border-r-0 lg:border-r",
 					mobileDetail && "max-lg:hidden",
@@ -318,32 +325,29 @@ function TriagePage() {
 			>
 				<header className="px-5 pt-5 pb-3">
 					<h1 className="flex items-baseline gap-2 text-[22px] leading-7 font-semibold tracking-[-0.01em]">
-						Triage
+						{m.triage.title}
 						<span className="num text-base font-normal text-muted-foreground">
 							{issues.length}
 						</span>
 					</h1>
 					<p className="mt-1 text-muted-foreground">
 						{issues.length === 0
-							? "Nothing is waiting for a decision."
+							? m.triage.nothingWaiting
 							: withErrors > 0
-								? `${withErrors} of ${issues.length} came with console errors or failed requests.`
-								: `${issues.length} new, oldest first.`}
+								? m.triage.withErrors(number(withErrors), number(issues.length))
+								: m.triage.newOldestFirst(number(issues.length))}
 					</p>
 				</header>
 				{issues.length === 0 ? (
 					<div className="mx-5 mt-2 flex flex-col items-start gap-3 rounded-lg border border-dashed p-5">
 						<InboxIcon className="size-5 text-muted-foreground" />
-						<p>
-							New reports from the widget land here. Your agent can sort them
-							too, through MCP.
-						</p>
+						<p>{m.triage.emptyText}</p>
 						<Link
 							to="/p/$projectId/settings"
 							params={{ projectId }}
 							className="font-medium text-brand hover:underline"
 						>
-							Install the widget
+							{m.triage.installWidget}
 						</Link>
 					</div>
 				) : (
@@ -365,7 +369,7 @@ function TriagePage() {
 									id="recent"
 									className="mb-1 text-xs font-medium text-muted-foreground"
 								>
-									Recently decided
+									{m.triage.recentlyDecided}
 								</h2>
 								<ul>
 									{recent.map((item) => (
@@ -393,16 +397,16 @@ function TriagePage() {
 				{issues.length > 0 && (
 					<p className="hidden gap-3 border-t px-5 py-2.5 text-xs text-muted-foreground lg:flex">
 						<span>
-							<kbd>J</kbd> <kbd>K</kbd> move
+							<kbd>J</kbd> <kbd>K</kbd> {m.triage.keyMove}
 						</span>
 						<span>
-							<kbd>A</kbd> accept
+							<kbd>A</kbd> {m.triage.keyAccept}
 						</span>
 						<span>
-							<kbd>M</kbd> merge
+							<kbd>M</kbd> {m.triage.keyMerge}
 						</span>
 						<span>
-							<kbd>X</kbd> decline
+							<kbd>X</kbd> {m.triage.keyDecline}
 						</span>
 					</p>
 				)}
@@ -410,7 +414,7 @@ function TriagePage() {
 
 			{/* Open report */}
 			<section
-				aria-label="Selected report"
+				aria-label={m.triage.selectedLabel}
 				className={cn(
 					"min-h-0 overflow-y-auto",
 					!mobileDetail && "max-lg:hidden",
@@ -423,19 +427,19 @@ function TriagePage() {
 								size="icon-sm"
 								variant="ghost"
 								className="lg:hidden"
-								aria-label="Back to the queue"
+								aria-label={m.triage.backToQueue}
 								onClick={() => setMobileDetail(false)}
 							>
 								<ArrowLeftIcon className="size-4" />
 							</Button>
 							<IssueNumber number={selected.number} />
 							<span className="text-xs text-muted-foreground">
-								{index + 1} of {issues.length}
+								{m.triage.position(number(index + 1), number(issues.length))}
 							</span>
 							<div className="ml-auto flex flex-wrap items-center gap-2">
 								<Button onClick={accept} disabled={busy}>
 									<CheckIcon className="size-4" />
-									Accept
+									{m.triage.accept}
 									<kbd className="border-white/20 bg-white/10 text-current dark:border-black/20 dark:bg-black/10">
 										A
 									</kbd>
@@ -446,20 +450,20 @@ function TriagePage() {
 									disabled={busy}
 								>
 									<MergeIcon className="size-4" />
-									Merge
+									{m.triage.merge}
 									<kbd>M</kbd>
 								</Button>
 								<Button variant="ghost" onClick={decline} disabled={busy}>
 									<XIcon className="size-4" />
-									Decline
+									{m.triage.decline}
 									<kbd>X</kbd>
 								</Button>
 								<Button size="icon-sm" variant="ghost" asChild>
 									<Link
 										to="/p/$projectId/issues/$number"
 										params={{ projectId, number: String(selected.number) }}
-										aria-label="Open the full issue"
-										title="Open the full issue"
+										aria-label={m.triage.openFullIssue}
+										title={m.triage.openFullIssue}
 									>
 										<MaximizeIcon className="size-4" />
 									</Link>
@@ -478,7 +482,7 @@ function TriagePage() {
 											const original = detail.duplicateSuggestion?.issue.number;
 											if (original === undefined) return;
 											void decide(
-												`#${selected.number} merged into #${original}`,
+												m.triage.merged(selected.number, original),
 												() =>
 													markDuplicateFn({
 														data: {
@@ -514,13 +518,13 @@ function TriagePage() {
 									)}
 									{selected.reportCount > 1 && (
 										<p className="mt-2 text-muted-foreground">
-											{selected.reportCount} people reported this.{" "}
+											{m.triage.peopleReported(selected.reportCount)}{" "}
 											<Link
 												to="/p/$projectId/issues/$number"
 												params={{ projectId, number: String(selected.number) }}
 												className="font-medium text-ink underline-offset-4 hover:underline"
 											>
-												See every report
+												{m.triage.seeEveryReport}
 											</Link>
 										</p>
 									)}
@@ -530,12 +534,12 @@ function TriagePage() {
 							</div>
 
 							<aside
-								aria-label="Decision"
+								aria-label={m.triage.decisionLabel}
 								className="space-y-6 xl:border-l xl:pl-6"
 							>
 								<div className="space-y-1">
 									<p className="text-xs text-muted-foreground">
-										Set before accepting
+										{m.triage.setBeforeAccepting}
 									</p>
 									<PriorityPicker
 										value={selected.priority}
@@ -580,7 +584,7 @@ function TriagePage() {
 									<ReportFacts report={latest} seenIn={detail.releases} />
 								) : (
 									<p className="text-muted-foreground">
-										This issue was written in the dashboard.
+										{m.triage.writtenInDashboard}
 									</p>
 								)}
 							</aside>
@@ -589,7 +593,7 @@ function TriagePage() {
 				) : (
 					<div className="flex h-full items-center justify-center p-10 text-center text-muted-foreground max-lg:hidden">
 						<p>
-							All caught up.
+							{m.triage.allCaughtUp}
 							{project && (
 								<>
 									{" "}
@@ -598,7 +602,7 @@ function TriagePage() {
 										params={{ projectId }}
 										className="font-medium text-ink hover:underline"
 									>
-										See open issues
+										{m.triage.seeOpenIssues}
 									</Link>
 								</>
 							)}
@@ -614,7 +618,7 @@ function TriagePage() {
 				onMerge={(original) => {
 					setMerging(false);
 					if (!selected) return;
-					void decide(`#${selected.number} merged into #${original}`, () =>
+					void decide(m.triage.merged(selected.number, original), () =>
 						markDuplicateFn({
 							data: {
 								projectId,
