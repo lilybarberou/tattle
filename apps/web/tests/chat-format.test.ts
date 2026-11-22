@@ -93,7 +93,7 @@ describe("report.created", () => {
 	it("describes a mobile app's screen, phone and version", () => {
 		expect(sample("report.created mobile", "en")).toMatchObject({
 			title: "💡 Acme Shop (test) #43 · Let me save my cart for later",
-			color: 0xa86f0c,
+			color: 0x2f6fd0,
 			fields: [
 				["Reporter", "sam.lee@example.com"],
 				["Screen", "CartScreen"],
@@ -257,6 +257,10 @@ describe("issue.updated", () => {
 	});
 
 	it("names the release of a regression", () => {
+		expect(sample("issue.updated regression", "en")).toMatchObject({
+			title: '⚠️ Acme Shop (test) #42 · Checkout fails when I tap "Pay"',
+			color: 0xa86f0c,
+		});
 		expect(sample("issue.updated regression", "en").fields).toEqual([
 			["Status", "Done → Todo"],
 			["Regressed in", "2026.11.4"],
@@ -355,7 +359,7 @@ describe("message.created", () => {
 			title: '📨 Acme Shop (test) #42 · Checkout fails when I tap "Pay"',
 			url: "http://localhost:3000/p/prj_sample/issues/42#report-rep_7Hq2xK",
 			text: "Still failing this morning, on my phone too.",
-			color: 0xa86f0c,
+			color: 0x2f6fd0,
 			fields: [
 				["From", "Camille Martin"],
 				["Email", "camille.martin@example.com"],
@@ -456,6 +460,104 @@ describe("every message", () => {
 		expect(payload).not.toContain("secret stack");
 		expect(payload).not.toContain("token=abc");
 		expect(payload).toContain("1 console error");
+	});
+});
+
+/**
+ * How a notification hub such as Clairon reads a message's level: a level
+ * emoji anywhere in the title first, else the colour's hue (HSV), with a red
+ * behind a title that starts with another emoji read as a brand colour.
+ */
+const hubLevel = (title: string, color: number | null) => {
+	const text = title.replace(/\uFE0F/g, "");
+	const emojis = {
+		error: ["🔴", "❌", "🚨", "💥", "🔥", "⛔", "🛑"],
+		warning: ["⚠", "🟠", "🟡", "🚩"],
+		success: ["✅", "🟢", "🎉", "✔"],
+	};
+	let best: { level: string; at: number } | null = null;
+	for (const [level, list] of Object.entries(emojis))
+		for (const emoji of list) {
+			const at = text.indexOf(emoji);
+			if (at !== -1 && (!best || at < best.at)) best = { level, at };
+		}
+	if (best) return best.level;
+	if (color === null) return "info";
+	const [r, g, b] = [(color >> 16) & 255, (color >> 8) & 255, color & 255];
+	const max = Math.max(r, g, b);
+	const delta = max - Math.min(r, g, b);
+	const saturation = max === 0 ? 0 : delta / max;
+	if (saturation < 0.25 || (max / 255 >= 0.9 && saturation < 0.4))
+		return "info";
+	let hue =
+		max === r
+			? 60 * (((g - b) / delta) % 6)
+			: max === g
+				? 60 * ((b - r) / delta + 2)
+				: 60 * ((r - g) / delta + 4);
+	if (hue < 0) hue += 360;
+	if (hue < 20 || hue >= 340)
+		return /^\s*\p{Extended_Pictographic}/u.test(title) ? "info" : "error";
+	if (hue < 65) return "warning";
+	if (hue >= 75 && hue < 170) return "success";
+	return "info";
+};
+
+describe("levels a notification hub reads", () => {
+	const expected: Record<string, [icon: string, color: number, level: string]> =
+		{
+			"report.created": ["🐞", 0xc4242a, "info"],
+			"report.created mobile": ["💡", 0x2f6fd0, "info"],
+			"issue.created": ["🆕", 0x1b6c80, "info"],
+			"issue.updated": ["🔄", 0x1b6c80, "info"],
+			"issue.updated merged": ["🔀", 0x1b6c80, "info"],
+			"issue.updated regression": ["⚠️", 0xa86f0c, "warning"],
+			"comment.created": ["💬", 0x5d5f60, "info"],
+			"message.created from reporter": ["📨", 0x2f6fd0, "info"],
+			"message.created to reporter": ["↩️", 0x5d5f60, "info"],
+			ping: ["✅", 0x1b6c80, "success"],
+		};
+
+	it("covers every sample", () => {
+		expect(Object.keys(expected).sort()).toEqual(
+			CHAT_SAMPLES.map((s) => s.name).sort(),
+		);
+	});
+
+	it.each(Object.entries(expected))("%s: %j", (name, [icon, color, level]) => {
+		for (const locale of ["en", "fr"] as const) {
+			const message = sample(name, locale);
+			expect(message.title.startsWith(`${icon} `)).toBe(true);
+			expect(message.color).toBe(color);
+			const embed = (
+				toDiscord(message).embeds as Array<{ title: string; color: number }>
+			)[0];
+			expect(hubLevel(embed?.title ?? "", embed?.color ?? null)).toBe(level);
+			// Slack gets no colour: the title's emoji alone sets the level.
+			const slack = toSlack(message);
+			expect(slack).not.toHaveProperty("attachments");
+			const slackTitle = /^<[^|]+\|([^>]*)>/.exec(String(slack.text))?.[1];
+			expect(hubLevel(slackTitle ?? "", null)).toBe(level);
+		}
+	});
+
+	it("reads a shipped issue as a success and a bug in review as info", () => {
+		const done = describe_("issue.updated", {
+			issue,
+			changes: { status: { from: "in_review", to: "done" } },
+		}) as ChatMessage;
+		expect(hubLevel(done.title, done.color)).toBe("success");
+		const assigned = describe_("issue.updated", {
+			issue,
+			changes: { assigneeName: { from: null, to: "Ada" } },
+		}) as ChatMessage;
+		expect(assigned.title.startsWith("👤 ")).toBe(true);
+		expect(hubLevel(assigned.title, assigned.color)).toBe("info");
+		const feature = describe_("report.created", {
+			issue: { ...issue, type: "feature" },
+			report: { message: "Dark mode", pageUrl: "/" },
+		}) as ChatMessage;
+		expect(hubLevel(feature.title, feature.color)).toBe("info");
 	});
 });
 

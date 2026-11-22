@@ -72,11 +72,21 @@ export type ChatMessage = {
 /** The project a message is about: its name starts every title. */
 export type ChatProject = { id: string; name: string };
 
+/**
+ * Notification hubs (Clairon, for one) give each message a level: from a
+ * level emoji in the title (⚠️ warning, ✅ success, 🔥 ❌ 🚨 error), else from
+ * the embed colour's hue: red error, orange to yellow warning, green success,
+ * any other hue or a grey info. So only a regression looks like a warning
+ * and only a shipped issue like a success. The bug red stays: behind a title
+ * that starts with another emoji (🐞), a red is read as a brand colour, info.
+ */
 const COLORS = {
 	bug: 0xc4242a,
-	feature: 0xa86f0c,
+	/** Feature requests and reporter messages: a blue, info. */
+	feature: 0x2f6fd0,
 	update: 0x1b6c80,
 	done: 0x1e7b4f,
+	regression: 0xa86f0c,
 	comment: 0x5d5f60,
 };
 
@@ -86,6 +96,7 @@ const ICONS = {
 	created: "🆕",
 	updated: "🔄",
 	done: "✅",
+	regression: "⚠️",
 	merged: "🔀",
 	assigned: "👤",
 	comment: "💬",
@@ -254,19 +265,25 @@ export function describeEvent(
 		if (!status && !assignee) return null;
 		const to = status ? String(status.to) : null;
 		const merged = to === "duplicate" && data.duplicateOf;
+		const regression = data.regression;
 		const icon = merged
 			? ICONS.merged
-			: to === "done"
-				? ICONS.done
-				: status
-					? ICONS.updated
-					: ICONS.assigned;
-		const regression = data.regression;
+			: regression
+				? ICONS.regression
+				: to === "done"
+					? ICONS.done
+					: status
+						? ICONS.updated
+						: ICONS.assigned;
 		return {
 			title: title(icon, issue),
 			url: issueUrl(issue),
 			text: "",
-			color: to === "done" ? COLORS.done : COLORS.update,
+			color: regression
+				? COLORS.regression
+				: to === "done"
+					? COLORS.done
+					: COLORS.update,
 			fields: [
 				...(status
 					? field(f.status, `${statusName(status.from)} → ${statusName(to)}`)
@@ -353,6 +370,11 @@ export function toDiscord(message: ChatMessage): JsonObject {
 const slackEscape = (text: string) =>
 	text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+/**
+ * No attachment, so no colour: Slack shows a plain message, and a hub that
+ * reads levels takes it from the title's emoji (⚠️ regression, ✅ done), else
+ * info, as for Discord.
+ */
 export function toSlack(message: ChatMessage): JsonObject {
 	const fields = message.fields
 		.map(([name, value]) => `*${slackEscape(name)}:* ${slackEscape(value)}`)
