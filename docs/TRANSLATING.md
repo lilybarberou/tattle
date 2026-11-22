@@ -13,7 +13,7 @@ The rule: the language is picked automatically from the browser's (or the device
 | Dashboard | The person's choice under their name → **Language** (Auto, English, Français), saved on the account. Auto follows the visitor's language below. |
 | Sign-in, forgot and reset password | The visitor's language, with an EN / FR selector. |
 | Onboarding, OAuth consent | The account's language (signed in), no selector. |
-| Public portal (indexable) | Its address's: English at `/portal/<slug>`, French at `/fr/portal/<slug>`, with an EN / FR selector that links between them. A French-speaking browser is sent once to `/fr` (see below). |
+| Public portal (indexable) | Its address's: English at `/portal/<slug>`, French at `/fr/portal/<slug>`, with an EN / FR selector that links between them. A visitor whose language is French is sent from the English address to `/fr` (see below). |
 | Reporter thread, unsubscribe | The visitor's language, with an EN / FR selector, even for a signed-in team member. On the thread page, the report's language when the visitor gives none. |
 | Team emails (assigned, regression, digest, a reporter answered, AI key, webhook failing, password reset) | The recipient's choice; on Auto, the language their browser last asked for; else English. |
 | Invitations | The inviter's dashboard language. |
@@ -37,8 +37,18 @@ The portal is the page search engines index, so the address is the language:
 
 - `/portal/<slug>` is always English: the server never answers it in another language.
 - `/fr/portal/<slug>` is always French, whatever the browser.
-- A browser whose `Accept-Language` prefers French, opening `/portal/<slug>` with no `tattle_locale` cookie, gets a **302** to `/fr/portal/<slug>` (query string kept), and the response sets the cookie to `fr`, so it happens once. Robots (known crawler user agents, or no `Accept-Language`) and anyone with the cookie, whatever its value, are never redirected.
-- Picking EN in the selector on a `/fr` page goes to `/portal/<slug>` and sets the cookie to `en`: that visitor is never sent back to French. The selector, the tabs, the "shipped" email and the dashboard's "Open the public page" link all point at the address of the reader's language.
+- The English address follows the visitor's remembered language on every visit, as sites usually do. On `/portal/<slug>`:
+
+  | Request | Answer |
+  | --- | --- |
+  | First visit (no `tattle_locale` cookie), browser preferring French | **302** to `/fr/portal/<slug>` (query string kept), sets `tattle_locale=fr` |
+  | Cookie `tattle_locale=fr`, any `Accept-Language` | **302** to `/fr/portal/<slug>`, on every visit |
+  | Cookie `tattle_locale=en` (EN picked in the selector) | 200, English |
+  | Robot (known crawler user agent, or no `Accept-Language`), with or without a cookie | 200, English |
+  | Any other browser without a cookie | 200, English |
+
+- A link to `/fr/portal/<slug>` is never redirected, whatever the cookie says, and opening it does not change the cookie: only the selector and the first-visit redirect set it. So someone who picked EN and follows a shared French link reads it in French, and keeps English on the English address.
+- Picking EN in the selector on a `/fr` page goes to `/portal/<slug>` and sets the cookie to `en`: that visitor is never sent back to French. Picking FR sets it to `fr`. The selector, the tabs, the "shipped" email and the dashboard's "Open the public page" link all point at the address of the reader's language.
 - The old `?lang=fr` and `?lang=en` addresses answer with a 301 to the address of their language.
 
 Both versions carry the same alternates, and each is its own canonical:
