@@ -6,44 +6,52 @@ What stays in English on purpose: MCP tool names and descriptions, webhook paylo
 
 ## How the language is chosen
 
-The rule: the language is picked automatically from the browser's (or the device's) on the first visit, a selector changes it, the choice is remembered, robots are never redirected, and the indexable page has one address per language with its hreflang.
+The rule: the language is picked automatically from the browser's (or the device's) on the first visit, a selector changes it, the choice is remembered, robots are never redirected, and an indexable page has one address per language with its hreflang: English by default at the bare address, French under `/fr`.
 
 | Surface | Language |
 | --- | --- |
 | Dashboard | The person's choice under their name → **Language** (Auto, English, Français), saved on the account. Auto follows the visitor's language below. |
 | Sign-in, forgot and reset password | The visitor's language, with an EN / FR selector. |
 | Onboarding, OAuth consent | The account's language (signed in), no selector. |
-| Portal, reporter thread, unsubscribe | The visitor's language, with an EN / FR selector, even for a signed-in team member. On the thread page, the report's language when the visitor gives none. |
+| Public portal (indexable) | Its address's: English at `/portal/<slug>`, French at `/fr/portal/<slug>`, with an EN / FR selector that links between them. A French-speaking browser is sent once to `/fr` (see below). |
+| Reporter thread, unsubscribe | The visitor's language, with an EN / FR selector, even for a signed-in team member. On the thread page, the report's language when the visitor gives none. |
 | Team emails (assigned, regression, digest, a reporter answered, AI key, webhook failing, password reset) | The recipient's choice; on Auto, the language their browser last asked for; else English. |
 | Invitations | The inviter's dashboard language. |
 | Reporter emails (team reply, "shipped" notice) | The report's language, from the device language the widget or SDK sends. |
 | Portal voters' "shipped" notice | The visitor's browser language when they left their email. |
 | Discord and Slack | Project settings → **Discord and Slack** → Language. English by default. |
 
-### A visitor's language
+### A visitor's language (pages that are not indexed)
 
-In order, the first one that names English or French wins:
+On sign-in, password reset, the reporter thread and unsubscribe, the first one that names English or French wins:
 
-1. The address: `?lang=fr` or `?lang=en`.
-2. The `tattle_locale` cookie, set by the EN / FR selector and kept a year.
-3. The browser's `Accept-Language`.
-4. The page's default (the thread page: the report's language), else English. Robots (known crawler user agents, or no `Accept-Language`) skip step 3: they get English on an address without a language.
+1. The `tattle_locale` cookie, set by the EN / FR selector and kept a year.
+2. The browser's `Accept-Language`.
+3. The page's default (the thread page: the report's language), else English. Robots (known crawler user agents, or no `Accept-Language`) skip step 2.
 
-Nothing redirects: every address answers in the language picked above. Someone on Auto who signs in adopts the cookie's language for their emails.
+These pages have one address for both languages and never redirect. Someone on Auto who signs in adopts the cookie's language for their emails.
 
 ### The portal's addresses
 
-The portal is the only page search engines index. `/portal/<slug>` stays its address and answers in the visitor's language. `/portal/<slug>?lang=en` and `/portal/<slug>?lang=fr` are its English and French versions:
+The portal is the page search engines index, so the address is the language:
+
+- `/portal/<slug>` is always English: the server never answers it in another language.
+- `/fr/portal/<slug>` is always French, whatever the browser.
+- A browser whose `Accept-Language` prefers French, opening `/portal/<slug>` with no `tattle_locale` cookie, gets a **302** to `/fr/portal/<slug>` (query string kept), and the response sets the cookie to `fr`, so it happens once. Robots (known crawler user agents, or no `Accept-Language`) and anyone with the cookie, whatever its value, are never redirected.
+- Picking EN in the selector on a `/fr` page goes to `/portal/<slug>` and sets the cookie to `en`: that visitor is never sent back to French. The selector, the tabs, the "shipped" email and the dashboard's "Open the public page" link all point at the address of the reader's language.
+- The old `?lang=fr` and `?lang=en` addresses answer with a 301 to the address of their language.
+
+Both versions carry the same alternates, and each is its own canonical:
 
 ```html
-<!-- on /portal/shop -->
-<link rel="canonical" href="https://tattle.example.org/portal/shop">
-<link rel="alternate" hreflang="en" href="https://tattle.example.org/portal/shop?lang=en">
-<link rel="alternate" hreflang="fr" href="https://tattle.example.org/portal/shop?lang=fr">
+<!-- on /fr/portal/shop -->
+<link rel="canonical" href="https://tattle.example.org/fr/portal/shop">
+<link rel="alternate" hreflang="en" href="https://tattle.example.org/portal/shop">
+<link rel="alternate" hreflang="fr" href="https://tattle.example.org/fr/portal/shop">
 <link rel="alternate" hreflang="x-default" href="https://tattle.example.org/portal/shop">
 ```
 
-Each language's address is its own canonical (`?lang=fr` on the French one), and the bare address sends `Vary: Accept-Language, Cookie`. A query parameter rather than a `/fr/` prefix keeps one route per page in the router, and the address people already shared does not change. The thread and unsubscribe pages are private (`noindex`): they have the selector, not the hreflang links.
+The English address sends `Vary: Accept-Language, Cookie`, because of the redirect. The redirect is a request middleware in `src/start.ts`, the rule a pure function in `src/i18n/portal-address.ts`. The thread and unsubscribe pages are private (`noindex`): they have the selector, not the hreflang links.
 
 ## Where the text lives
 
