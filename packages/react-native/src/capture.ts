@@ -14,11 +14,17 @@ const nextFrame = () =>
 /**
  * Captures a view as a JPEG data URL. While it runs, every `<TattleMask>`
  * covers its content with a solid block, so masked content never reaches the
- * image.
+ * image. `width` and `height` resize the result, in react-native-view-shot's
+ * units (pixels on Android, points on iOS).
  */
 export async function captureView(
 	ref: ViewRef,
-	options: { mask?: boolean } = {},
+	options: {
+		mask?: boolean;
+		quality?: number;
+		width?: number;
+		height?: number;
+	} = {},
 ): Promise<string> {
 	const mask = options.mask !== false && state.masks > 0;
 	if (mask) {
@@ -31,8 +37,11 @@ export async function captureView(
 	try {
 		return await captureRef(ref as Parameters<typeof captureRef>[0], {
 			format: "jpg",
-			quality: JPEG_QUALITY,
+			quality: options.quality ?? JPEG_QUALITY,
 			result: "data-uri",
+			...(options.width && options.height
+				? { width: options.width, height: options.height }
+				: {}),
 		});
 	} finally {
 		if (mask) {

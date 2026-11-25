@@ -2,12 +2,12 @@
 
 Tattle's bug report and feedback widget for React Native and Expo apps.
 
-Users tap a floating button, choose **Report a bug** or **Suggest an idea**, write a message and send it. A bug report comes with a screenshot of the screen they were on. Users can annotate it (rectangle, circle, arrow, pen, blur) or remove it. They then follow their reports under **My reports** and talk with your team there. Each report also carries the screens the user went through before reporting, the recent console logs, uncaught errors, network requests, the device and app version, and the user and context your app provides.
+Users tap a floating button, choose **Report a bug** or **Suggest an idea**, write a message and send it. A bug report comes with a screenshot of the screen they were on. Users can annotate it (rectangle, circle, arrow, pen, blur), remove it, or replace it with an image from their photos. They then follow their reports under **My reports** and talk with your team there. Each report also carries the screens the user went through before reporting, the recent console logs, uncaught errors, network requests, the device and app version, and the user and context your app provides.
 
 - Works with Expo (including Expo Go) and bare React Native, iOS and Android
 - French and English UI, light and dark themes that follow the system or your app
 - Themable to look like part of your app: colors, fonts, corner radius and texts
-- Pure JavaScript: its only native modules are `react-native-view-shot` (screenshots) and `react-native-svg` (icons and annotations), both part of Expo Go
+- Pure JavaScript: its only native modules are `react-native-view-shot` (screenshots) and `react-native-svg` (icons and annotations), both part of Expo Go, plus `expo-image-picker` if you want people to attach an image from their photos
 
 ## Install
 
@@ -227,6 +227,20 @@ import { Easing } from "react-native";
 
 The animations run on the native driver. With Reduce Motion on, slides and pops become fades.
 
+## Attach an image from the photos
+
+The automatic screenshot shows the screen the form was opened on. When your app opens the form from a settings screen or a menu, that is not the screen with the bug. Install `expo-image-picker` and people can attach a screenshot they took before instead:
+
+```sh
+npx expo install expo-image-picker
+```
+
+The form then offers **Capture the screen** and **Choose an image** when there is no screenshot (after removing the automatic one), and **Replace with an image** next to a screenshot. The chosen image opens in the same editor, so it can be annotated and blurred like a screenshot, and is sent as the report's screenshot. Cancelling the photo library or the editor changes nothing. Without `expo-image-picker` (version 16, Expo SDK 52, or later), the form stays as it was, with its single **Add a screenshot** button.
+
+- **No permission to ask for.** The SDK opens the system photo picker, which needs no photo-library access on iOS 14+ and on Android with the system photo picker. If the picker cannot open, the form says the image could not be added. `expo-image-picker` is part of Expo Go; in a development or store build, if the build asks for a photo-library usage description, add its config plugin, which sets one.
+- **Size.** The image is saved as a JPEG at the size the editor shows it, at most its own size and 2,560 pixels on the longest edge, so about the size of a screenshot taken by the SDK, at quality 0.85. If that weighs more than 4 MB, the SDK tries quality 0.7, then 75% and 50% of the size. If it still does not fit, the form says the image is too large and nothing is sent.
+- **Texts.** `captureScreen`, `chooseImage`, `captureOrPickHint`, `replaceShot`, `imageAlt` (the attached image, for screen readers), `pickFailed` and `imageTooLarge`, in `strings` like the others. `imageTooLarge` is also shown if a report would be over the server's limits (8 MB for the screenshot, 12 MB in all), for example after `beforeSend` changed the screenshot.
+
 ## Hide sensitive content from screenshots
 
 Wrap anything that must never leave the device in `<TattleMask>`. While the screen is captured, a solid block covers it.
@@ -252,7 +266,7 @@ Submitting a report sends `POST {apiUrl}/api/v1/ingest`, the same endpoint as th
 - **Screen**: the name from `Tattle.setScreen`, sent as `pageUrl`.
 - **Release**: `release`, or the app's version and build.
 - **Steps** (`breadcrumbs`): the last 50 screens, foreground and background changes, and steps added with `addBreadcrumb`.
-- **Screenshot**: a JPEG of the provider's content, bug reports only, unless the user removed it.
+- **Screenshot**: a JPEG of the provider's content, or the image the user chose in their photos, bug reports only, unless the user removed it.
 - **Reporter key**: the device's key for "My reports", and the `hash` given to `identify`, if any.
 
 ## Development

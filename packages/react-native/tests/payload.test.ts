@@ -8,8 +8,12 @@ import { getDeviceInfo } from "../src/collectors/device";
 import {
 	buildPayload,
 	buildReporter,
+	dataUrlBytes,
 	IngestError,
 	ingestUrl,
+	MAX_BODY_BYTES,
+	MAX_SCREENSHOT_BYTES,
+	payloadProblem,
 	releaseOf,
 	sendPayload,
 } from "../src/payload";
@@ -238,5 +242,69 @@ describe("helpers", () => {
 		expect(redactUrl("https://api.example.com/me?token=abc&page=2")).toBe(
 			"https://api.example.com/me?token=[redacted]&page=2",
 		);
+	});
+});
+
+describe("payloadProblem", () => {
+	const report = (screenshot?: string, blob?: string) =>
+		buildPayload({
+			projectKey: "pk_test",
+			type: "bug",
+			message: "Broken",
+			screenshot,
+			user: null,
+			context: blob === undefined ? null : { blob },
+			screen: "Home",
+		});
+	/** A JPEG data URL that decodes to `bytes` bytes. */
+	const jpeg = (bytes: number) =>
+		`data:image/jpeg;base64,${"A".repeat(Math.ceil(bytes / 3) * 4)}`;
+
+	it("counts the bytes a data URL decodes to", () => {
+		expect(dataUrlBytes("data:image/png;base64,AAAA")).toBe(3);
+		expect(dataUrlBytes("data:image/png;base64,AAA=")).toBe(2);
+		expect(dataUrlBytes("data:image/png;base64,AA==")).toBe(1);
+		expect(dataUrlBytes(jpeg(3_000_000))).toBe(3_000_000);
+	});
+
+	it("accepts what the server accepts", () => {
+		expect(payloadProblem(report())).toBeNull();
+		expect(payloadProblem(report(jpeg(3_000_000)))).toBeNull();
+		// 8 MB, rounded down to whole base64 groups.
+		expect(payloadProblem(report(jpeg(MAX_SCREENSHOT_BYTES - 2)))).toBeNull();
+		expect(payloadProblem(report("data:image/webp;base64,AAAA"))).toBeNull();
+	});
+
+	it("refuses a screenshot over 8 MB or in a format the server rejects", () => {
+		expect(payloadProblem(report(jpeg(MAX_SCREENSHOT_BYTES + 3)))).toBe(
+			"screenshot",
+		);
+		expect(payloadProblem(report("data:image/gif;base64,AAAA"))).toBe(
+			"screenshot",
+		);
+		expect(payloadProblem(report("file:///tmp/photo.jpg"))).toBe("screenshot");
+	});
+
+	it("refuses a body over 12 MB, counted in UTF-8", () => {
+		const shot = jpeg(MAX_SCREENSHOT_BYTES - 3);
+		const room = MAX_BODY_BYTES - JSON.stringify(report(shot, "")).length;
+		// ASCII: right at the limit, then one byte over.
+		expect(payloadProblem(report(shot, "a".repeat(room)))).toBeNull();
+		expect(payloadProblem(report(shot, "a".repeat(room + 1)))).toBe(
+			"too_large",
+		);
+		// "é" takes 2 bytes, "😀" 4: fewer characters reach the same limit.
+		expect(payloadProblem(report(shot, "é".repeat(room / 2 + 1)))).toBe(
+			"too_large",
+		);
+		expect(
+			payloadProblem(report(shot, "é".repeat(Math.floor(room / 2)))),
+		).toBeNull();
+		expect(payloadProblem(report(shot, "😀".repeat(room / 4 + 1)))).toBe(
+			"too_large",
+		);
+		expect(
+			payloadProblem(report(shot, "😀".repeat(Math.floor(room / 4)))),
+		).toBeNull();
 	});
 });

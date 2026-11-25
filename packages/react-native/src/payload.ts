@@ -120,6 +120,56 @@ export function buildPayload(input: PayloadInput): IngestPayload {
 	return payload;
 }
 
+/**
+ * What `POST /api/v1/ingest` accepts: a PNG, JPEG or WebP data URL of at most
+ * 8 MB as the screenshot, in a JSON body of at most 12 MB.
+ */
+export const MAX_SCREENSHOT_BYTES = 8 * 1024 * 1024;
+export const MAX_BODY_BYTES = 12 * 1024 * 1024;
+const SCREENSHOT_DATA_URL =
+	/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+
+/** Bytes a base64 data URL decodes to. */
+export function dataUrlBytes(dataUrl: string): number {
+	const comma = dataUrl.indexOf(",");
+	const base64 = comma === -1 ? dataUrl : dataUrl.slice(comma + 1);
+	const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+	return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+}
+
+/** Bytes of `text` in UTF-8, counted only as far as `limit` + 1. */
+function utf8Length(text: string, limit: number): number {
+	// Every character takes one to three bytes (a surrogate pair, four for two).
+	if (text.length > limit || text.length * 3 <= limit) return text.length;
+	let bytes = 0;
+	for (let i = 0; i < text.length && bytes <= limit; i++) {
+		const code = text.charCodeAt(i);
+		bytes += code < 0x80 ? 1 : code < 0x800 ? 2 : 3;
+		// A surrogate pair is 4 bytes: 3 for the high half, 1 for the low one.
+		if (code >= 0xdc00 && code <= 0xdfff) bytes -= 2;
+	}
+	return bytes;
+}
+
+/**
+ * Why the server would refuse this report, or null when it fits:
+ * "screenshot" when the screenshot is not an image it takes or is over 8 MB,
+ * "too_large" when the whole report is over 12 MB.
+ */
+export function payloadProblem(
+	payload: IngestPayload,
+): "screenshot" | "too_large" | null {
+	const { screenshot } = payload;
+	if (
+		screenshot !== undefined &&
+		(dataUrlBytes(screenshot) > MAX_SCREENSHOT_BYTES ||
+			!SCREENSHOT_DATA_URL.test(screenshot))
+	)
+		return "screenshot";
+	const body = JSON.stringify(payload);
+	return utf8Length(body, MAX_BODY_BYTES) > MAX_BODY_BYTES ? "too_large" : null;
+}
+
 export function ingestUrl(apiUrl: string): string {
 	return `${apiUrl.replace(/\/+$/, "")}/api/v1/ingest`;
 }
