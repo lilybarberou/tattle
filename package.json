@@ -7,6 +7,9 @@
   "scripts": {
     "dev": "pnpm --filter web dev",
     "dev:landing": "pnpm --filter landing dev",
+    "playground": "pnpm --filter rn-playground start",
+    "playground:ios": "pnpm --filter rn-playground ios",
+    "playground:android": "pnpm --filter rn-playground android",
     "build": "pnpm -r build",
     "check": "biome check .",
     "typecheck": "pnpm -r typecheck",

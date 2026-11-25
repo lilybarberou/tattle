@@ -86,6 +86,8 @@ Create an account (the setup code is printed in the `pnpm dev` output), then a p
 
 `pnpm test` runs the test suites (Postgres from the dev compose file must be up). `pnpm check` lints and formats.
 
+`pnpm playground:ios` (or `playground:android`) opens a small Expo app on a simulator to try the React Native SDK against this server, with the SDK's sources reloading as you edit them: see [apps/rn-playground/README.md](apps/rn-playground/README.md).
+
 `pnpm test:e2e` runs the end-to-end suite (Playwright) against a production build, with its own Postgres and Mailpit containers on other ports, so it never touches the dev data; `pnpm --filter web e2e:down` removes them. See [apps/web/e2e/README.md](apps/web/e2e/README.md).
 
 **Releases**: every push to `main` publishes `ghcr.io/lilybarberou/tattle:main`. A version tag publishes the release and moves `latest`:
@@ -239,6 +241,7 @@ apps/web            TanStack Start app (dashboard + API), Drizzle + Postgres, Be
                     /.well-known/*
 packages/widget     Browser SDK, no framework, Shadow DOM, ~27 KB gzipped
 packages/react-native  React Native and Expo SDK (react-native-view-shot, react-native-svg)
+apps/rn-playground  Expo app to try the React Native SDK on a simulator (development only)
 ```
 
 A **report** is one raw submission from the widget. An **issue** is the problem to fix. Several reports can point at one issue: that is how duplicates and popular feature requests are counted.

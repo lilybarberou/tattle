@@ -277,6 +277,8 @@ pnpm --filter @tattle/react-native typecheck
 pnpm --filter @tattle/react-native test       # collectors and payload, in Node
 ```
 
+To see a change on a device, run the playground: `pnpm playground:ios` from the repository root opens an Expo app that uses these sources directly, against a local server. See [apps/rn-playground](../../apps/rn-playground/README.md).
+
 ## License
 
 MIT
