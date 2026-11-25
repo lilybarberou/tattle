@@ -154,13 +154,20 @@ function ReportBlock({
 }) {
 	const { m, locale } = useI18n();
 	const [open, setOpen] = useState(defaultOpen);
+	const anchor = `report-${report.id}`;
+	// Discord and Slack messages link to a report with #report-<id>.
+	useEffect(() => {
+		if (window.location.hash !== `#${anchor}`) return;
+		setOpen(true);
+		document.getElementById(anchor)?.scrollIntoView({ block: "start" });
+	}, [anchor]);
 	const { confirming, setConfirming, trigger, cancel } = useInlineConfirm();
 	const name =
 		report.reporter?.name || report.reporter?.email || m.issues.page.anonymous;
 	const { errors, failed } = countErrors(report);
 	const signal = errorSignal(errors, failed, locale);
 	return (
-		<article className="rounded-lg border">
+		<article id={anchor} className="scroll-mt-4 rounded-lg border">
 			<button
 				type="button"
 				onClick={() => setOpen(!open)}

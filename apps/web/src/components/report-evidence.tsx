@@ -4,6 +4,7 @@ import { DEFAULT_LOCALE, type Locale, messages } from "#/i18n";
 import { useI18n } from "#/i18n/react";
 import { cn } from "#/lib/utils";
 import type { ReportDto, SeenInRelease } from "#/server/Issues";
+import { deviceSummary, isWebPage } from "#/shared/device";
 import { buildTrail, isFailedRequest } from "#/shared/trail";
 import { Face } from "./issue-meta";
 import { ClockTime, RelativeTime, relativeTime, useHydrated } from "./time";
@@ -36,52 +37,6 @@ function useFetchedImage(url: string | null) {
 	}, [url]);
 	return { objectUrl, failed };
 }
-
-const str = (value: unknown) => (typeof value === "string" ? value : undefined);
-const record = (value: unknown) =>
-	value && typeof value === "object" && !Array.isArray(value)
-		? (value as Record<string, unknown>)
-		: undefined;
-
-/** True when the page is a web address, false for a mobile app's screen name. */
-export const isWebPage = (pageUrl: string) => /^https?:\/\//i.test(pageUrl);
-
-/**
- * Short labels for a report's device. Web reports describe a browser; mobile
- * SDKs send `app` (name, version, build) and `model` instead.
- */
-export const deviceSummary = (device: ReportDto["device"]) => {
-	const browser = record(device.browser);
-	const app = record(device.app);
-	const os = record(device.os);
-	const viewport = record(device.viewport);
-	const model = [str(device.manufacturer), str(device.model)]
-		.filter(Boolean)
-		.join(" ");
-	const appVersion = [
-		str(app?.version),
-		str(app?.build) ? `(${str(app?.build)})` : undefined,
-	]
-		.filter(Boolean)
-		.join(" ");
-	return {
-		mobile:
-			!browser && (device.platform === "ios" || device.platform === "android"),
-		browser: browser
-			? `${str(browser.name) ?? ""} ${str(browser.version)?.split(".")[0] ?? ""}`.trim()
-			: undefined,
-		app: app
-			? `${str(app.name) ?? ""} ${appVersion}`.trim() || undefined
-			: undefined,
-		model: model || undefined,
-		os: os
-			? `${str(os.name) ?? ""} ${str(os.version) ?? ""}`.trim()
-			: undefined,
-		viewport: viewport?.width
-			? `${viewport.width} × ${viewport.height}`
-			: undefined,
-	};
-};
 
 /** The message without its first line when that line already is the issue title. */
 export const messageBody = (message: string, title: string) => {

@@ -193,6 +193,8 @@ The report goes to the model as data: the model is told to ignore instructions i
 
 Project settings → **Discord and Slack**: paste a Discord channel webhook URL (channel settings → Integrations → Webhooks) or a Slack incoming webhook URL. The channel gets new reports with their evidence, status and assignee changes, comments, and messages between reporters and the team; label or title edits stay quiet. **Language** sets the language of these messages (English or French).
 
+Each message stands on its own: its title names the project and the issue, its link opens that issue or the report, and its fields give the real data (the reporter's name and email, user id, page or screen, browser or phone, release, evidence; the old and new status, assignee, pull request and who did it…). Names and emails are shown, so post to a private channel; secrets (tokens, the identity hash, the reporter key, cookies) and logs never are. [docs/SELF-HOSTING.md](docs/SELF-HOSTING.md#what-discord-and-slack-messages-say) lists every field and how to print sample messages for a test channel.
+
 ## GitHub
 
 Project settings → **GitHub** closes the loop: when a pull request is merged into the repository's default branch, the issues it is linked to move to Done, recorded as "GitHub" in their activity. Webhooks fire and people who asked for a shipped feature get their email, exactly as when someone changes the status by hand. Off by default; only owners and admins can turn it on.

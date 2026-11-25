@@ -474,7 +474,7 @@ export class Webhooks extends Context.Service<
 						if (endpoint.format === "discord" || endpoint.format === "slack") {
 							const message = describeEvent(
 								event,
-								p.id,
+								{ id: p.id, name: p.name },
 								data,
 								normalizeLocale(p.chatLocale) ?? DEFAULT_LOCALE,
 							);
@@ -545,10 +545,11 @@ export class Webhooks extends Context.Service<
 
 			const ping = Effect.fn("Webhooks.ping")(
 				function* (projectId: string, endpointId: string) {
-					const [endpoint] = yield* database.query((db) =>
+					const [row] = yield* database.query((db) =>
 						db
-							.select()
+							.select({ endpoint: webhookEndpoint, project })
 							.from(webhookEndpoint)
+							.innerJoin(project, eq(project.id, webhookEndpoint.projectId))
 							.where(
 								and(
 									eq(webhookEndpoint.id, endpointId),
@@ -556,14 +557,31 @@ export class Webhooks extends Context.Service<
 								),
 							),
 					);
-					if (!endpoint) return { ok: false, error: "Endpoint not found" };
+					if (!row) return { ok: false, error: "Endpoint not found" };
+					const { endpoint, project: p } = row;
 					const deliveryId = crypto.randomUUID();
-					const body = JSON.stringify({
-						id: deliveryId,
-						event: "ping",
-						createdAt: new Date().toISOString(),
-						data: {},
-					});
+					// Discord and Slack refuse our own JSON: they get the chat message.
+					const chat =
+						endpoint.format === "discord" || endpoint.format === "slack"
+							? describeEvent(
+									"ping",
+									{ id: p.id, name: p.name },
+									null,
+									normalizeLocale(p.chatLocale) ?? DEFAULT_LOCALE,
+								)
+							: null;
+					const body = JSON.stringify(
+						chat
+							? endpoint.format === "discord"
+								? toDiscord(chat)
+								: toSlack(chat)
+							: {
+									id: deliveryId,
+									event: "ping",
+									createdAt: new Date().toISOString(),
+									data: {},
+								},
+					);
 					return yield* send(endpoint, body, deliveryId, "ping").pipe(
 						Effect.map((status) => ({ ok: true, status })),
 						Effect.catch((error) =>

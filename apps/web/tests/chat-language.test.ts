@@ -16,6 +16,7 @@ setupTestDatabase();
 beforeEach(() => resetRequestContext());
 
 describe("Discord and Slack", () => {
+	const wokinu = { id: "p1", name: "Wokinu" };
 	const data = {
 		issue: { number: 4, title: "Export fails", type: "bug", status: "todo" },
 		changes: { status: { from: "triage", to: "in_progress" } },
@@ -23,21 +24,23 @@ describe("Discord and Slack", () => {
 	};
 
 	it("are in English by default", () => {
-		expect(describeEvent("issue.updated", "p1", data)?.text).toBe(
-			"Triage → **In progress**\n— Ada",
-		);
+		expect(describeEvent("issue.updated", wokinu, data)?.fields).toEqual([
+			["Status", "Triage → In progress"],
+			["By", "Ada"],
+		]);
 	});
 
 	it("are in the project's chat language", async () => {
-		expect(describeEvent("issue.updated", "p1", data, "fr")?.text).toBe(
-			"Triage → **En cours**\n— Ada",
-		);
-		expect(describeEvent("ping", "p1", null, "fr")?.title).toBe(
-			"Tattle est connecté",
+		expect(describeEvent("issue.updated", wokinu, data, "fr")?.fields).toEqual([
+			["Statut", "Triage → En cours"],
+			["Par", "Ada"],
+		]);
+		expect(describeEvent("ping", wokinu, null, "fr")?.title).toBe(
+			"✅ Wokinu · Tattle est connecté",
 		);
 		const created = describeEvent(
 			"report.created",
-			"p1",
+			wokinu,
 			{
 				issue: data.issue,
 				report: {
@@ -50,9 +53,9 @@ describe("Discord and Slack", () => {
 			},
 			"fr",
 		);
-		expect(created?.title).toBe("Bug #4 : Export fails");
+		expect(created?.title).toBe("🐞 Wokinu #4 · Export fails");
 		expect(created?.fields).toEqual([
-			["De", "Quelqu'un"],
+			["Auteur", "Quelqu'un"],
 			["Page", "https://shop.example/cart"],
 			[
 				"Indices",
