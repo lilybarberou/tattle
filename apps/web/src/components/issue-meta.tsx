@@ -4,49 +4,20 @@ import {
 	LightbulbIcon,
 	MessageCircleIcon,
 } from "lucide-react";
+import { useI18n } from "#/i18n/react";
 import { cn } from "#/lib/utils";
-import type { IssueStatus } from "#/shared/issues";
+import { type IssueStatus, PRIORITY_LABELS } from "#/shared/issues";
 
-export const STATUS_META: Record<
-	IssueStatus,
-	{ label: string; hint: string; className: string }
-> = {
-	triage: {
-		label: "Triage",
-		hint: "New, not decided yet",
-		className: "text-state-triage",
-	},
-	backlog: {
-		label: "Backlog",
-		hint: "Accepted, not planned",
-		className: "text-state-open",
-	},
-	todo: { label: "Todo", hint: "Planned next", className: "text-state-open" },
-	in_progress: {
-		label: "In progress",
-		hint: "Someone is on it",
-		className: "text-state-progress",
-	},
-	in_review: {
-		label: "In review",
-		hint: "Fix waiting for review",
-		className: "text-state-review",
-	},
-	done: {
-		label: "Done",
-		hint: "Fixed or shipped",
-		className: "text-state-done",
-	},
-	canceled: {
-		label: "Declined",
-		hint: "Won't do",
-		className: "text-state-closed",
-	},
-	duplicate: {
-		label: "Duplicate",
-		hint: "Merged into another issue",
-		className: "text-state-closed",
-	},
+/** Each status's colour; its name is `m.common.status`. */
+export const STATUS_META: Record<IssueStatus, { className: string }> = {
+	triage: { className: "text-state-triage" },
+	backlog: { className: "text-state-open" },
+	todo: { className: "text-state-open" },
+	in_progress: { className: "text-state-progress" },
+	in_review: { className: "text-state-review" },
+	done: { className: "text-state-done" },
+	canceled: { className: "text-state-closed" },
+	duplicate: { className: "text-state-closed" },
 };
 
 /** A 14px glyph with its accessible name as a <title>. */
@@ -83,9 +54,10 @@ export function StatusIcon({
 	status: IssueStatus;
 	className?: string;
 }) {
+	const { m } = useI18n();
 	const meta = STATUS_META[status];
 	const common = {
-		label: meta.label,
+		label: m.common.status[status],
 		className: cn("shrink-0", meta.className, className),
 	};
 	switch (status) {
@@ -169,14 +141,6 @@ export function StatusIcon({
 	}
 }
 
-export const PRIORITY_META = [
-	{ label: "No priority" },
-	{ label: "Urgent" },
-	{ label: "High" },
-	{ label: "Medium" },
-	{ label: "Low" },
-] as const;
-
 /** Signal bars for high to low; a filled square for urgent; a dashed line for none. */
 export function PriorityIcon({
 	priority,
@@ -185,7 +149,8 @@ export function PriorityIcon({
 	priority: number;
 	className?: string;
 }) {
-	const label = PRIORITY_META[priority]?.label ?? "No priority";
+	const { m } = useI18n();
+	const label = m.common.priority[PRIORITY_LABELS[priority] ?? "none"];
 	const common = { label };
 	if (priority === 1) {
 		return (
@@ -243,14 +208,15 @@ export function TypeIcon({
 	type: "bug" | "feature";
 	className?: string;
 }) {
+	const { m } = useI18n();
 	return type === "bug" ? (
 		<BugIcon
-			aria-label="Bug"
+			aria-label={m.common.type.bug}
 			className={cn("size-3.5 shrink-0 text-muted-foreground", className)}
 		/>
 	) : (
 		<LightbulbIcon
-			aria-label="Feature request"
+			aria-label={m.common.type.feature}
 			className={cn("size-3.5 shrink-0 text-muted-foreground", className)}
 		/>
 	);
@@ -287,14 +253,15 @@ const hueOf = (key: string) => {
 
 /** A reporter wrote last in one of the issue's conversations. */
 export function AwaitingReply({ className }: { className?: string }) {
+	const { m } = useI18n();
 	return (
 		<span
 			className={cn("relative flex-none text-brand", className)}
-			title="A reporter is waiting for your reply"
+			title={m.issues.meta.awaitingReplyTitle}
 		>
 			<MessageCircleIcon className="size-4" />
 			<span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-brand ring-2 ring-surface" />
-			<span className="sr-only">Waiting for your reply</span>
+			<span className="sr-only">{m.issues.meta.awaitingReply}</span>
 		</span>
 	);
 }
@@ -326,10 +293,11 @@ export function Face({
 	size?: number;
 	className?: string;
 }) {
+	const { m } = useI18n();
 	if (kind === "agent") {
 		return (
 			<span
-				title={`${name} (agent)`}
+				title={m.common.agentName(name)}
 				className={cn(
 					"inline-flex flex-none items-center justify-center rounded-full bg-brand-soft text-brand",
 					className,

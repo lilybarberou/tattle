@@ -16,7 +16,16 @@ import { Button } from "#/components/ui/button";
 import { Checkbox } from "#/components/ui/checkbox";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/ui/select";
 import { Textarea } from "#/components/ui/textarea";
+import { LOCALE_NAMES, LOCALES, type Locale } from "#/i18n/locales";
+import { useI18n } from "#/i18n/react";
 import { cn } from "#/lib/utils";
 import {
 	createWebhookFn,
@@ -49,20 +58,11 @@ export const Route = createFileRoute("/_app/p/$projectId/settings")({
 	component: SettingsPage,
 });
 
-const EVENT_HELP: Record<WebhookEvent, string> = {
-	"report.created": "A user sent a report from the widget",
-	"issue.created": "An issue was opened, from a report or by hand",
-	"issue.updated": "Status, priority, labels, assignee or PR changed",
-	"comment.created": "Someone, or an agent, commented",
-	"message.created":
-		"A reporter wrote to the team, or the team replied to a reporter",
-};
-
 type InstallTab = "web" | "api";
-const INSTALL_TABS: Array<{ id: InstallTab; label: string }> = [
-	{ id: "web", label: "Website" },
-	{ id: "api", label: "Mobile and other apps (API)" },
-];
+const INSTALL_TABS = [
+	{ id: "web", label: "tabWeb" },
+	{ id: "api", label: "tabApi" },
+] as const satisfies ReadonlyArray<{ id: InstallTab; label: string }>;
 
 function SettingsPage() {
 	const project = projectRoute.useLoaderData();
@@ -83,19 +83,24 @@ function SettingsPage() {
 	);
 	const [confirmName, setConfirmName] = useState("");
 	const navigate = useNavigate();
+	const { m, locale } = useI18n();
+	const t = m.settings;
 
 	const save = async (data: {
 		name?: string;
 		allowedOrigins?: string[];
 		portalEnabled?: boolean;
 		portalSlug?: string;
+		chatLocale?: Locale;
 	}) => {
 		try {
 			await updateProjectFn({ data: { projectId: project.id, ...data } });
-			toast.success("Saved");
+			toast.success(m.common.actions.saved);
 			await router.invalidate();
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Could not save");
+			toast.error(
+				error instanceof Error ? error.message : m.common.errors.couldNotSave,
+			);
 		}
 	};
 
@@ -107,13 +112,15 @@ function SettingsPage() {
 			toast.success(done);
 			await router.invalidate();
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Could not save");
+			toast.error(
+				error instanceof Error ? error.message : m.common.errors.couldNotSave,
+			);
 		}
 	};
 
 	const identityServerSnippet = `import { createHmac } from "node:crypto";
 
-// Send it to the page with the rest of the signed-in user's data.
+// ${t.identity.serverComment}
 const tattleHash = createHmac("sha256", process.env.TATTLE_IDENTITY_SECRET)
   .update(String(user.id))
   .digest("hex");`;
@@ -125,7 +132,7 @@ const tattleHash = createHmac("sha256", process.env.TATTLE_IDENTITY_SECRET)
   data-release="1.4.2"
   defer
 ></script>`;
-	const identifySnippet = `// After sign-in, so every report says who sent it:
+	const identifySnippet = `// ${t.install.identifyComment}
 Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.plan })`;
 	const curlSnippet = `curl ${baseUrl}/api/v1/ingest \\
   -H "content-type: application/json" \\
@@ -142,14 +149,14 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 	return (
 		<>
 			<PageHeader
-				title="Project settings"
-				description={`${project.name} · public key ${project.publicKey}`}
+				title={t.title}
+				description={t.description(project.name, project.publicKey)}
 			/>
 			<div className="px-6 pb-10">
 				<SettingsSection
 					id="general"
-					title="General"
-					description="The project's name, shown in the sidebar and in webhook payloads."
+					title={t.general.title}
+					description={t.general.description}
 				>
 					<form
 						className="flex max-w-md items-end gap-2"
@@ -159,7 +166,7 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 						}}
 					>
 						<div className="flex-1 space-y-2">
-							<Label htmlFor="project-name">Name</Label>
+							<Label htmlFor="project-name">{t.general.name}</Label>
 							<Input
 								id="project-name"
 								value={name}
@@ -175,7 +182,7 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 								variant="outline"
 								disabled={!name.trim() || name === project.name}
 							>
-								Save
+								{m.common.actions.save}
 							</Button>
 						)}
 					</form>
@@ -184,38 +191,32 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 
 				<SettingsSection
 					id="install"
-					title="Install the widget"
+					title={t.install.title}
 					description={
 						<>
-							<p>
-								Adds a button to your app. Users report a bug with an annotated
-								screenshot, or suggest an idea.
-							</p>
-							<p className="mt-2">
-								The steps before the report, console errors, failed requests and
-								the device are attached automatically.
-							</p>
+							<p>{t.install.description1}</p>
+							<p className="mt-2">{t.install.description2}</p>
 						</>
 					}
 				>
 					<div
 						role="tablist"
-						aria-label="Platform"
+						aria-label={t.install.platform}
 						className="flex gap-5 border-b"
 					>
-						{INSTALL_TABS.map((t) => (
+						{INSTALL_TABS.map((tab) => (
 							<button
-								key={t.id}
+								key={tab.id}
 								type="button"
 								role="tab"
-								aria-selected={installTab === t.id}
-								onClick={() => setInstallTab(t.id)}
+								aria-selected={installTab === tab.id}
+								onClick={() => setInstallTab(tab.id)}
 								className={cn(
 									"-mb-px h-9 border-b-2 border-transparent text-muted-foreground hover:text-ink",
-									installTab === t.id && "border-brand font-medium text-ink",
+									installTab === tab.id && "border-brand font-medium text-ink",
 								)}
 							>
-								{t.label}
+								{t.install[tab.label]}
 							</button>
 						))}
 					</div>
@@ -223,31 +224,26 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 						<>
 							<CodeBlock code={scriptSnippet} />
 							<p className="text-muted-foreground">
-								Set <code className="font-mono text-xs">data-release</code> to
-								your app's version on each deploy: issues show the releases they
-								were seen in, and a done bug reported again is reopened as a
-								regression.
+								{t.install.releaseBefore}{" "}
+								<code className="font-mono text-xs">data-release</code>{" "}
+								{t.install.releaseAfter}
 							</p>
-							<CodeBlock
-								label="Then identify the signed-in user"
-								code={identifySnippet}
-							/>
+							<CodeBlock label={t.install.identify} code={identifySnippet} />
 						</>
 					)}
 					{installTab === "api" && (
 						<>
 							<p className="text-muted-foreground">
-								Swift, Kotlin, Flutter, React Native or a backend: send reports
-								with one JSON request. The{" "}
+								{t.install.apiBefore}{" "}
 								<a
 									href="https://github.com/lilybarberou/tattle/blob/main/docs/INGEST-API.md"
 									target="_blank"
 									rel="noreferrer"
 									className="text-ink underline underline-offset-2"
 								>
-									ingest API reference
+									{t.install.apiLink}
 								</a>{" "}
-								lists every field.
+								{t.install.apiAfter}
 							</p>
 							<CodeBlock code={curlSnippet} />
 						</>
@@ -256,19 +252,16 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 
 				<SettingsSection
 					id="origins"
-					title="Allowed sites"
+					title={t.origins.title}
 					description={
 						project.allowedOrigins.length === 0 ? (
 							<p className="rounded-md bg-pill-warning px-3 py-2 text-pill-warning-ink">
-								Any site can send reports with this key. Fine while testing;
-								list your app's address before you go live.
+								{t.origins.anySite}
 							</p>
 						) : (
 							<>
-								<p>Only these sites can send reports with this key.</p>
-								<p className="mt-2">
-									Mobile apps are not affected: they send no site address.
-								</p>
+								<p>{t.origins.onlyThese}</p>
+								<p className="mt-2">{t.origins.mobile}</p>
 							</>
 						)
 					}
@@ -281,7 +274,7 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 						}}
 					>
 						<div className="space-y-2">
-							<Label htmlFor="origins">One address per line</Label>
+							<Label htmlFor="origins">{t.origins.label}</Label>
 							<Textarea
 								id="origins"
 								value={origins}
@@ -294,7 +287,7 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 						</div>
 						{project.canManage ? (
 							<Button type="submit" variant="outline">
-								Save sites
+								{t.origins.save}
 							</Button>
 						) : (
 							<OwnersAndAdminsOnly />
@@ -304,114 +297,99 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 
 				<SettingsSection
 					id="identity"
-					title="Verified identity"
+					title={t.identity.title}
 					description={
 						<>
-							<p>
-								People follow their reports and talk with you from the widget.
-								By default, each device sees the reports sent from it.
-							</p>
-							<p className="mt-2">
-								Turn this on so a signed-in user sees all their reports, on
-								every device: your server signs their id with this secret and
-								the widget passes the signature along. A user id without a valid
-								signature never opens anyone's reports.
-							</p>
-							<p className="mt-2">
-								While it is on, a report sent by a verified user is theirs only:
-								the device it came from no longer lists it on its own. Replacing
-								the secret breaks every signature made with the old one, so
-								until your server signs with the new secret, signed-in users see
-								only what their device sent without signing in. Turning it off
-								gives each device back every report sent from it, verified or
-								not.
-							</p>
+							<p>{t.identity.description1}</p>
+							<p className="mt-2">{t.identity.description2}</p>
+							<p className="mt-2">{t.identity.description3}</p>
 						</>
 					}
 				>
 					{identity.secret ? (
 						<>
+							<CodeBlock label={t.identity.secret} code={identity.secret} />
 							<CodeBlock
-								label="Identity secret: keep it on your server"
-								code={identity.secret}
-							/>
-							<CodeBlock
-								label="On your server, for the signed-in user (Node)"
+								label={t.identity.server}
 								code={identityServerSnippet}
 							/>
 							<p className="text-muted-foreground">
-								Any other language: the HMAC-SHA256 of the user id with this
-								secret, in hex. In PHP,{" "}
+								{t.identity.otherLanguage}{" "}
 								<code className="font-mono text-xs">
 									hash_hmac('sha256', $userId, $secret)
 								</code>
 								.
 							</p>
 							<CodeBlock
-								label="Then in your app, with the same id"
+								label={t.identity.client}
 								code={identityClientSnippet}
 							/>
 							<div className="flex flex-wrap gap-2">
 								<Button
 									variant="outline"
 									onClick={() =>
-										setIdentityVerification(
-											true,
-											"New secret. Update your server: signatures made with the old one no longer work, and until then signed-in users only see what their device sent without signing in.",
-										)
+										setIdentityVerification(true, t.identity.replaced)
 									}
 								>
-									Replace the secret
+									{t.identity.replace}
 								</Button>
 								<Button
 									variant="ghost"
 									onClick={() =>
-										setIdentityVerification(
-											false,
-											"Verified identity is off. Each device sees every report sent from it, verified or not.",
-										)
+										setIdentityVerification(false, t.identity.turnedOff)
 									}
 								>
-									Turn off
+									{t.identity.turnOff}
 								</Button>
 							</div>
 						</>
 					) : identity.canManage ? (
 						<Button
 							variant="outline"
-							onClick={() =>
-								setIdentityVerification(
-									true,
-									"Verified identity is on. Add the signature on your server.",
-								)
-							}
+							onClick={() => setIdentityVerification(true, t.identity.turnedOn)}
 						>
-							Turn on verified identity
+							{t.identity.turnOn}
 						</Button>
 					) : (
 						<p className="text-muted-foreground">
-							Verified identity is {identity.enabled ? "on" : "off"}. Only
-							owners and admins can see the secret or change this.
+							{t.identity.state(identity.enabled)}
 						</p>
 					)}
 				</SettingsSection>
 
 				<SettingsSection
 					id="notifications"
-					title="Discord and Slack"
+					title={t.chat.title}
 					description={
 						<>
-							<p>
-								Posts new reports, status and assignee changes, and comments to
-								a channel.
-							</p>
-							<p className="mt-2">
-								Discord: channel settings → Integrations → Webhooks → New
-								webhook → Copy URL. Slack: an Incoming Webhook URL.
-							</p>
+							<p>{t.chat.description1}</p>
+							<p className="mt-2">{t.chat.description2}</p>
 						</>
 					}
 				>
+					<div className="space-y-2">
+						<Label htmlFor="chat-locale">{t.chat.language}</Label>
+						<Select
+							value={project.chatLocale}
+							disabled={!project.canManage}
+							onValueChange={(value) => {
+								if (value !== project.chatLocale)
+									void save({ chatLocale: value as Locale });
+							}}
+						>
+							<SelectTrigger id="chat-locale" className="w-48">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{LOCALES.map((locale) => (
+									<SelectItem key={locale} value={locale} lang={locale}>
+										{LOCALE_NAMES[locale]}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<p className="text-muted-foreground">{t.chat.languageHelp}</p>
+					</div>
 					{chatEndpoints.map((endpoint) => (
 						<div
 							key={endpoint.id}
@@ -430,23 +408,23 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 									const result = await pingWebhookFn({
 										data: { projectId: project.id, endpointId: endpoint.id },
 									});
-									if (result.ok) toast.success("Test message sent");
-									else toast.error(`Test failed: ${result.error}`);
+									if (result.ok) toast.success(t.chat.testSent);
+									else toast.error(t.chat.testFailed(String(result.error)));
 								}}
 							>
 								<SendIcon className="size-3.5" />
-								Send a test
+								{t.chat.sendTest}
 							</Button>
 							{webhooks.canManage && (
 								<Button
 									size="icon-sm"
 									variant="ghost"
-									aria-label="Remove this channel"
+									aria-label={t.chat.remove}
 									onClick={async () => {
 										await deleteWebhookFn({
 											data: { projectId: project.id, endpointId: endpoint.id },
 										});
-										toast.success("Channel removed");
+										toast.success(t.chat.removed);
 										await router.invalidate();
 									}}
 								>
@@ -456,9 +434,7 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 						</div>
 					))}
 					{!webhooks.canManage && (
-						<p className="text-muted-foreground">
-							Only owners and admins can add or remove channels.
-						</p>
+						<p className="text-muted-foreground">{t.chat.ownersOnly}</p>
 					)}
 					{webhooks.canManage && (
 						<form
@@ -484,14 +460,14 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 									});
 									form.reset();
 									toast.success(
-										`${chatService === "discord" ? "Discord" : "Slack"} channel added`,
+										t.chat.added(
+											chatService === "discord" ? "Discord" : "Slack",
+										),
 									);
 									await router.invalidate();
 								} catch (error) {
 									toast.error(
-										error instanceof Error
-											? error.message
-											: "Could not add the channel",
+										error instanceof Error ? error.message : t.chat.addFailed,
 									);
 								}
 							}}
@@ -514,7 +490,7 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 								))}
 							</div>
 							<div className="space-y-2">
-								<Label htmlFor="chat-url">Webhook URL</Label>
+								<Label htmlFor="chat-url">{t.chat.url}</Label>
 								<Input
 									id="chat-url"
 									name="chat-url"
@@ -527,26 +503,23 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 									}
 								/>
 							</div>
-							<Button type="submit">Add channel</Button>
+							<Button type="submit">{t.chat.add}</Button>
 						</form>
 					)}
 				</SettingsSection>
 
 				<SettingsSection
 					id="webhooks"
-					title="Webhooks"
+					title={t.webhooks.title}
 					description={
 						<>
-							<p>
-								We POST each event as JSON to your agent or server, and retry 5
-								times if it fails.
-							</p>
+							<p>{t.webhooks.description1}</p>
 							<p className="mt-2">
-								Check the{" "}
+								{t.webhooks.checkBefore}{" "}
 								<code className="font-mono text-xs">x-tattle-signature</code>{" "}
-								header: an HMAC-SHA256 of{" "}
-								<code className="font-mono text-xs">{"<t>.<body>"}</code> with
-								the secret.
+								{t.webhooks.checkMiddle}{" "}
+								<code className="font-mono text-xs">{"<t>.<body>"}</code>{" "}
+								{t.webhooks.checkAfter}
 							</p>
 						</>
 					}
@@ -573,18 +546,23 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 												},
 											});
 											if (result.ok)
-												toast.success(`Ping delivered (HTTP ${result.status})`);
-											else toast.error(`Ping failed: ${result.error}`);
+												toast.success(
+													t.webhooks.pingDelivered(Number(result.status)),
+												);
+											else
+												toast.error(
+													t.webhooks.pingFailed(String(result.error)),
+												);
 										}}
 									>
 										<SendIcon className="size-3.5" />
-										Send a test
+										{t.chat.sendTest}
 									</Button>
 									{webhooks.canManage && (
 										<Button
 											size="icon-sm"
 											variant="ghost"
-											aria-label="Delete this webhook"
+											aria-label={t.webhooks.delete}
 											onClick={async () => {
 												await deleteWebhookFn({
 													data: {
@@ -592,7 +570,7 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 														endpointId: endpoint.id,
 													},
 												});
-												toast.success("Webhook deleted");
+												toast.success(t.webhooks.deleted);
 												await router.invalidate();
 											}}
 										>
@@ -603,19 +581,19 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 								<p className="text-muted-foreground">
 									{endpoint.events.length
 										? endpoint.events.join(", ")
-										: "Every event"}
+										: t.webhooks.everyEvent}
 								</p>
 								{endpoint.secret && (
-									<CodeBlock label="Signing secret" code={endpoint.secret} />
+									<CodeBlock
+										label={t.webhooks.signingSecret}
+										code={endpoint.secret}
+									/>
 								)}
 							</div>
 						))}
 
 					{!webhooks.canManage && (
-						<p className="text-muted-foreground">
-							Only owners and admins can add, remove or see the secret of a
-							webhook.
-						</p>
+						<p className="text-muted-foreground">{t.webhooks.ownersOnly}</p>
 					)}
 					{webhooks.canManage && (
 						<form
@@ -635,19 +613,19 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 									});
 									form.reset();
 									setEvents([]);
-									toast.success("Webhook added");
+									toast.success(t.webhooks.added);
 									await router.invalidate();
 								} catch (error) {
 									toast.error(
 										error instanceof Error
 											? error.message
-											: "Could not add the webhook",
+											: t.webhooks.addFailed,
 									);
 								}
 							}}
 						>
 							<div className="space-y-2">
-								<Label htmlFor="webhook-url">Add an endpoint</Label>
+								<Label htmlFor="webhook-url">{t.webhooks.endpoint}</Label>
 								<Input
 									id="webhook-url"
 									name="url"
@@ -658,7 +636,7 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 							</div>
 							<fieldset className="space-y-2">
 								<legend className="mb-2 text-muted-foreground">
-									Events, or none for every event
+									{t.webhooks.events}
 								</legend>
 								{webhooks.events.map((event) => (
 									<label
@@ -681,26 +659,30 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 										<span>
 											<span className="font-mono text-xs">{event}</span>
 											<span className="block text-muted-foreground">
-												{EVENT_HELP[event]}
+												{t.webhooks.eventHelp[event as WebhookEvent]}
 											</span>
 										</span>
 									</label>
 								))}
 							</fieldset>
-							<Button type="submit">Add webhook</Button>
+							<Button type="submit">{t.webhooks.add}</Button>
 						</form>
 					)}
 
 					{webhooks.deliveries.length > 0 && (
 						<div>
-							<h3 className="mb-2 font-medium">Recent deliveries</h3>
+							<h3 className="mb-2 font-medium">{t.webhooks.recent}</h3>
 							<table className="w-full">
 								<thead className="text-left text-xs text-muted-foreground">
 									<tr>
-										<th className="pb-2 font-normal">Event</th>
-										<th className="pb-2 font-normal">Result</th>
-										<th className="pb-2 text-right font-normal">Tries</th>
-										<th className="pb-2 text-right font-normal">When</th>
+										<th className="pb-2 font-normal">{t.webhooks.event}</th>
+										<th className="pb-2 font-normal">{t.webhooks.result}</th>
+										<th className="pb-2 text-right font-normal">
+											{t.webhooks.tries}
+										</th>
+										<th className="pb-2 text-right font-normal">
+											{t.webhooks.when}
+										</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -720,10 +702,10 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 													)}
 												>
 													{d.status === "success"
-														? `Delivered${d.responseStatus ? ` · ${d.responseStatus}` : ""}`
+														? `${t.webhooks.delivered}${d.responseStatus ? ` · ${d.responseStatus}` : ""}`
 														: d.status === "failed"
-															? `Failed${d.lastError ? ` · ${d.lastError}` : ""}`
-															: "Retrying"}
+															? `${t.webhooks.failed}${d.lastError ? ` · ${d.lastError}` : ""}`
+															: t.webhooks.retrying}
 												</span>
 											</td>
 											<td className="num py-2 text-right">{d.attempts}</td>
@@ -740,25 +722,18 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 
 				<SettingsSection
 					id="github"
-					title="GitHub"
+					title={t.github.title}
 					description={
 						<>
-							<p>
-								Moves an issue to Done when its pull request is merged into the
-								repository's default branch, so nobody has to do it by hand.
-								Reporters of a shipped feature get their email as usual.
-							</p>
+							<p>{t.github.description1}</p>
 							<p className="mt-2">
-								A pull request is linked when it is the issue's PR (agents set
-								it with <code className="font-mono text-xs">update_issue</code>
-								), or when its title or description says{" "}
-								<code className="font-mono text-xs">Fixes Tattle #12</code> (or{" "}
-								<code className="font-mono text-xs">closes tattle#12</code>:
-								fix, close or resolve in any form, right before the reference; a
-								bare mention links nothing, and a plain #12 is GitHub's own
-								issue). Opening such a pull request links it and moves the issue
-								from Todo or In progress to In review. An issue whose pull
-								request is another one is left alone.
+								{t.github.linkedBefore}{" "}
+								<code className="font-mono text-xs">update_issue</code>
+								{t.github.linkedMiddle}{" "}
+								<code className="font-mono text-xs">Fixes Tattle #12</code>{" "}
+								{t.github.linkedOr}{" "}
+								<code className="font-mono text-xs">closes tattle#12</code>
+								{t.github.linkedAfter}
 							</p>
 						</>
 					}
@@ -772,8 +747,8 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 
 				<SettingsSection
 					id="portal"
-					title="Public feature requests"
-					description="A public page where anyone can see what you plan, vote for ideas and suggest new ones. Only requests you accepted from Triage appear there."
+					title={t.portal.title}
+					description={t.portal.description}
 				>
 					<form
 						className="space-y-4"
@@ -792,10 +767,10 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 								onCheckedChange={(v) => setPortalEnabled(v === true)}
 								disabled={!project.canManage}
 							/>
-							Publish the page
+							{t.portal.publish}
 						</label>
 						<div className="space-y-2">
-							<Label htmlFor="portal-slug">Address</Label>
+							<Label htmlFor="portal-slug">{t.portal.address}</Label>
 							<div className="flex max-w-lg items-center rounded-md border border-input bg-surface transition-[color,box-shadow] has-focus-visible:border-ring has-focus-visible:ring-[3px] has-focus-visible:ring-ring/50">
 								<span className="truncate pl-3 text-muted-foreground">
 									{baseUrl.replace(/^https?:\/\//, "")}/portal/
@@ -814,19 +789,20 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 						<div className="flex flex-wrap items-center gap-3">
 							{project.canManage ? (
 								<Button type="submit" variant="outline">
-									Save
+									{m.common.actions.save}
 								</Button>
 							) : (
 								<OwnersAndAdminsOnly />
 							)}
 							{project.portalEnabled && project.portalSlug && (
 								<Link
-									to="/portal/$slug"
+									// In the reader's language: the portal has one address per language.
+									to={locale === "fr" ? "/fr/portal/$slug" : "/portal/$slug"}
 									params={{ slug: project.portalSlug }}
 									target="_blank"
 									className="font-medium text-brand hover:underline"
 								>
-									Open the public page
+									{t.portal.open}
 								</Link>
 							)}
 						</div>
@@ -836,8 +812,8 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 				{project.canManage && (
 					<SettingsSection
 						id="danger"
-						title="Delete this project"
-						description="Deletes every issue, report, screenshot, webhook and vote of this project. The widget stops accepting reports. This cannot be undone."
+						title={t.danger.title}
+						description={t.danger.description}
 					>
 						<form
 							className="max-w-md space-y-3 rounded-lg border border-negative/30 p-4"
@@ -847,19 +823,22 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 									await deleteProjectFn({
 										data: { projectId: project.id, confirmName },
 									});
-									toast.success(`${project.name} was deleted`);
+									toast.success(t.danger.deleted(project.name));
 									await router.invalidate();
 									await navigate({ to: "/" });
 								} catch (error) {
 									toast.error(
-										error instanceof Error ? error.message : "Could not delete",
+										error instanceof Error
+											? error.message
+											: m.common.errors.couldNotDelete,
 									);
 								}
 							}}
 						>
 							<Label htmlFor="confirm-name">
-								Type <span className="font-semibold">{project.name}</span> to
-								confirm
+								{t.danger.typeBefore}{" "}
+								<span className="font-semibold">{project.name}</span>{" "}
+								{t.danger.typeAfter}
 							</Label>
 							<Input
 								id="confirm-name"
@@ -872,7 +851,7 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 								variant="destructive"
 								disabled={confirmName.trim() !== project.name}
 							>
-								Delete {project.name}
+								{t.danger.delete(project.name)}
 							</Button>
 						</form>
 					</SettingsSection>
@@ -884,10 +863,9 @@ Tattle.identify({ id: user.id, email: user.email, name: user.name, plan: user.pl
 
 /** In place of a setting's Save button, for plain members. */
 function OwnersAndAdminsOnly() {
+	const { m } = useI18n();
 	return (
-		<p className="text-muted-foreground">
-			Only owners and admins can change this.
-		</p>
+		<p className="text-muted-foreground">{m.settings.ownersAndAdminsOnly}</p>
 	);
 }
 
@@ -904,6 +882,8 @@ function GithubSettings({
 }) {
 	const router = useRouter();
 	const [busy, setBusy] = useState(false);
+	const { m } = useI18n();
+	const t = m.settings.github;
 
 	const act = async (action: () => Promise<unknown>, success: string) => {
 		setBusy(true);
@@ -912,7 +892,9 @@ function GithubSettings({
 			toast.success(success);
 			await router.invalidate();
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Could not save");
+			toast.error(
+				error instanceof Error ? error.message : m.common.errors.couldNotSave,
+			);
 		} finally {
 			setBusy(false);
 		}
@@ -934,41 +916,45 @@ function GithubSettings({
 								setGithubEnabledFn({
 									data: { projectId, enabled: v === true },
 								}),
-							v === true ? "GitHub sync turned on" : "GitHub sync turned off",
+							v === true ? t.turnedOn : t.turnedOff,
 						)
 					}
 				/>
-				Move issues to Done when their pull request is merged
+				{t.toggle}
 			</label>
 			{!settings.canManage && (
 				<p className="text-muted-foreground">
-					Only owners and admins can change this.
+					{m.settings.ownersAndAdminsOnly}
 				</p>
 			)}
 			{settings.canManage && settings.enabled && settings.secret && (
 				<>
 					<ol className="list-decimal space-y-1.5 pl-5 text-muted-foreground">
 						<li>
-							In your repository on GitHub:{" "}
-							<b>Settings → Webhooks → Add webhook</b>.
+							{t.step1} <b>{t.step1Path}</b>.
 						</li>
 						<li>
-							<b>Payload URL</b>: the address below.
+							<b>{t.payloadUrl}</b>
+							{t.step2}
 						</li>
 						<li>
-							<b>Content type</b>:{" "}
+							<b>{t.contentType}</b>
+							{t.colon}{" "}
 							<code className="font-mono text-xs">application/json</code>.
 						</li>
 						<li>
-							<b>Secret</b>: the secret below.
+							<b>{t.secret}</b>
+							{t.step4}
 						</li>
 						<li>
-							<b>Let me select individual events</b>, check <b>Pull requests</b>{" "}
-							only, then <b>Add webhook</b>. GitHub sends a ping right away.
+							<b>{t.selectEvents}</b>
+							{t.step5Check} <b>{t.pullRequests}</b> {t.step5Then}{" "}
+							<b>{t.addWebhook}</b>
+							{t.step5Ping}
 						</li>
 					</ol>
-					<CodeBlock label="Payload URL" code={hookUrl} />
-					<CodeBlock label="Secret" code={settings.secret} />
+					<CodeBlock label={t.payloadUrl} code={hookUrl} />
+					<CodeBlock label={t.secret} code={settings.secret} />
 					<div className="flex flex-wrap items-center gap-3">
 						<Button
 							size="sm"
@@ -977,23 +963,21 @@ function GithubSettings({
 							onClick={() =>
 								act(
 									() => regenerateGithubSecretFn({ data: { projectId } }),
-									"New secret created: paste it in GitHub",
+									t.newSecretCreated,
 								)
 							}
 						>
 							<RefreshCwIcon className="size-3.5" />
-							New secret
+							{t.newSecret}
 						</Button>
-						<span className="text-muted-foreground">
-							The old one stops working at once.
-						</span>
+						<span className="text-muted-foreground">{t.oldStops}</span>
 					</div>
 				</>
 			)}
 			{settings.lastDeliveryAt && (
 				<p className="text-muted-foreground">
-					Last delivery <RelativeTime iso={settings.lastDeliveryAt} />:{" "}
-					{settings.lastDelivery}
+					{t.lastDelivery} <RelativeTime iso={settings.lastDeliveryAt} />
+					{t.colon} {settings.lastDelivery}
 				</p>
 			)}
 		</div>

@@ -639,7 +639,7 @@ describe("Unsubscribe links", () => {
 
 		expect(
 			await run(Notifications.use((n) => n.describeUnsubscribe(token))),
-		).toEqual({ kind: "team", label: "Assigned to you" });
+		).toEqual({ kind: "team", type: "assigned" });
 		expect(await run(Notifications.use((n) => n.unsubscribe(token)))).toBe(
 			true,
 		);

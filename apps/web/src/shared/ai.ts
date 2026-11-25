@@ -14,25 +14,19 @@ export const AI_PROVIDER_META: Record<
 		label: string;
 		/** A cheap, fast model; empty when there is no sensible default. */
 		defaultModel: string;
-		/** Where the key comes from, shown under the key field. */
-		keyHelp: string;
 	}
 > = {
 	anthropic: {
 		label: "Anthropic",
 		defaultModel: "claude-haiku-5-5",
-		keyHelp: "From console.anthropic.com → API keys.",
 	},
 	openai: {
 		label: "OpenAI",
 		defaultModel: "gpt-5-mini",
-		keyHelp: "From platform.openai.com → API keys.",
 	},
 	openai_compatible: {
 		label: "OpenAI-compatible",
 		defaultModel: "",
-		keyHelp:
-			"Mistral, OpenRouter, Ollama, LM Studio… Leave the key empty if the server needs none.",
 	},
 };
 

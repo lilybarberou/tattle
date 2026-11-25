@@ -34,7 +34,7 @@ import {
 } from "./ai";
 import { causeKinds, inBackground } from "./background";
 import { Database } from "./Database";
-import { type DbError, NotFound } from "./errors";
+import { type DbError, localized, NotFound } from "./errors";
 
 /** How many similar issues are kept, and shown to the AI. */
 export const MAX_CANDIDATES = 8;
@@ -175,7 +175,7 @@ export class Duplicates extends Context.Service<
 						.innerJoin(project, eq(project.id, issue.projectId))
 						.where(eq(issue.id, issueId)),
 				);
-				if (!row) return yield* new NotFound({ message: "Issue not found" });
+				if (!row) return yield* new NotFound(localized("issueNotFound"));
 				const [first] = yield* database.query((db) =>
 					db
 						.select({
@@ -401,7 +401,9 @@ export class Duplicates extends Context.Service<
 						),
 				);
 				if (!row)
-					return yield* new NotFound({ message: `Issue #${number} not found` });
+					return yield* new NotFound(
+						localized("issueNumberNotFound", { number }),
+					);
 				return row;
 			});
 

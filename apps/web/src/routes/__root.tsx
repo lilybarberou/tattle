@@ -3,9 +3,14 @@ import {
 	createRootRouteWithContext,
 	HeadContent,
 	Scripts,
+	useMatches,
 } from "@tanstack/react-router";
 import { Toaster } from "#/components/ui/sonner";
 import { TooltipProvider } from "#/components/ui/tooltip";
+import { messages } from "#/i18n";
+import { I18nProvider } from "#/i18n/react";
+import { pageLocale } from "#/i18n/route";
+import { getLocaleFn } from "#/server/fns";
 import appCss from "../styles.css?url";
 
 interface RouterContext {
@@ -13,15 +18,20 @@ interface RouterContext {
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({
-	head: () => ({
+	// The page's languages: the signed-in person's choice, else the visitor's
+	// (the selector's cookie, Accept-Language). Loaded once; changing a
+	// choice invalidates the router. The portal's language is its address's.
+	loader: () => getLocaleFn(),
+	staleTime: Number.POSITIVE_INFINITY,
+	preloadStaleTime: Number.POSITIVE_INFINITY,
+	head: ({ matches }) => ({
 		meta: [
 			{ charSet: "utf-8" },
 			{ name: "viewport", content: "width=device-width, initial-scale=1" },
 			{ title: "Tattle" },
 			{
 				name: "description",
-				content:
-					"Bug reports and feature requests from your users, triaged by your agents.",
+				content: messages(pageLocale(matches)).common.tagline,
 			},
 		],
 		links: [
@@ -36,8 +46,9 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+	const locale = useMatches({ select: (matches) => pageLocale(matches) });
 	return (
-		<html lang="en">
+		<html lang={locale}>
 			<head>
 				<HeadContent />
 				{/* Tints the browser chrome to match the app frame (--ground). Written
@@ -54,7 +65,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 				/>
 			</head>
 			<body>
-				<TooltipProvider>{children}</TooltipProvider>
+				<I18nProvider locale={locale}>
+					<TooltipProvider>{children}</TooltipProvider>
+				</I18nProvider>
 				<Toaster />
 				<Scripts />
 			</body>

@@ -22,10 +22,10 @@ import {
 	user,
 	webhookEndpoint,
 } from "#/db/schema";
+import { type Locale, messages, preferredLocale } from "#/i18n";
 import { AI_PROVIDER_META, type AiProvider } from "#/shared/ai";
 import {
 	DEFAULT_DIGEST_HOUR,
-	NOTIFICATION_META,
 	NOTIFICATION_TYPES,
 	type NotificationSettingsView,
 	type NotificationType,
@@ -82,13 +82,16 @@ export const digestHour = () => {
 const issueUrl = (projectId: string, number: number) =>
 	`${env.baseUrl}/p/${projectId}/issues/${number}`;
 
-const quote = (text: string, max = 2000) => {
+const quote = (text: string, locale: Locale, max = 2000) => {
 	const clean = text.trim();
-	return `“${clean.length > max ? `${clean.slice(0, max - 1)}…` : clean}”`;
+	const cut = clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
+	return locale === "fr" ? `« ${cut} »` : `“${cut}”`;
 };
 
-const actorName = (actor: Actor) =>
-	actor.type === "agent" ? `${actor.name} (agent)` : actor.name;
+const actorName = (actor: Actor, locale: Locale) =>
+	actor.type === "agent"
+		? messages(locale).common.agentName(actor.name)
+		: actor.name;
 
 const DIGEST_ITEMS = 5;
 const DAY_MS = 24 * 3600 * 1000;
@@ -98,6 +101,9 @@ type Person = {
 	email: string;
 	name: string;
 	role: string;
+	/** Their dashboard choice, and the language their browser last asked for. */
+	locale: string | null;
+	detectedLocale: string | null;
 	setting: SettingRow | null;
 };
 
@@ -157,7 +163,7 @@ export class Notifications extends Context.Service<
 		readonly describeUnsubscribe: (
 			token: string,
 		) => Effect.Effect<
-			| { kind: "team"; label: string }
+			| { kind: "team"; type: NotificationType }
 			| { kind: "report"; project: string; title: string }
 			| null,
 			DbError
@@ -183,6 +189,8 @@ export class Notifications extends Context.Service<
 								email: user.email,
 								name: user.name,
 								role: member.role,
+								locale: user.locale,
+								detectedLocale: user.detectedLocale,
 								setting: notificationSetting,
 							})
 							.from(member)
@@ -217,29 +225,38 @@ export class Notifications extends Context.Service<
 				});
 			};
 
+			/**
+			 * Sends one team email, written in the person's language: their
+			 * dashboard choice, else their browser's, else English.
+			 */
 			const send = (
-				person: Pick<Person, "userId" | "email">,
+				person: Pick<Person, "userId" | "email" | "locale" | "detectedLocale">,
 				type: NotificationType,
-				mail: Omit<Mail, "to" | "footer" | "headers">,
+				write: (
+					locale: Locale,
+				) => Omit<Mail, "to" | "footer" | "headers" | "locale">,
 			) => {
 				const token = signUnsubscribe({
 					kind: "team",
 					userId: person.userId,
 					type,
 				});
+				const locale = preferredLocale(person);
+				const m = messages(locale);
 				return Effect.tryPromise(() =>
 					sendMail({
-						...mail,
+						...write(locale),
 						to: person.email,
+						locale,
 						footer: {
-							text: `You get this email because “${NOTIFICATION_META[type].label}” is on in your Tattle notification settings.`,
+							text: m.emails.team.footer(m.common.notificationType[type].label),
 							links: [
 								{
-									label: "Notification settings",
+									label: m.emails.team.settings,
 									url: `${env.baseUrl}/notifications`,
 								},
 								{
-									label: "Unsubscribe from these emails",
+									label: m.emails.team.unsubscribe,
 									url: unsubscribePageUrl(token),
 								},
 							],
@@ -296,13 +313,21 @@ export class Notifications extends Context.Service<
 					return;
 				const people = keep(yield* assigneeOf(ctx), "assigned", actor);
 				for (const person of people) {
-					yield* send(person, "assigned", {
-						subject: `Assigned to you: #${ctx.number} ${ctx.title}`,
-						text: `${actorName(actor)} assigned you #${ctx.number} “${ctx.title}” in ${ctx.projectName}.`,
-						action: {
-							label: "Open the issue",
-							url: issueUrl(ctx.projectId, ctx.number),
-						},
+					yield* send(person, "assigned", (locale) => {
+						const { emails } = messages(locale);
+						const about = { number: ctx.number, title: ctx.title };
+						return {
+							subject: emails.assigned.subject(about),
+							text: emails.assigned.text({
+								...about,
+								actor: actorName(actor, locale),
+								project: ctx.projectName,
+							}),
+							action: {
+								label: emails.team.openIssue,
+								url: issueUrl(ctx.projectId, ctx.number),
+							},
+						};
 					});
 				}
 			});
@@ -322,23 +347,24 @@ export class Notifications extends Context.Service<
 					actor,
 				);
 				for (const person of people) {
-					yield* send(person, "regression", {
-						subject: `Regression: #${ctx.number} ${ctx.title}`,
-						text: `#${ctx.number} “${ctx.title}” in ${ctx.projectName} was done, and a newer report came in${release ? ` from release ${release}` : ""}. It was reopened and moved to Todo.`,
-						action: {
-							label: "Open the issue",
-							url: issueUrl(ctx.projectId, ctx.number),
-						},
+					yield* send(person, "regression", (locale) => {
+						const { emails } = messages(locale);
+						const about = { number: ctx.number, title: ctx.title };
+						return {
+							subject: emails.regression.subject(about),
+							text: emails.regression.text({
+								...about,
+								project: ctx.projectName,
+								release,
+							}),
+							action: {
+								label: emails.team.openIssue,
+								url: issueUrl(ctx.projectId, ctx.number),
+							},
+						};
 					});
 				}
 			});
-
-			const REFUSAL_MEANING: Record<number, string> = {
-				401: "the key is invalid or was revoked",
-				402: "the account is out of credit",
-				403: "the key is not allowed to use this model",
-				429: "the account is over its rate limit or quota",
-			};
 
 			const aiKeyFailing = Effect.fn("Notifications.aiKeyFailing")(function* (
 				organizationId: string,
@@ -355,13 +381,21 @@ export class Notifications extends Context.Service<
 				const people = keep(yield* admins(organizationId), "ai_key_failing");
 				const label = AI_PROVIDER_META[provider].label;
 				for (const person of people) {
-					yield* send(person, "ai_key_failing", {
-						subject: "Your AI key for duplicate suggestions stopped working",
-						text: `${label} keeps refusing the AI key of ${org?.name ?? "your workspace"}: HTTP ${status}${REFUSAL_MEANING[status] ? `, ${REFUSAL_MEANING[status]}` : ""}.\n\nUntil it works again, duplicates are only suggested for near-identical wording. Check the key, its credit or quota, then press Test.`,
-						action: {
-							label: "Open the AI settings",
-							url: `${env.baseUrl}/agents#duplicates`,
-						},
+					yield* send(person, "ai_key_failing", (locale) => {
+						const { emails } = messages(locale);
+						return {
+							subject: emails.aiKey.subject,
+							text: emails.aiKey.text({
+								provider: label,
+								workspace: org?.name ?? emails.aiKey.workspaceFallback,
+								status,
+								meaning: emails.aiKey.refusal[status],
+							}),
+							action: {
+								label: emails.aiKey.action,
+								url: `${env.baseUrl}/agents#duplicates`,
+							},
+						};
 					});
 				}
 			});
@@ -388,30 +422,36 @@ export class Notifications extends Context.Service<
 					);
 					if (!p) return;
 					// The URL of a chat webhook is its secret: show the host only.
-					let host = "the endpoint";
+					let host: string | null = null;
 					try {
 						host = new URL(claimed.url).host;
 					} catch {}
 					const chat =
 						claimed.format === "discord" || claimed.format === "slack";
 					const what =
-						claimed.format === "discord"
-							? "Discord channel"
-							: claimed.format === "slack"
-								? "Slack channel"
-								: "webhook";
+						claimed.format === "discord" || claimed.format === "slack"
+							? claimed.format
+							: "json";
 					const people = keep(
 						yield* admins(p.organizationId),
 						"webhook_failing",
 					);
 					for (const person of people) {
-						yield* send(person, "webhook_failing", {
-							subject: `A ${what} of ${p.name} keeps failing`,
-							text: `Tattle gave up sending ${event} to the ${what} at ${host} after 6 attempts. Last error: ${error.slice(0, 200)}.\n\nLater events are still sent to it. You won't get this email again until a delivery to it works.`,
-							action: {
-								label: `Open the ${chat ? "channel" : "webhook"} settings`,
-								url: `${env.baseUrl}/p/${p.id}/settings#${chat ? "notifications" : "webhooks"}`,
-							},
+						yield* send(person, "webhook_failing", (locale) => {
+							const { emails } = messages(locale);
+							return {
+								subject: emails.webhook.subject({ what, project: p.name }),
+								text: emails.webhook.text({
+									what,
+									event,
+									host: host ?? emails.webhook.hostFallback,
+									error: error.slice(0, 200),
+								}),
+								action: {
+									label: emails.webhook.action(chat),
+									url: `${env.baseUrl}/p/${p.id}/settings#${chat ? "notifications" : "webhooks"}`,
+								},
+							};
 						});
 					}
 				},
@@ -449,7 +489,7 @@ export class Notifications extends Context.Service<
 				);
 				let sent = 0;
 				for (const { reportId } of due) {
-					const messages = yield* database.query((db) =>
+					const written = yield* database.query((db) =>
 						db
 							.select({ id: reportMessage.id, body: reportMessage.body })
 							.from(reportMessage)
@@ -465,10 +505,10 @@ export class Notifications extends Context.Service<
 							)
 							.orderBy(reportMessage.createdAt),
 					);
-					if (messages.length === 0) continue;
+					if (written.length === 0) continue;
 					// Marked before sending: a failed email is logged, never resent
 					// in a loop. The time is taken in SQL, at full precision.
-					const ids = messages.map((m) => m.id);
+					const ids = written.map((m) => m.id);
 					const [row] = yield* database.query((db) =>
 						db
 							.update(report)
@@ -506,20 +546,29 @@ export class Notifications extends Context.Service<
 					if (people.length === 0) people = yield* admins(ctx.organizationId);
 					people = keep(people, "reporter_replied");
 					if (people.length === 0) continue;
-					const who = row.reporter?.name?.trim() || "The reporter";
-					const several = messages.length > 1;
 					for (const person of people) {
-						yield* send(person, "reporter_replied", {
-							subject: `Reporter answered: #${ctx.number} ${ctx.title}`,
-							text: [
-								`${who}, who reported #${ctx.number} “${ctx.title}” in ${ctx.projectName}, wrote${several ? ` ${messages.length} messages` : ""}:`,
-								...messages.map((m) => quote(m.body)),
-								"Written by the reporter, not by your team. Answer from the issue page.",
-							].join("\n\n"),
-							action: {
-								label: "Open the issue",
-								url: issueUrl(ctx.projectId, ctx.number),
-							},
+						yield* send(person, "reporter_replied", (locale) => {
+							const { emails } = messages(locale);
+							const about = { number: ctx.number, title: ctx.title };
+							return {
+								subject: emails.reporterReplied.subject(about),
+								text: [
+									emails.reporterReplied.intro({
+										...about,
+										who:
+											row.reporter?.name?.trim() ||
+											emails.reporterReplied.reporterFallback,
+										project: ctx.projectName,
+										count: written.length,
+									}),
+									...written.map((m) => quote(m.body, locale)),
+									emails.reporterReplied.outro,
+								].join("\n\n"),
+								action: {
+									label: emails.team.openIssue,
+									url: issueUrl(ctx.projectId, ctx.number),
+								},
+							};
 						});
 					}
 					sent++;
@@ -543,6 +592,8 @@ export class Notifications extends Context.Service<
 						.select({
 							userId: user.id,
 							email: user.email,
+							locale: user.locale,
+							detectedLocale: user.detectedLocale,
 							isAdmin,
 							setting: notificationSetting,
 						})
@@ -645,28 +696,37 @@ export class Notifications extends Context.Service<
 						string,
 						{ name: string; issues: typeof fresh },
 					];
-					yield* send(person, "triage_digest", {
-						subject:
-							projects.length === 1
-								? `Triage: ${fresh.length} new in ${first.name}`
-								: `Triage: ${fresh.length} new issues`,
-						text: `New since the last digest and waiting in Triage:`,
-						lists: projects.map(([projectId, entry]) => ({
-							title: `${entry.name}: ${entry.issues.length} new`,
-							url: `${env.baseUrl}/p/${projectId}/triage`,
-							items: entry.issues.slice(0, DIGEST_ITEMS).map((i) => ({
-								label: `#${i.number} ${i.title}`,
-								url: issueUrl(projectId, i.number),
+					yield* send(person, "triage_digest", (locale) => {
+						const { emails } = messages(locale);
+						return {
+							subject:
+								projects.length === 1
+									? emails.digest.subjectOne({
+											count: fresh.length,
+											project: first.name,
+										})
+									: emails.digest.subjectMany(fresh.length),
+							text: emails.digest.text,
+							lists: projects.map(([projectId, entry]) => ({
+								title: emails.digest.listTitle({
+									project: entry.name,
+									count: entry.issues.length,
+								}),
+								url: `${env.baseUrl}/p/${projectId}/triage`,
+								items: entry.issues.slice(0, DIGEST_ITEMS).map((i) => ({
+									label: `#${i.number} ${i.title}`,
+									url: issueUrl(projectId, i.number),
+								})),
+								more:
+									entry.issues.length > DIGEST_ITEMS
+										? emails.digest.more(entry.issues.length - DIGEST_ITEMS)
+										: undefined,
 							})),
-							more:
-								entry.issues.length > DIGEST_ITEMS
-									? `and ${entry.issues.length - DIGEST_ITEMS} more`
-									: undefined,
-						})),
-						action: {
-							label: "Open Triage",
-							url: `${env.baseUrl}/p/${firstId}/triage`,
-						},
+							action: {
+								label: emails.digest.action,
+								url: `${env.baseUrl}/p/${firstId}/triage`,
+							},
+						};
 					});
 					sent++;
 				}
@@ -733,10 +793,7 @@ export class Notifications extends Context.Service<
 				const target = readUnsubscribe(token);
 				if (!target) return null;
 				if (target.kind === "team")
-					return {
-						kind: "team" as const,
-						label: NOTIFICATION_META[target.type].label,
-					};
+					return { kind: "team" as const, type: target.type };
 				const [row] = yield* database.query((db) =>
 					db
 						.select({ message: report.message, project: project.name })

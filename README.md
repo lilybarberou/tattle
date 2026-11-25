@@ -55,6 +55,8 @@ The team is emailed only about what someone has to act on; Discord, Slack and we
 
 Reporters get the team's replies and the "shipped" notice, each with a **Stop emails about this report** link.
 
+**Languages**: the dashboard, the sign-in pages, the public pages, the emails and the Discord and Slack messages are in English and French. The language is picked from the browser's on the first visit. Each person picks theirs under their name → **Language** (Auto follows the browser). Sign-in, password reset, the portal, the reporter thread and the unsubscribe page have an EN / FR selector, remembered in a cookie, and robots get English. The public portal, the one indexed page, is English at `/portal/<slug>` and French at `/fr/portal/<slug>`, with hreflang links and a canonical for each; a French-speaking browser arriving on the English address is sent to `/fr`, and so is every later visit while French is remembered; never a robot, someone who picked EN, or a link to `/fr`. Each email is in its reader's language: team emails in the recipient's, invitations in the inviter's, and replies and the "shipped" notice in the reporter's, from the device language the widget sends. A project's Discord and Slack messages use the language set in its settings, English by default. API errors, webhook payloads and MCP stay in English. [docs/TRANSLATING.md](docs/TRANSLATING.md) explains how to add a string or a language.
+
 **Screenshots on S3** (optional): set `STORAGE_DRIVER=s3` with `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, and `S3_ENDPOINT` for any provider other than AWS (Cloudflare R2, Scaleway, OVH, Backblaze, RustFS, Garage…; add `S3_FORCE_PATH_STYLE=true` for the self-hosted ones). The bucket stays private: the app serves screenshots through short-lived signed links. Switching drivers does not move existing files.
 
 **Personal data**: **Privacy** in the dashboard finds everything about one person by email or user id, exports it as JSON (with their conversations with the team) and erases it (GDPR access and erasure requests). `REPORT_RETENTION_DAYS` drops screenshots, logs and the steps before the report of older reports automatically, and the device key of reports whose conversation has been quiet as long; the message, the reporter and the conversation stay.
@@ -189,7 +191,7 @@ The report goes to the model as data: the model is told to ignore instructions i
 
 ## Discord and Slack
 
-Project settings → **Discord and Slack**: paste a Discord channel webhook URL (channel settings → Integrations → Webhooks) or a Slack incoming webhook URL. The channel gets new reports with their evidence, status and assignee changes, comments, and messages between reporters and the team; label or title edits stay quiet.
+Project settings → **Discord and Slack**: paste a Discord channel webhook URL (channel settings → Integrations → Webhooks) or a Slack incoming webhook URL. The channel gets new reports with their evidence, status and assignee changes, comments, and messages between reporters and the team; label or title edits stay quiet. **Language** sets the language of these messages (English or French).
 
 ## GitHub
 
@@ -205,7 +207,7 @@ Turn it on, then in the repository on GitHub: **Settings → Webhooks → Add we
 
 ## Public feature requests
 
-Project settings → **Public feature requests** publishes `https://your-server/portal/<address>`. Visitors vote (one vote per browser), suggest ideas (they land in Triage), and can leave an email; everyone who asked or voted with an email is told when the request moves to Done (needs SMTP). Only requests you accepted from Triage are shown; titles are yours to edit before you accept.
+Project settings → **Public feature requests** publishes `https://your-server/portal/<address>` (in French: `https://your-server/fr/portal/<address>`). Visitors vote (one vote per browser), suggest ideas (they land in Triage), and can leave an email; everyone who asked or voted with an email is told when the request moves to Done (needs SMTP). Only requests you accepted from Triage are shown; titles are yours to edit before you accept.
 
 ## Webhooks
 
@@ -235,8 +237,10 @@ apps/web            TanStack Start app (dashboard + API), Drizzle + Postgres, Be
   src/server/mcp.ts MCP server (@modelcontextprotocol/server)
   src/routes/api/   /api/v1/ingest and /api/v1/my-reports (widget), /api/v1/files (signed
                     screenshots), /api/v1/github/<project> (GitHub webhook), /api/mcp
-  src/routes/       dashboard, /portal/$slug and /thread/$token (public), /login, /consent (OAuth),
+  src/routes/       dashboard, /portal/$slug, /fr/portal/$slug and /thread/$token (public), /login,
+                    /consent (OAuth),
                     /.well-known/*
+  src/i18n/         English and French catalogues, language choice (see docs/TRANSLATING.md)
 packages/widget     Browser SDK, no framework, Shadow DOM, ~27 KB gzipped
 packages/react-native  React Native and Expo SDK (react-native-view-shot, react-native-svg)
 ```

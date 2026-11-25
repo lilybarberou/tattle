@@ -30,6 +30,7 @@ import { Route as AppPProjectIdRouteImport } from './routes/_app/p/$projectId'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiV1FilesRouteImport } from './routes/api/v1/files'
 import { Route as ApiV1IngestRouteImport } from './routes/api/v1/ingest'
+import { Route as FrPortalSlugRouteImport } from './routes/fr/portal.$slug'
 import { Route as AppPProjectIdIndexRouteImport } from './routes/_app/p/$projectId/index'
 import { Route as AppPProjectIdOverviewRouteImport } from './routes/_app/p/$projectId/overview'
 import { Route as AppPProjectIdRequestsRouteImport } from './routes/_app/p/$projectId/requests'
@@ -145,6 +146,11 @@ const ApiV1IngestRoute = ApiV1IngestRouteImport.update({
   path: '/api/v1/ingest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FrPortalSlugRoute = FrPortalSlugRouteImport.update({
+  id: '/fr/portal/$slug',
+  path: '/fr/portal/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppPProjectIdIndexRoute = AppPProjectIdIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -219,6 +225,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/files': typeof ApiV1FilesRoute
   '/api/v1/ingest': typeof ApiV1IngestRoute
+  '/fr/portal/$slug': typeof FrPortalSlugRoute
   '/p/$projectId/overview': typeof AppPProjectIdOverviewRoute
   '/p/$projectId/requests': typeof AppPProjectIdRequestsRoute
   '/p/$projectId/settings': typeof AppPProjectIdSettingsRoute
@@ -250,6 +257,7 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/files': typeof ApiV1FilesRoute
   '/api/v1/ingest': typeof ApiV1IngestRoute
+  '/fr/portal/$slug': typeof FrPortalSlugRoute
   '/p/$projectId/overview': typeof AppPProjectIdOverviewRoute
   '/p/$projectId/requests': typeof AppPProjectIdRequestsRoute
   '/p/$projectId/settings': typeof AppPProjectIdSettingsRoute
@@ -284,6 +292,7 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/v1/files': typeof ApiV1FilesRoute
   '/api/v1/ingest': typeof ApiV1IngestRoute
+  '/fr/portal/$slug': typeof FrPortalSlugRoute
   '/_app/p/$projectId/overview': typeof AppPProjectIdOverviewRoute
   '/_app/p/$projectId/requests': typeof AppPProjectIdRequestsRoute
   '/_app/p/$projectId/settings': typeof AppPProjectIdSettingsRoute
@@ -318,6 +327,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/v1/files'
     | '/api/v1/ingest'
+    | '/fr/portal/$slug'
     | '/p/$projectId/overview'
     | '/p/$projectId/requests'
     | '/p/$projectId/settings'
@@ -349,6 +359,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/v1/files'
     | '/api/v1/ingest'
+    | '/fr/portal/$slug'
     | '/p/$projectId/overview'
     | '/p/$projectId/requests'
     | '/p/$projectId/settings'
@@ -382,6 +393,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/v1/files'
     | '/api/v1/ingest'
+    | '/fr/portal/$slug'
     | '/_app/p/$projectId/overview'
     | '/_app/p/$projectId/requests'
     | '/_app/p/$projectId/settings'
@@ -410,6 +422,7 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiV1FilesRoute: typeof ApiV1FilesRoute
   ApiV1IngestRoute: typeof ApiV1IngestRoute
+  FrPortalSlugRoute: typeof FrPortalSlugRoute
   ApiV1GithubProjectIdRoute: typeof ApiV1GithubProjectIdRoute
   ApiV1MyReportsSplatRoute: typeof ApiV1MyReportsSplatRoute
   ApiV1UnsubscribeTokenRoute: typeof ApiV1UnsubscribeTokenRoute
@@ -564,6 +577,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1IngestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/fr/portal/$slug': {
+      id: '/fr/portal/$slug'
+      path: '/fr/portal/$slug'
+      fullPath: '/fr/portal/$slug'
+      preLoaderRoute: typeof FrPortalSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/p/$projectId/': {
       id: '/_app/p/$projectId/'
       path: '/'
@@ -697,6 +717,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiV1FilesRoute: ApiV1FilesRoute,
   ApiV1IngestRoute: ApiV1IngestRoute,
+  FrPortalSlugRoute: FrPortalSlugRoute,
   ApiV1GithubProjectIdRoute: ApiV1GithubProjectIdRoute,
   ApiV1MyReportsSplatRoute: ApiV1MyReportsSplatRoute,
   ApiV1UnsubscribeTokenRoute: ApiV1UnsubscribeTokenRoute,
@@ -706,10 +727,11 @@ export const routeTree = rootRouteImport
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
+import type { startInstance } from './start.ts'
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }

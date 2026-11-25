@@ -2,17 +2,11 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { BotIcon } from "lucide-react";
 import { useState } from "react";
 import * as z from "zod/mini";
-import { AuthShell } from "#/components/auth-shell";
+import { AuthShell, authErrorMessage } from "#/components/auth-shell";
 import { Button } from "#/components/ui/button";
+import { useI18n } from "#/i18n/react";
 import { authClient, followRedirect } from "#/lib/auth-client";
 import { getOAuthClientNameFn, getSessionFn } from "#/server/fns";
-
-const SCOPE_TEXT: Record<string, string> = {
-	openid: "Know who you are",
-	profile: "See your name",
-	email: "See your email address",
-	offline_access: "Stay connected until you revoke it",
-};
 
 // Where an MCP client (Claude Code, Cursor…) lands to be allowed in. The
 // signed authorization request rides in the query string.
@@ -40,7 +34,9 @@ function Consent() {
 	const { user } = Route.useRouteContext();
 	const [pending, setPending] = useState<"allow" | "deny" | null>(null);
 	const [error, setError] = useState<string | null>(null);
-	const name = client.name || "An MCP client";
+	const { m } = useI18n();
+	const t = m.auth.consent;
+	const name = client.name || t.anMcpClient;
 	const scopes = (scope ?? "").split(" ").filter(Boolean);
 
 	const answer = async (accept: boolean) => {
@@ -49,7 +45,7 @@ function Consent() {
 		const result = await authClient.oauth2.consent({ accept });
 		if (result.error) {
 			setPending(null);
-			setError(result.error.message ?? "Something went wrong");
+			setError(authErrorMessage(m, result.error, m.common.errors.generic));
 			return;
 		}
 		if (!followRedirect(result.data)) setPending(null);
@@ -57,13 +53,12 @@ function Consent() {
 
 	return (
 		<AuthShell
-			title={`Allow ${name}?`}
+			languages={false}
+			title={t.title(name)}
 			intro={
 				<>
-					It will act as{" "}
-					<span className="font-medium text-ink">{user.name}</span> (
-					{user.email}) through MCP: read issues and reports, triage, comment
-					and update them in your projects.
+					{t.actsAs} <span className="font-medium text-ink">{user.name}</span> (
+					{user.email}) {t.actsAsAfter}
 				</>
 			}
 		>
@@ -83,7 +78,7 @@ function Consent() {
 			{scopes.length > 0 && (
 				<ul className="space-y-1 text-muted-foreground">
 					{scopes.map((s) => (
-						<li key={s}>· {SCOPE_TEXT[s] ?? s}</li>
+						<li key={s}>· {t.scopes[s] ?? s}</li>
 					))}
 				</ul>
 			)}
@@ -94,7 +89,7 @@ function Consent() {
 					onClick={() => answer(true)}
 					disabled={pending !== null}
 				>
-					{pending === "allow" ? "Allowing…" : "Allow"}
+					{pending === "allow" ? t.allowing : t.allow}
 				</Button>
 				<Button
 					variant="outline"
@@ -102,12 +97,10 @@ function Consent() {
 					onClick={() => answer(false)}
 					disabled={pending !== null}
 				>
-					Deny
+					{t.deny}
 				</Button>
 			</div>
-			<p className="text-xs text-muted-foreground">
-				You can disconnect it at any time from Agents & API.
-			</p>
+			<p className="text-xs text-muted-foreground">{t.disconnect}</p>
 		</AuthShell>
 	);
 }

@@ -1,5 +1,6 @@
 import type { JsonObject } from "#/db/schema";
-import { STATUS_LABELS, type WebhookEvent } from "#/shared/issues";
+import { DEFAULT_LOCALE, type Locale, messages } from "#/i18n";
+import type { IssueStatus, WebhookEvent } from "#/shared/issues";
 import { env } from "./env";
 
 /**
@@ -53,26 +54,31 @@ const COLORS = {
 	comment: 0x5d5f60,
 };
 
-const plural = (count: number, one: string, many: string) =>
-	`${count} ${count === 1 ? one : many}`;
-
 const truncate = (text: string, max: number) =>
 	text.length > max ? `${text.slice(0, max - 1)}…` : text;
 
+/** `locale` is the project's chat language (project settings). */
 export function describeEvent(
 	event: WebhookEvent | "ping",
 	projectId: string,
 	raw: unknown,
+	locale: Locale = DEFAULT_LOCALE,
 ): ChatMessage | null {
 	const data = (raw ?? {}) as Data;
+	const m = messages(locale);
+	const t = m.chat;
+	const statusName = (status: unknown) =>
+		m.common.status[String(status) as IssueStatus] ?? String(status);
+	const author = (who: { name: string; type: string }) =>
+		who.type === "agent" ? `${who.name} (${t.agent})` : who.name;
 	const issueUrl = (issue: Issue) =>
 		`${env.baseUrl}/p/${projectId}/issues/${issue.number}`;
 
 	if (event === "ping") {
 		return {
-			title: "Tattle is connected",
+			title: t.ping.title,
 			url: env.baseUrl,
-			text: "New reports, status changes and comments will appear in this channel.",
+			text: t.ping.text,
 			color: COLORS.update,
 			fields: [],
 		};
@@ -80,38 +86,38 @@ export function describeEvent(
 
 	if (event === "report.created" && data.report && data.issue) {
 		const who =
-			data.report.reporter?.name || data.report.reporter?.email || "Someone";
+			data.report.reporter?.name || data.report.reporter?.email || t.someone;
 		const isBug = data.issue.type === "bug";
 		const signals = [
 			data.report.consoleErrors
-				? plural(data.report.consoleErrors, "console error", "console errors")
+				? t.consoleErrors(data.report.consoleErrors)
 				: null,
 			data.report.failedRequests
-				? plural(
-						data.report.failedRequests,
-						"failed request",
-						"failed requests",
-					)
+				? t.failedRequests(data.report.failedRequests)
 				: null,
-			data.report.hasScreenshot ? "screenshot attached" : null,
+			data.report.hasScreenshot ? t.screenshot : null,
 		].filter(Boolean);
 		return {
-			title: `${isBug ? "Bug" : "Idea"} #${data.issue.number}: ${truncate(data.issue.title, 200)}`,
+			title: t.reportTitle({
+				type: isBug ? "bug" : "feature",
+				number: data.issue.number,
+				title: truncate(data.issue.title, 200),
+			}),
 			url: issueUrl(data.issue),
 			text: truncate(data.report.message, 1500),
 			color: isBug ? COLORS.bug : COLORS.feature,
 			fields: [
-				["From", who],
+				[t.from, who],
 				...(data.report.pageUrl
 					? ([
 							[
-								/^https?:\/\//i.test(data.report.pageUrl) ? "Page" : "Screen",
+								/^https?:\/\//i.test(data.report.pageUrl) ? t.page : t.screen,
 								truncate(data.report.pageUrl, 200),
 							],
 						] as Array<[string, string]>)
 					: []),
 				...(signals.length
-					? ([["Evidence", signals.join(" · ")]] as Array<[string, string]>)
+					? ([[t.evidence, signals.join(" · ")]] as Array<[string, string]>)
 					: []),
 			],
 		};
@@ -123,9 +129,15 @@ export function describeEvent(
 		data.actor?.type !== "system"
 	) {
 		return {
-			title: `#${data.issue.number} opened: ${truncate(data.issue.title, 200)}`,
+			title: t.opened({
+				number: data.issue.number,
+				title: truncate(data.issue.title, 200),
+			}),
 			url: issueUrl(data.issue),
-			text: `${data.actor?.name ?? "Someone"} opened a ${data.issue.type === "bug" ? "bug" : "feature request"}.`,
+			text: t.openedBy({
+				actor: data.actor?.name ?? t.someone,
+				type: data.issue.type,
+			}),
 			color: COLORS.update,
 			fields: [],
 		};
@@ -140,18 +152,20 @@ export function describeEvent(
 			const to = String(status.to);
 			lines.push(
 				to === "duplicate" && data.duplicateOf
-					? `Merged into #${data.duplicateOf.number} ${data.duplicateOf.title}`
-					: `${STATUS_LABELS[String(status.from)] ?? status.from} → **${STATUS_LABELS[to] ?? to}**`,
+					? t.mergedInto(data.duplicateOf)
+					: `${statusName(status.from)} → **${statusName(to)}**`,
 			);
 		}
 		if (assignee)
-			lines.push(assignee.to ? `Assigned to **${assignee.to}**` : "Unassigned");
+			lines.push(
+				assignee.to ? t.assignedTo(String(assignee.to)) : t.unassigned,
+			);
 		if (data.issue.prUrl && status?.to === "in_review")
-			lines.push(`Pull request: ${data.issue.prUrl}`);
+			lines.push(t.pullRequest(data.issue.prUrl));
 		return {
 			title: `#${data.issue.number} ${truncate(data.issue.title, 200)}`,
 			url: issueUrl(data.issue),
-			text: `${lines.join("\n")}\n— ${data.actor?.name ?? "Someone"}`,
+			text: `${lines.join("\n")}\n— ${data.actor?.name ?? t.someone}`,
 			color: status?.to === "done" ? COLORS.done : COLORS.update,
 			fields: [],
 		};
@@ -159,9 +173,12 @@ export function describeEvent(
 
 	if (event === "comment.created" && data.issue && data.comment) {
 		return {
-			title: `Comment on #${data.issue.number} ${truncate(data.issue.title, 200)}`,
+			title: t.commentOn({
+				number: data.issue.number,
+				title: truncate(data.issue.title, 200),
+			}),
 			url: issueUrl(data.issue),
-			text: `${truncate(data.comment.body, 1500)}\n— ${data.comment.author.name}${data.comment.author.type === "agent" ? " (agent)" : ""}`,
+			text: `${truncate(data.comment.body, 1500)}\n— ${author(data.comment.author)}`,
 			color: COLORS.comment,
 			fields: [],
 		};
@@ -170,9 +187,12 @@ export function describeEvent(
 	if (event === "message.created" && data.issue && data.message) {
 		const fromReporter = data.message.from === "reporter";
 		return {
-			title: `${fromReporter ? "Reporter replied" : "Reply to the reporter"} on #${data.issue.number} ${truncate(data.issue.title, 200)}`,
+			title: (fromReporter ? t.reporterReplied : t.replyToReporter)({
+				number: data.issue.number,
+				title: truncate(data.issue.title, 200),
+			}),
 			url: issueUrl(data.issue),
-			text: `${truncate(data.message.body, 1500)}\n— ${data.message.author.name}${data.message.author.type === "agent" ? " (agent)" : ""}`,
+			text: `${truncate(data.message.body, 1500)}\n— ${author(data.message.author)}`,
 			color: fromReporter ? COLORS.feature : COLORS.comment,
 			fields: [],
 		};

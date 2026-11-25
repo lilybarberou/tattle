@@ -7,6 +7,7 @@ import { SettingsSection } from "#/components/settings-section";
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
+import { useI18n } from "#/i18n/react";
 import { useInlineConfirm } from "#/lib/use-inline-confirm";
 import type { ReporterMatch } from "#/server/DataLifecycle";
 import {
@@ -35,33 +36,20 @@ export const Route = createFileRoute("/_app/privacy")({
 	component: PrivacyPage,
 });
 
-const COLLECTED: Array<[string, string]> = [
-	[
-		"Account",
-		"What your app passes to identify(): id, email, name and any traits.",
-	],
-	[
-		"Message and screenshot",
-		"What the person wrote, and the annotated screenshot if they took one. Password and card fields are masked.",
-	],
-	[
-		"Console",
-		"The last 200 console messages and JavaScript errors on the page.",
-	],
-	[
-		"Network",
-		"The last 100 requests: method, URL, status, duration. No bodies or headers; tokens in URLs are redacted.",
-	],
-	["Device", "Browser, system, screen and window size, language, time zone."],
-	[
-		"Portal votes",
-		"A random id in a cookie, and an email only if the visitor leaves one.",
-	],
-];
+const COLLECTED = [
+	"account",
+	"message",
+	"console",
+	"network",
+	"device",
+	"votes",
+] as const;
 
 function PrivacyPage() {
 	const { organization, canManage, retentionDays } = Route.useLoaderData();
 	const router = useRouter();
+	const { m } = useI18n();
+	const t = m.workspace.privacy;
 	const [query, setQuery] = useState("");
 	const [match, setMatch] = useState<
 		(ReporterMatch & { query: string }) | null
@@ -81,7 +69,7 @@ function PrivacyPage() {
 			json = await exportReporterFn({ data });
 		} catch (error) {
 			// A member is refused: say so instead of doing nothing.
-			toast.error(error instanceof Error ? error.message : "Export failed");
+			toast.error(error instanceof Error ? error.message : t.exportFailed);
 			return;
 		}
 		const url = URL.createObjectURL(
@@ -96,15 +84,12 @@ function PrivacyPage() {
 
 	return (
 		<>
-			<PageHeader
-				title="Privacy"
-				description="Find, export or erase what the widget collected about one person, and decide how long reports keep their screenshots and logs."
-			/>
+			<PageHeader title={t.title} description={t.description} />
 			<div className="px-6 pb-10">
 				<SettingsSection
 					id="person"
-					title="One person's data"
-					description="For an access or erasure request (GDPR). Search by the email or the user id your app gives the widget. Covers every project of this workspace."
+					title={t.personTitle}
+					description={t.personDescription}
 				>
 					<form
 						className="flex max-w-xl items-end gap-2"
@@ -119,7 +104,7 @@ function PrivacyPage() {
 								setMatch({ ...found, query: query.trim() });
 							} catch (error) {
 								toast.error(
-									error instanceof Error ? error.message : "Search failed",
+									error instanceof Error ? error.message : t.searchFailed,
 								);
 							} finally {
 								setBusy(false);
@@ -127,18 +112,18 @@ function PrivacyPage() {
 						}}
 					>
 						<div className="flex-1 space-y-2">
-							<Label htmlFor="person-query">Email or user id</Label>
+							<Label htmlFor="person-query">{t.query}</Label>
 							<Input
 								id="person-query"
 								value={query}
 								onChange={(e) => setQuery(e.target.value)}
-								placeholder="lea.martin@gmail.com"
+								placeholder={t.queryPlaceholder}
 								required
 							/>
 						</div>
 						<Button type="submit" variant="outline" disabled={busy}>
 							<SearchIcon className="size-4" />
-							Find
+							{t.find}
 						</Button>
 					</form>
 
@@ -146,29 +131,28 @@ function PrivacyPage() {
 						<div className="max-w-xl space-y-3 rounded-lg border p-4">
 							{match.reports + match.votes === 0 ? (
 								<p className="text-muted-foreground">
-									Nothing stored for “{match.query}”.
+									{t.nothingStored(match.query)}
 								</p>
 							) : (
 								<>
 									<p>
 										<span className="font-medium">{match.query}</span>:{" "}
 										<span className="num">{match.reports}</span>{" "}
-										{match.reports === 1 ? "report" : "reports"}
+										{t.reports(match.reports)}
 										{match.projects.length > 0 &&
-											` in ${match.projects.join(", ")}`}
+											t.inProjects(match.projects.join(", "))}
 										, <span className="num">{match.votes}</span>{" "}
-										{match.votes === 1 ? "vote" : "votes"} on public pages.
+										{t.votes(match.votes)}
+										{t.onPublicPages}
 									</p>
 									{!canManage && (
-										<p className="text-muted-foreground">
-											Only owners and admins can export or erase someone's data.
-										</p>
+										<p className="text-muted-foreground">{t.onlyAdmins}</p>
 									)}
 									{canManage && (
 										<div className="flex flex-wrap gap-2">
 											<Button variant="outline" onClick={download}>
 												<DownloadIcon className="size-4" />
-												Download as JSON
+												{t.download}
 											</Button>
 											{!confirming ? (
 												<Button
@@ -178,7 +162,7 @@ function PrivacyPage() {
 													onClick={() => setConfirming(true)}
 												>
 													<Trash2Icon className="size-4" />
-													Erase…
+													{t.erase}
 												</Button>
 											) : (
 												<>
@@ -189,9 +173,7 @@ function PrivacyPage() {
 															setBusy(true);
 															try {
 																const result = await eraseReporterFn({ data });
-																toast.success(
-																	`Erased ${result.reports} reports, ${result.messages} messages and ${result.votes} votes; ${result.issues} issues they opened were deleted`,
-																);
+																toast.success(t.erased(result));
 																setMatch({
 																	...match,
 																	reports: 0,
@@ -204,32 +186,28 @@ function PrivacyPage() {
 																toast.error(
 																	error instanceof Error
 																		? error.message
-																		: "Not erased",
+																		: t.notErased,
 																);
 															} finally {
 																setBusy(false);
 															}
 														}}
 													>
-														Erase {match.reports + match.votes} items for good
+														{t.eraseForGood(match.reports + match.votes)}
 													</Button>
 													<Button
 														ref={cancel}
 														variant="ghost"
 														onClick={() => setConfirming(false)}
 													>
-														Keep them
+														{t.keep}
 													</Button>
 												</>
 											)}
 										</div>
 									)}
 									{confirming && (
-										<p className="text-muted-foreground">
-											Their reports, screenshots and votes are deleted. An issue
-											only they reported is deleted too, since its title is
-											their words; issues others also reported stay.
-										</p>
+										<p className="text-muted-foreground">{t.eraseExplained}</p>
 									)}
 								</>
 							)}
@@ -239,33 +217,32 @@ function PrivacyPage() {
 
 				<SettingsSection
 					id="retention"
-					title="How long reports are kept"
+					title={t.retentionTitle}
 					description={
 						<>
-							Set{" "}
+							{t.retentionSet}{" "}
 							<code className="font-mono text-xs">REPORT_RETENTION_DAYS</code>{" "}
-							on the server to drop screenshots and logs of older reports. The
-							message and the reporter stay, so issues keep their history.
+							{t.retentionDescription}
 						</>
 					}
 				>
 					<p className="max-w-xl rounded-lg bg-raised px-4 py-3">
-						{retentionDays
-							? `Screenshots, console and network logs are deleted ${retentionDays} days after a report arrives.`
-							: "Reports keep their screenshots and logs until you delete them."}
+						{retentionDays ? t.retentionDays(retentionDays) : t.retentionNone}
 					</p>
 				</SettingsSection>
 
 				<SettingsSection
 					id="collected"
-					title="What the widget collects"
-					description="Useful for your privacy policy: list this under the tool you use for bug reports."
+					title={t.collectedTitle}
+					description={t.collectedDescription}
 				>
 					<dl className="grid max-w-2xl gap-x-6 gap-y-3 sm:grid-cols-[160px_minmax(0,1fr)]">
-						{COLLECTED.map(([term, text]) => (
-							<div key={term} className="contents">
-								<dt className="font-medium">{term}</dt>
-								<dd className="text-muted-foreground">{text}</dd>
+						{COLLECTED.map((key) => (
+							<div key={key} className="contents">
+								<dt className="font-medium">{t.collected[key].term}</dt>
+								<dd className="text-muted-foreground">
+									{t.collected[key].text}
+								</dd>
 							</div>
 						))}
 					</dl>

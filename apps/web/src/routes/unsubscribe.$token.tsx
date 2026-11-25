@@ -2,13 +2,17 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { BrandMark } from "#/components/brand";
+import { LanguageSwitcher } from "#/components/language-switcher";
 import { Button } from "#/components/ui/button";
+import { useI18n } from "#/i18n/react";
+import { headMessages } from "#/i18n/route";
 import { getUnsubscribeFn, unsubscribeFn } from "#/server/fns";
 
 // The "Unsubscribe" and "Stop emails about this report" links of our emails.
 // No account: the signed token in the address is the access. Opening the page
 // changes nothing (link checkers open links too); the button does.
 export const Route = createFileRoute("/unsubscribe/$token")({
+	staticData: { visitorLocale: true },
 	loader: async ({ params }) => {
 		try {
 			return await getUnsubscribeFn({ data: { token: params.token } });
@@ -16,27 +20,33 @@ export const Route = createFileRoute("/unsubscribe/$token")({
 			throw notFound();
 		}
 	},
-	head: () => ({
+	head: ({ matches }) => ({
 		meta: [
-			{ title: "Unsubscribe" },
+			{
+				title: headMessages(matches).publicPages.unsubscribe.pageTitle,
+			},
 			{ name: "robots", content: "noindex" },
 			{ name: "referrer", content: "no-referrer" },
 		],
 	}),
-	notFoundComponent: () => (
-		<Shell>
-			<h1 className="text-xl font-semibold">This link doesn't work</h1>
-			<p className="text-muted-foreground">
-				It may be incomplete: open it again from the email, without changing it.
-			</p>
-		</Shell>
-	),
+	notFoundComponent: LinkBroken,
 	component: UnsubscribePage,
 });
 
+function LinkBroken() {
+	const { m } = useI18n();
+	return (
+		<Shell>
+			<h1 className="text-xl font-semibold">{m.publicPages.linkBroken}</h1>
+			<p className="text-muted-foreground">{m.publicPages.linkBrokenHelp}</p>
+		</Shell>
+	);
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
 	return (
-		<main className="flex min-h-dvh items-center justify-center bg-ground px-4">
+		<main className="relative flex min-h-dvh items-center justify-center bg-ground px-4">
+			<LanguageSwitcher className="absolute top-4 right-4" />
 			<div className="w-full max-w-md space-y-3 rounded-2xl border bg-surface p-6">
 				<BrandMark className="size-5" />
 				{children}
@@ -50,6 +60,8 @@ function UnsubscribePage() {
 	const { token } = Route.useParams();
 	const [done, setDone] = useState(false);
 	const [busy, setBusy] = useState(false);
+	const { m } = useI18n();
+	const t = m.publicPages.unsubscribe;
 
 	const stop = async () => {
 		setBusy(true);
@@ -57,7 +69,9 @@ function UnsubscribePage() {
 			await unsubscribeFn({ data: { token } });
 			setDone(true);
 		} catch (error) {
-			toast.error(error instanceof Error ? error.message : "Not saved");
+			toast.error(
+				error instanceof Error ? error.message : m.common.errors.notSaved,
+			);
 		} finally {
 			setBusy(false);
 		}
@@ -67,40 +81,36 @@ function UnsubscribePage() {
 		return (
 			<Shell>
 				<h1 className="text-xl font-semibold">
-					{done ? "You won't get emails about this report" : "Stop emails?"}
+					{done ? t.reportDone : t.reportAsk}
 				</h1>
 				<p className="text-muted-foreground">
 					{done
-						? `${target.project} won't email you about it anymore. Replies still show in the app's feedback button.`
-						: `About your report to ${target.project}: “${target.title}”. You won't get the team's replies or the notice when it's fixed by email.`}
+						? t.reportDoneText(target.project)
+						: t.reportAskText(target.project, target.title)}
 				</p>
 				{!done && (
 					<Button onClick={stop} disabled={busy}>
-						Stop emails about this report
+						{t.stopReport}
 					</Button>
 				)}
 			</Shell>
 		);
 
+	const label = m.common.notificationType[target.type].label;
 	return (
 		<Shell>
-			<h1 className="text-xl font-semibold">
-				{done ? "Unsubscribed" : "Unsubscribe?"}
-			</h1>
+			<h1 className="text-xl font-semibold">{done ? t.done : t.ask}</h1>
 			<p className="text-muted-foreground">
-				{done
-					? `You won't get “${target.label}” emails anymore.`
-					: `You'll stop getting “${target.label}” emails from Tattle.`}{" "}
-				Turn them back on, or others off, in your notification settings.
+				{done ? t.doneText(label) : t.askText(label)} {t.turnBackOn}
 			</p>
 			<div className="flex flex-wrap gap-2">
 				{!done && (
 					<Button onClick={stop} disabled={busy}>
-						Unsubscribe
+						{t.unsubscribe}
 					</Button>
 				)}
 				<Button variant="outline" asChild>
-					<Link to="/notifications">Notification settings</Link>
+					<Link to="/notifications">{t.settings}</Link>
 				</Button>
 			</div>
 		</Shell>

@@ -1,4 +1,5 @@
 import nodemailer, { type Transporter } from "nodemailer";
+import { DEFAULT_LOCALE, type Locale, messages } from "#/i18n";
 
 /**
  * Outgoing email over SMTP, configured from the environment:
@@ -52,6 +53,8 @@ const getTransporter = () => {
 
 export type Mail = {
 	to: string;
+	/** The reader's language, for the text around the message. Default English. */
+	locale?: Locale;
 	subject: string;
 	/** Plain-text body; the HTML version is built from it. */
 	text: string;
@@ -79,8 +82,9 @@ const escapeHtml = (value: string) =>
 const link = (label: string, url: string, style = "color:#131416") =>
 	`<a href="${escapeHtml(url)}" style="${style}">${escapeHtml(label)}</a>`;
 
-const html = (mail: Mail) => `<!doctype html>
-<html><body style="margin:0;padding:32px 16px;background:#f4f6f8;font-family:-apple-system,'Segoe UI',sans-serif;color:#131416">
+/** The HTML version of a message (exported for previews and tests). */
+export const mailHtml = (mail: Mail) => `<!doctype html>
+<html lang="${mail.locale ?? DEFAULT_LOCALE}"><body style="margin:0;padding:32px 16px;background:#f4f6f8;font-family:-apple-system,'Segoe UI',sans-serif;color:#131416">
 <div style="max-width:480px;margin:0 auto;background:#fff;border:1px solid #e8eaec;border-radius:12px;padding:28px">
 ${mail.text
 	.split("\n\n")
@@ -101,7 +105,7 @@ ${list.items.map((item) => `<li>${link(item.label, item.url)}</li>`).join("\n")}
 ${
 	mail.action
 		? `<p style="margin:24px 0 8px"><a href="${escapeHtml(mail.action.url)}" style="display:inline-block;background:#1d1f20;color:#fff;text-decoration:none;padding:10px 16px;border-radius:6px;font-size:14px;font-weight:600">${escapeHtml(mail.action.label)}</a></p>
-<p style="margin:0;font-size:12px;line-height:18px;color:#5d5f60">Or open this link: ${escapeHtml(mail.action.url)}</p>`
+<p style="margin:0;font-size:12px;line-height:18px;color:#5d5f60">${escapeHtml(messages(mail.locale ?? DEFAULT_LOCALE).emails.openLink)} ${escapeHtml(mail.action.url)}</p>`
 		: ""
 }
 </div>
@@ -112,7 +116,8 @@ ${
 }
 </body></html>`;
 
-const plainText = (mail: Mail) => {
+/** The plain-text version of a message (exported for previews and tests). */
+export const mailText = (mail: Mail) => {
 	const parts = [mail.text];
 	for (const list of mail.lists ?? []) {
 		const lines = [list.url ? `${list.title}: ${list.url}` : list.title];
@@ -174,9 +179,12 @@ export async function sendMail(mail: Mail): Promise<boolean> {
 		from: process.env.SMTP_FROM ?? process.env.SMTP_USER,
 		to: mail.to,
 		subject: mail.subject,
-		text: plainText(mail),
-		html: html(mail),
-		headers: mail.headers,
+		text: mailText(mail),
+		html: mailHtml(mail),
+		headers: {
+			...(mail.locale ? { "Content-Language": mail.locale } : {}),
+			...mail.headers,
+		},
 	});
 	return true;
 }

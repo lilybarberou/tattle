@@ -6,10 +6,13 @@ import {
 } from "@tanstack/react-router";
 import { useState } from "react";
 import * as z from "zod/mini";
+import { authErrorMessage } from "#/components/auth-shell";
 import { Brand } from "#/components/brand";
+import { LanguageSwitcher } from "#/components/language-switcher";
 import { Button } from "#/components/ui/button";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
+import { useI18n } from "#/i18n/react";
 import { authClient, followRedirect } from "#/lib/auth-client";
 import {
 	acceptInvitationFn,
@@ -61,6 +64,8 @@ function LoginPage() {
 	const { signedInAs } = Route.useRouteContext();
 	const [wrongAccount, setWrongAccount] = useState(signedInAs);
 	const navigate = useNavigate();
+	const { m } = useI18n();
+	const t = m.auth.login;
 	const canSignUp = signup.allowed;
 	const [mode, setMode] = useState<"sign-in" | "sign-up">(
 		signup.firstUser || (invitedEmail && canSignUp) ? "sign-up" : "sign-in",
@@ -91,7 +96,7 @@ function LoginPage() {
 					} as Parameters<typeof authClient.signUp.email>[0]);
 		setPending(false);
 		if (result.error) {
-			setError(result.error.message ?? "Something went wrong");
+			setError(authErrorMessage(m, result.error, m.common.errors.generic));
 			return;
 		}
 		// Joins the organization of the invitation link, when it was sent to
@@ -106,36 +111,32 @@ function LoginPage() {
 
 	const heading =
 		mode === "sign-in"
-			? "Sign in"
+			? t.signIn
 			: signup.firstUser
-				? "Create the admin account"
-				: "Create your account";
+				? t.createAdmin
+				: t.createYours;
 	const intro =
 		mode === "sign-up" && signup.firstUser
-			? "This is the first account on this server. It owns the workspace; sign-up closes after it, and you invite the others."
+			? t.firstAccountIntro
 			: mode === "sign-up" && invitedEmail
-				? `You were invited as ${invitedEmail}.`
-				: "Bug reports and feature requests from your users, triaged by your agents.";
+				? t.invitedAs(invitedEmail)
+				: m.common.tagline;
 
 	if (wrongAccount) {
 		return (
-			<main className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-ground px-4 py-10">
+			<main className="relative flex min-h-dvh flex-col items-center justify-center gap-6 bg-ground px-4 py-10">
+				<LanguageSwitcher className="absolute top-4 right-4" />
 				<Brand className="text-base" />
 				<div className="w-full max-w-sm space-y-6 rounded-2xl border bg-surface p-7">
 					<div className="space-y-2">
-						<h1 className="text-xl font-semibold">
-							This invitation is not for this account
-						</h1>
+						<h1 className="text-xl font-semibold">{t.wrongAccountTitle}</h1>
 						<p className="text-muted-foreground">
-							You are signed in as{" "}
+							{t.signedInAs}{" "}
 							<span className="font-medium text-ink">{wrongAccount}</span>.
-							{invitedEmail
-								? ` The invitation was sent to ${invitedEmail}, or it was already used, canceled or has expired.`
-								: " The invitation was sent to another address, or it was already used, canceled or has expired."}
+							{invitedEmail ? t.sentToOther(invitedEmail) : t.sentToAnother}
 						</p>
 						<p className="text-muted-foreground">
-							Sign out, then open the link again to join with the invited
-							address. Or ask for a new invitation to {wrongAccount}.
+							{t.wrongAccountHelp(wrongAccount)}
 						</p>
 					</div>
 					<div className="flex flex-col gap-2">
@@ -145,10 +146,10 @@ function LoginPage() {
 								setWrongAccount(null);
 							}}
 						>
-							Sign out
+							{t.signOut}
 						</Button>
 						<Button variant="outline" asChild>
-							<Link to="/">Go to the dashboard</Link>
+							<Link to="/">{t.goToDashboard}</Link>
 						</Button>
 					</div>
 				</div>
@@ -157,7 +158,8 @@ function LoginPage() {
 	}
 
 	return (
-		<main className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-ground px-4 py-10">
+		<main className="relative flex min-h-dvh flex-col items-center justify-center gap-6 bg-ground px-4 py-10">
+			<LanguageSwitcher className="absolute top-4 right-4" />
 			<Brand className="text-base" />
 			<div className="w-full max-w-sm space-y-6 rounded-2xl border bg-surface p-7">
 				<div className="space-y-1">
@@ -167,7 +169,7 @@ function LoginPage() {
 				<form onSubmit={onSubmit} className="space-y-4">
 					{mode === "sign-up" && signup.firstUser && (
 						<div className="space-y-1.5">
-							<Label htmlFor="setupCode">Setup code</Label>
+							<Label htmlFor="setupCode">{t.setupCode}</Label>
 							<Input
 								id="setupCode"
 								name="setupCode"
@@ -178,20 +180,20 @@ function LoginPage() {
 								className="font-mono uppercase"
 							/>
 							<p className="text-xs text-muted-foreground">
-								In the server logs, on the line that starts with{" "}
-								<code className="font-mono">[setup]</code>. It proves you run
-								this server.
+								{t.setupCodeHelpBefore}{" "}
+								<code className="font-mono">[setup]</code>
+								{t.setupCodeHelpAfter}
 							</p>
 						</div>
 					)}
 					{mode === "sign-up" && (
 						<div className="space-y-1.5">
-							<Label htmlFor="name">Name</Label>
+							<Label htmlFor="name">{t.name}</Label>
 							<Input id="name" name="name" required autoComplete="name" />
 						</div>
 					)}
 					<div className="space-y-1.5">
-						<Label htmlFor="email">Email</Label>
+						<Label htmlFor="email">{t.email}</Label>
 						<Input
 							id="email"
 							name="email"
@@ -202,7 +204,7 @@ function LoginPage() {
 						/>
 					</div>
 					<div className="space-y-1.5">
-						<Label htmlFor="password">Password</Label>
+						<Label htmlFor="password">{t.password}</Label>
 						<Input
 							id="password"
 							name="password"
@@ -217,7 +219,7 @@ function LoginPage() {
 						/>
 						{mode === "sign-up" && (
 							<p className="text-xs text-muted-foreground">
-								At least {signup.minPasswordLength} characters.
+								{t.minLength(signup.minPasswordLength)}
 							</p>
 						)}
 						{mode === "sign-in" && signup.canResetPassword && (
@@ -226,20 +228,20 @@ function LoginPage() {
 								search={{ email: invitedEmail }}
 								className="inline-block text-xs text-muted-foreground hover:text-ink"
 							>
-								Forgot your password?
+								{t.forgot}
 							</Link>
 						)}
 					</div>
 					{error && <p className="text-destructive">{error}</p>}
 					<Button type="submit" className="w-full" disabled={pending}>
-						{mode === "sign-in" ? "Sign in" : "Create account"}
+						{mode === "sign-in" ? t.signIn : t.createAccount}
 					</Button>
 				</form>
 				{!signup.firstUser && (
 					<p className="text-center text-muted-foreground">
 						{mode === "sign-up" ? (
 							<>
-								Already have an account?{" "}
+								{t.haveAccount}{" "}
 								<button
 									type="button"
 									className="font-medium text-ink underline underline-offset-4"
@@ -248,12 +250,12 @@ function LoginPage() {
 										setError(null);
 									}}
 								>
-									Sign in
+									{t.signIn}
 								</button>
 							</>
 						) : canSignUp ? (
 							<>
-								No account yet?{" "}
+								{t.noAccount}{" "}
 								<button
 									type="button"
 									className="font-medium text-ink underline underline-offset-4"
@@ -262,11 +264,11 @@ function LoginPage() {
 										setError(null);
 									}}
 								>
-									Create one
+									{t.createOne}
 								</button>
 							</>
 						) : (
-							"Accounts are created by invitation. Ask a member of your team."
+							t.invitationOnly
 						)}
 					</p>
 				)}

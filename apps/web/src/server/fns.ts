@@ -19,6 +19,14 @@ import {
 	webhookDelivery,
 	webhookEndpoint,
 } from "#/db/schema";
+import {
+	DEFAULT_LOCALE,
+	LOCALE_PREFERENCES,
+	LOCALES,
+	type Locale,
+	messages,
+	normalizeLocale,
+} from "#/i18n";
 import { auth } from "#/lib/auth";
 import { passwordPolicy } from "#/lib/password-policy";
 import {
@@ -51,20 +59,23 @@ import { Duplicates } from "./Duplicates";
 import { env } from "./env";
 import {
 	type DbError,
+	type ErrorKey,
 	Forbidden,
 	InvalidInput,
+	localized,
 	NotFound,
 	violatedConstraint,
 } from "./errors";
 import { GitHub } from "./GitHub";
 import { Issues } from "./Issues";
+import { requestLocale, visitorLocale } from "./locale";
 import { mailEnabled, sendMail } from "./mailer";
 import { Notifications } from "./Notifications";
 import { Overview } from "./Overview";
 import { Portal } from "./Portal";
 import { clientIp, limitPortal, limitReporter } from "./rate-limit";
 import { generateIdentitySecret } from "./reporter-identity";
-import { run } from "./runtime";
+import { run as runProgram } from "./runtime";
 import { Webhooks } from "./Webhooks";
 
 // Helpers are functions (not top-level values) so the client bundle, where
@@ -120,7 +131,7 @@ const resolveAssignee = (
 						),
 					),
 			);
-			if (!row) return yield* new InvalidInput({ message: "Unknown member" });
+			if (!row) return yield* new InvalidInput(localized("unknownMember"));
 			return { type: "user" as const, id: row.id, name: row.name };
 		}
 		const [row] = yield* database.query((db) =>
@@ -135,8 +146,23 @@ const resolveAssignee = (
 					),
 				),
 		);
-		if (!row) return yield* new InvalidInput({ message: "Unknown agent" });
+		if (!row) return yield* new InvalidInput(localized("unknownAgent"));
 		return { type: "agent" as const, id: row.id, name: row.name };
+	});
+
+/** Dashboard server functions: errors in the signed-in person's language. */
+const run: typeof runProgram = (program, options) =>
+	runProgram(program, {
+		locale: () =>
+			requestLocale(getRequest().headers).then((languages) => languages.locale),
+		...options,
+	});
+
+/** Public pages (portal, thread, unsubscribe): errors in the visitor's language. */
+const runPublic: typeof runProgram = (program, options) =>
+	runProgram(program, {
+		locale: () => visitorLocale(getRequest().headers),
+		...options,
 	});
 
 // ---------- Session & workspace ----------
@@ -157,6 +183,34 @@ export const getSessionFn = createServerFn({ method: "GET" }).handler(
 			: null;
 	},
 );
+
+/** The languages of this request: the dashboard's, and a visitor's for public pages. */
+export const getLocaleFn = createServerFn({ method: "GET" }).handler(() =>
+	requestLocale(getRequest().headers),
+);
+
+/** Sets the signed-in person's dashboard language ("auto": their browser's). */
+export const setLocalePreferenceFn = createServerFn({ method: "POST" })
+	.validator(z.object({ preference: z.enum(LOCALE_PREFERENCES) }))
+	.handler(({ data }) =>
+		run(
+			Effect.gen(function* () {
+				const p = yield* principal();
+				if (p.kind !== "user")
+					return yield* new Forbidden(localized("onlyPeopleHaveSettings"));
+				const database = yield* Database;
+				yield* database.query((db) =>
+					db
+						.update(user)
+						.set({
+							locale: data.preference === "auto" ? null : data.preference,
+						})
+						.where(eq(user.id, p.userId)),
+				);
+				return { ok: true };
+			}),
+		),
+	);
 
 /**
  * An invited person joins the organization from the link they were sent,
@@ -269,9 +323,7 @@ export const createProjectFn = createServerFn({ method: "POST" })
 						.returning({ id: project.id }),
 				);
 				if (!row)
-					return yield* new InvalidInput({
-						message: "Project could not be created",
-					});
+					return yield* new InvalidInput(localized("projectNotCreated"));
 				return row;
 			}),
 		),
@@ -295,6 +347,7 @@ export const getProjectFn = createServerFn({ method: "GET" })
 					allowedOrigins: row.allowedOrigins,
 					portalEnabled: row.portalEnabled,
 					portalSlug: row.portalSlug,
+					chatLocale: normalizeLocale(row.chatLocale) ?? DEFAULT_LOCALE,
 					// The secret itself: getIdentitySettingsFn, for admins only.
 					identityVerification: row.identitySecret !== null,
 					// Owners and admins change the project's settings and delete
@@ -326,6 +379,8 @@ export const updateProjectFn = createServerFn({ method: "POST" })
 			allowedOrigins: z.array(z.string()).optional(),
 			portalEnabled: z.boolean().optional(),
 			portalSlug: z.string().optional(),
+			// The language of the project's Discord and Slack messages.
+			chatLocale: z.enum(LOCALES).optional(),
 		}),
 	)
 	.handler(({ data }) =>
@@ -336,19 +391,16 @@ export const updateProjectFn = createServerFn({ method: "POST" })
 				yield* requireProjectAdmin(data.projectId);
 				const portalSlug = data.portalSlug?.trim().toLowerCase();
 				if (portalSlug !== undefined && !isPortalSlug(portalSlug)) {
-					return yield* new InvalidInput({
-						message:
-							"The address takes 3 to 40 lowercase letters, digits or dashes.",
-					});
+					return yield* new InvalidInput(localized("invalidPortalSlug"));
 				}
 				const origins = data.allowedOrigins
 					?.map((o) => o.trim().replace(/\/$/, ""))
 					.filter(Boolean);
 				for (const origin of origins ?? []) {
 					if (origin !== "*" && !/^https?:\/\/[^/\s]+$/.test(origin)) {
-						return yield* new InvalidInput({
-							message: `"${origin}" is not an origin. Write it as scheme and host only, like https://shop.atelier-nord.fr`,
-						});
+						return yield* new InvalidInput(
+							localized("invalidOrigin", { origin }),
+						);
 					}
 				}
 				const database = yield* Database;
@@ -361,6 +413,7 @@ export const updateProjectFn = createServerFn({ method: "POST" })
 								allowedOrigins: origins,
 								portalEnabled: data.portalEnabled,
 								portalSlug,
+								chatLocale: data.chatLocale,
 							})
 							.where(eq(project.id, data.projectId)),
 					)
@@ -369,11 +422,7 @@ export const updateProjectFn = createServerFn({ method: "POST" })
 							"DbError",
 							(error): Effect.Effect<never, InvalidInput | DbError> =>
 								violatedConstraint(error) === "project_portal_slug_unique"
-									? Effect.fail(
-											new InvalidInput({
-												message: "This address is already taken.",
-											}),
-										)
+									? Effect.fail(new InvalidInput(localized("portalSlugTaken")))
 									: Effect.fail(error),
 						),
 					);
@@ -787,14 +836,11 @@ export const removeAiSettingsFn = createServerFn({ method: "POST" })
 // ---------- Members and invitations ----------
 
 /** A signed-in owner or admin of the organization (403 otherwise). */
-const requireAdmin = (
-	organizationId: string,
-	message = "Only owners and admins can do this",
-) =>
+const requireAdmin = (organizationId: string, key: ErrorKey = "onlyAdmins") =>
 	Effect.gen(function* () {
 		const p = yield* principal();
-		yield* (yield* Access).requireAdmin(p, organizationId, message);
-		if (p.kind !== "user") return yield* new Forbidden({ message });
+		yield* (yield* Access).requireAdmin(p, organizationId, key);
+		if (p.kind !== "user") return yield* new Forbidden(localized(key));
 		return p;
 	});
 
@@ -871,10 +917,7 @@ export const inviteMemberFn = createServerFn({ method: "POST" })
 	.handler(({ data }) =>
 		run(
 			Effect.gen(function* () {
-				const p = yield* requireAdmin(
-					data.organizationId,
-					"Only owners and admins can invite people",
-				);
+				const p = yield* requireAdmin(data.organizationId, "onlyAdminsInvite");
 				const database = yield* Database;
 				const email = data.email.trim().toLowerCase();
 				const invitationId = crypto.randomUUID();
@@ -896,14 +939,27 @@ export const inviteMemberFn = createServerFn({ method: "POST" })
 						.from(organization)
 						.where(eq(organization.id, data.organizationId)),
 				);
-				const workspace = org?.name ?? "their workspace";
+				// In the inviter's language: the invited person has no account yet.
+				const { locale } = yield* Effect.promise(() =>
+					requestLocale(getRequest().headers),
+				);
+				const { emails } = messages(locale);
+				const workspace = org?.name ?? emails.invitation.workspaceFallback;
 				const emailed = yield* Effect.tryPromise({
 					try: () =>
 						sendMail({
 							to: email,
-							subject: `${p.name} invited you to ${workspace} on Tattle`,
-							text: `${p.name} invited you to join ${workspace} on Tattle, where your team triages bug reports and feature requests.\n\nCreate your account with this email address (${email}) within 7 days.`,
-							action: { label: "Accept the invitation", url: link },
+							locale,
+							subject: emails.invitation.subject({
+								inviter: p.name,
+								workspace,
+							}),
+							text: emails.invitation.text({
+								inviter: p.name,
+								workspace,
+								email,
+							}),
+							action: { label: emails.invitation.action, url: link },
 						}),
 					catch: (cause) => cause,
 				}).pipe(
@@ -927,10 +983,7 @@ export const getInvitationLinkFn = createServerFn({ method: "POST" })
 	.handler(({ data }) =>
 		run(
 			Effect.gen(function* () {
-				yield* requireAdmin(
-					data.organizationId,
-					"Only owners and admins can invite people",
-				);
+				yield* requireAdmin(data.organizationId, "onlyAdminsInvite");
 				const database = yield* Database;
 				const [row] = yield* database.query((db) =>
 					db
@@ -945,11 +998,7 @@ export const getInvitationLinkFn = createServerFn({ method: "POST" })
 							),
 						),
 				);
-				if (!row)
-					return yield* new NotFound({
-						message:
-							"This invitation was used, canceled or has expired. Create a new one.",
-					});
+				if (!row) return yield* new NotFound(localized("invitationGone"));
 				return { email: row.email, link: invitationLink(row.email, row.id) };
 			}),
 		),
@@ -960,10 +1009,7 @@ export const revokeInvitationFn = createServerFn({ method: "POST" })
 	.handler(({ data }) =>
 		run(
 			Effect.gen(function* () {
-				yield* requireAdmin(
-					data.organizationId,
-					"Only owners and admins can invite people",
-				);
+				yield* requireAdmin(data.organizationId, "onlyAdminsInvite");
 				const database = yield* Database;
 				yield* database.query((db) =>
 					db
@@ -1032,9 +1078,7 @@ export const createTokenFn = createServerFn({ method: "POST" })
 			Effect.gen(function* () {
 				const p = yield* principal();
 				if (p.kind !== "user")
-					return yield* new InvalidInput({
-						message: "Only members can create tokens",
-					});
+					return yield* new InvalidInput(localized("onlyMembersCreateTokens"));
 				yield* (yield* Access).requireOrganization(p, data.organizationId);
 				const database = yield* Database;
 				const generated = generateToken();
@@ -1077,10 +1121,7 @@ export const revokeTokenFn = createServerFn({ method: "POST" })
 				// Members revoke their own tokens; someone else's cuts off an
 				// agent they do not run, which is for owners and admins.
 				if (p.kind !== "user" || token.createdById !== p.userId) {
-					yield* requireAdmin(
-						data.organizationId,
-						"Only owners and admins can revoke someone else's token",
-					);
+					yield* requireAdmin(data.organizationId, "onlyAdminsRevokeToken");
 				}
 				yield* database.query((db) =>
 					db
@@ -1287,9 +1328,9 @@ export const deleteProjectFn = createServerFn({ method: "POST" })
 			Effect.gen(function* () {
 				const row = yield* requireProjectAdmin(data.projectId);
 				if (data.confirmName.trim() !== row.name) {
-					return yield* new InvalidInput({
-						message: `Type the project's name, “${row.name}”, to confirm.`,
-					});
+					return yield* new InvalidInput(
+						localized("confirmProjectName", { name: row.name }),
+					);
 				}
 				const lifecycle = yield* DataLifecycle;
 				yield* lifecycle.deleteProject(row.id);
@@ -1407,27 +1448,36 @@ const voterKey = (create: boolean) => {
 	return key;
 };
 
+/** The portal page's language (its address's), sent by the page. */
+const portalLocale = z.enum(LOCALES).optional();
+
+/** Errors in the page's language rather than the browser's. */
+const pageLocale = (data: { locale?: Locale }) =>
+	data.locale ? { locale: () => data.locale as Locale } : undefined;
+
 const portalLimit = () => {
 	const limit = limitPortal(clientIp());
 	return limit.ok
 		? Effect.void
-		: Effect.fail(
-				new InvalidInput({
-					message: "Too many actions. Try again in a few minutes.",
-				}),
-			);
+		: Effect.fail(new InvalidInput(localized("tooManyActions")));
 };
 
 export const getPortalFn = createServerFn({ method: "GET" })
 	.validator(z.object({ slug: z.string() }))
 	.handler(({ data }) =>
-		run(Portal.use((portal) => portal.get(data.slug, voterKey(false)))),
+		runPublic(Portal.use((portal) => portal.get(data.slug, voterKey(false)))),
 	);
 
 export const portalVoteFn = createServerFn({ method: "POST" })
-	.validator(z.object({ slug: z.string(), number: z.number().int() }))
+	.validator(
+		z.object({
+			slug: z.string(),
+			number: z.number().int(),
+			locale: portalLocale,
+		}),
+	)
 	.handler(({ data }) =>
-		run(
+		runPublic(
 			Effect.gen(function* () {
 				yield* portalLimit();
 				const portal = yield* Portal;
@@ -1437,6 +1487,7 @@ export const portalVoteFn = createServerFn({ method: "POST" })
 					voterKey(true) as string,
 				);
 			}),
+			pageLocale(data),
 		),
 	);
 
@@ -1446,18 +1497,26 @@ export const portalNotifyFn = createServerFn({ method: "POST" })
 			slug: z.string(),
 			number: z.number().int(),
 			email: z.string().email(),
+			locale: portalLocale,
 		}),
 	)
 	.handler(({ data }) =>
-		run(
+		runPublic(
 			Effect.gen(function* () {
 				yield* portalLimit();
 				const key = voterKey(false);
-				if (!key) return yield* new InvalidInput({ message: "Vote first" });
+				if (!key) return yield* new InvalidInput(localized("voteFirst"));
 				const portal = yield* Portal;
-				yield* portal.setVoteEmail(data.slug, data.number, key, data.email);
+				yield* portal.setVoteEmail(
+					data.slug,
+					data.number,
+					key,
+					data.email,
+					data.locale ?? visitorLocale(getRequest().headers),
+				);
 				return { ok: true };
 			}),
+			pageLocale(data),
 		),
 	);
 
@@ -1468,10 +1527,11 @@ export const portalSuggestFn = createServerFn({ method: "POST" })
 			title: z.string().trim().min(4).max(140),
 			description: z.string().trim().max(4000).optional(),
 			email: z.string().email().optional().or(z.literal("")),
+			locale: portalLocale,
 		}),
 	)
 	.handler(({ data }) =>
-		run(
+		runPublic(
 			Effect.gen(function* () {
 				yield* portalLimit();
 				const portal = yield* Portal;
@@ -1481,10 +1541,12 @@ export const portalSuggestFn = createServerFn({ method: "POST" })
 						title: data.title,
 						description: data.description,
 						email: data.email || undefined,
+						locale: data.locale ?? visitorLocale(getRequest().headers),
 					},
 					voterKey(true) as string,
 				);
 			}),
+			pageLocale(data),
 		),
 	);
 
@@ -1494,11 +1556,7 @@ const reporterLimit = (write: boolean) => {
 	const limit = limitReporter(clientIp(), write);
 	return limit.ok
 		? Effect.void
-		: Effect.fail(
-				new InvalidInput({
-					message: "Too many messages. Try again in a few minutes.",
-				}),
-			);
+		: Effect.fail(new InvalidInput(localized("tooManyMessages")));
 };
 
 const tokenSchema = z.string().max(300);
@@ -1506,7 +1564,7 @@ const tokenSchema = z.string().max(300);
 export const getThreadLinkFn = createServerFn({ method: "GET" })
 	.validator(z.object({ token: tokenSchema }))
 	.handler(({ data }) =>
-		run(
+		runPublic(
 			Effect.gen(function* () {
 				yield* reporterLimit(false);
 				const conversations = yield* Conversations;
@@ -1518,7 +1576,7 @@ export const getThreadLinkFn = createServerFn({ method: "GET" })
 export const markThreadLinkReadFn = createServerFn({ method: "POST" })
 	.validator(z.object({ token: tokenSchema }))
 	.handler(({ data }) =>
-		run(
+		runPublic(
 			Effect.gen(function* () {
 				yield* reporterLimit(false);
 				const conversations = yield* Conversations;
@@ -1533,7 +1591,7 @@ export const replyThreadLinkFn = createServerFn({ method: "POST" })
 		z.object({ token: tokenSchema, body: z.string().min(1).max(5000) }),
 	)
 	.handler(({ data }) =>
-		run(
+		runPublic(
 			Effect.gen(function* () {
 				yield* reporterLimit(true);
 				const conversations = yield* Conversations;
@@ -1550,9 +1608,7 @@ const signedInPerson = () =>
 			p.kind === "user"
 				? Effect.succeed(p)
 				: Effect.fail(
-						new InvalidInput({
-							message: "Only people have notification settings",
-						}),
+						new InvalidInput(localized("onlyPeopleHaveNotificationSettings")),
 					),
 		),
 	);
@@ -1587,13 +1643,13 @@ export const updateNotificationSettingFn = createServerFn({ method: "POST" })
 export const getUnsubscribeFn = createServerFn({ method: "GET" })
 	.validator(z.object({ token: tokenSchema }))
 	.handler(({ data }) =>
-		run(
+		runPublic(
 			Effect.gen(function* () {
 				yield* reporterLimit(false);
 				const found = yield* (yield* Notifications).describeUnsubscribe(
 					data.token,
 				);
-				if (!found) return yield* new NotFound({ message: "Unknown link" });
+				if (!found) return yield* new NotFound(localized("unknownLink"));
 				return found;
 			}),
 		),
@@ -1602,11 +1658,11 @@ export const getUnsubscribeFn = createServerFn({ method: "GET" })
 export const unsubscribeFn = createServerFn({ method: "POST" })
 	.validator(z.object({ token: tokenSchema }))
 	.handler(({ data }) =>
-		run(
+		runPublic(
 			Effect.gen(function* () {
 				yield* reporterLimit(true);
 				const done = yield* (yield* Notifications).unsubscribe(data.token);
-				if (!done) return yield* new NotFound({ message: "Unknown link" });
+				if (!done) return yield* new NotFound(localized("unknownLink"));
 				return { ok: true };
 			}),
 		),
@@ -1669,7 +1725,7 @@ export const revokeOAuthAppFn = createServerFn({ method: "POST" })
 			Effect.gen(function* () {
 				const p = yield* principal();
 				if (p.kind !== "user")
-					return yield* new InvalidInput({ message: "Sign in first" });
+					return yield* new InvalidInput(localized("signInFirst"));
 				const database = yield* Database;
 				yield* database.transaction(async (tx) => {
 					const mine = and(

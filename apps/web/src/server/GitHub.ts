@@ -6,7 +6,7 @@ import { issue, project } from "#/db/schema";
 import type { IssueStatus } from "#/shared/issues";
 import type { Actor } from "./Access";
 import { Database } from "./Database";
-import { type DbError, NotFound } from "./errors";
+import { type DbError, localized, NotFound } from "./errors";
 import { type IssuePatch, Issues } from "./Issues";
 
 /** Changes made from GitHub deliveries are recorded under this name. */
@@ -134,7 +134,7 @@ export class GitHub extends Context.Service<
 						.from(project)
 						.where(eq(project.id, projectId)),
 				);
-				if (!row) return yield* new NotFound({ message: "Project not found" });
+				if (!row) return yield* new NotFound(localized("projectNotFound"));
 				return {
 					...row,
 					lastDeliveryAt: row.lastDeliveryAt?.toISOString() ?? null,

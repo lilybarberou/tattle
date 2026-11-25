@@ -14,6 +14,7 @@ import {
 	DialogDescription,
 	DialogTitle,
 } from "#/components/ui/dialog";
+import { useI18n } from "#/i18n/react";
 import { searchIssuesFn } from "#/server/fns";
 import type { IssueDto } from "#/server/Issues";
 import { IssueNumber, StatusIcon } from "./issue-meta";
@@ -33,6 +34,8 @@ export function MergeDialog({
 	onClose: () => void;
 	onMerge: (originalNumber: number) => void;
 }) {
+	const { m } = useI18n();
+	const t = m.triage.mergeDialog;
 	const [query, setQuery] = useState("");
 	const [debounced, setDebounced] = useState("");
 	// Start from an empty search each time another issue is being merged.
@@ -61,25 +64,22 @@ export function MergeDialog({
 			>
 				<div className="px-4 pt-4 pb-2">
 					<DialogTitle className="text-base font-semibold">
-						Merge #{issue?.number} into…
+						{t.title(issue?.number)}
 					</DialogTitle>
 					<DialogDescription className="mt-1">
-						Its reports move to the issue you pick, so you keep everyone who hit
-						the problem.
+						{t.description}
 					</DialogDescription>
 				</div>
 				<Command shouldFilter={false}>
 					<CommandInput
-						placeholder="Search by words or #number"
+						placeholder={t.placeholder}
 						value={query}
 						onValueChange={setQuery}
 					/>
 					<CommandList className="max-h-80">
-						<CommandEmpty>
-							{isFetching ? "Searching…" : "No similar issue. Try other words."}
-						</CommandEmpty>
+						<CommandEmpty>{isFetching ? t.searching : t.noResult}</CommandEmpty>
 						{results.length > 0 && (
-							<CommandGroup heading={debounced ? "Results" : "Similar issues"}>
+							<CommandGroup heading={debounced ? t.results : t.similar}>
 								{results.map((candidate) => (
 									<CommandItem
 										key={candidate.id}
@@ -90,8 +90,7 @@ export function MergeDialog({
 										<IssueNumber number={candidate.number} className="w-10" />
 										<span className="flex-1 truncate">{candidate.title}</span>
 										<span className="num text-xs text-muted-foreground">
-											{candidate.reportCount}{" "}
-											{candidate.reportCount === 1 ? "report" : "reports"}
+											{m.common.reports(candidate.reportCount)}
 										</span>
 									</CommandItem>
 								))}

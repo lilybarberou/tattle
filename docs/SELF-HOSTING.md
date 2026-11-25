@@ -138,8 +138,8 @@ Caddy gets a free certificate (Let's Encrypt) and renews it on its own, and comp
 
 Any proxy works if it:
 
-- **forwards to `127.0.0.1:3000`** with the usual `Host`, `X-Forwarded-For` and
-  `X-Forwarded-Proto` headers;
+- **forwards to `127.0.0.1:3000`** every path, including `/fr/…` (the French public pages), with
+  the usual `Host`, `X-Forwarded-For` and `X-Forwarded-Proto` headers;
 - **accepts request bodies of up to 12 MB** (a report with its screenshot);
 - **compresses responses**, ideally: Tattle compresses its static files itself (Brotli or gzip,
   with `Vary: Accept-Encoding`), not its pages. In nginx, `gzip on;` with
@@ -235,16 +235,19 @@ After that, sign-up is closed: invite your teammates from **Members** (set
 
 Then create your first project. Its page shows the widget snippet.
 
+Tattle is in English and French and follows your browser's language. Each person can pick
+another one under their name → **Language**.
+
 ## 7. Connect your apps and agents
 
 | What | Where | How |
 | --- | --- | --- |
 | **The widget** | Project settings → *Install the widget* | Paste the `<script>` tag into your app, then call `Tattle.identify({ id, email, name })` after sign-in. List your app's address under *Allowed sites* before going live. |
 | **An AI agent (MCP)** | Agents & API | `claude mcp add --transport http tattle https://your-domain/api/mcp`: the agent opens a browser to sign in and asks you to approve. Agents without a browser use an API token instead. |
-| **Discord or Slack** | Project settings → *Discord and Slack* | Paste a channel's webhook URL. New reports, status changes and comments appear there. |
+| **Discord or Slack** | Project settings → *Discord and Slack* | Paste a channel's webhook URL. New reports, status changes and comments appear there, in the language chosen there (English or French). |
 | **Your own server** | Project settings → *Webhooks* | Signed JSON events, retried if your server is down. See the [README](../README.md#webhooks). |
 | **GitHub** | Project settings → *GitHub* | Turn it on, then add a webhook to your repository with the address and secret shown there (Pull requests events only). Merged pull requests move their issues to Done. GitHub must be able to reach your server. |
-| **A public feature request page** | Project settings → *Public feature requests* | Turn it on and pick an address: `https://your-domain/portal/<name>`. |
+| **A public feature request page** | Project settings → *Public feature requests* | Turn it on and pick an address: `https://your-domain/portal/<name>` in English, `https://your-domain/fr/portal/<name>` in French. |
 | **AI duplicate suggestions** (optional) | Agents & API → *Duplicate suggestions* | Paste an Anthropic, OpenAI or OpenAI-compatible (Mistral, OpenRouter, Ollama…) key. Off by default, and then nothing is sent anywhere. A model on this machine or your network (Ollama…) needs `ALLOW_PRIVATE_URLS=true`. The [README](../README.md#duplicate-suggestions) lists what is sent when it's on. |
 
 ## 8. Optional: email and S3
@@ -269,6 +272,11 @@ webhook stopped working. A daily triage digest lists the new issues waiting in T
 default for owners and admins. Each person changes theirs under their name → **Notifications**, and
 every email has a one-click unsubscribe link. The [README](../README.md#self-host) lists who gets
 what.
+
+**Languages.** Emails are in English or French, in their reader's language: a team member's
+choice under their name → **Language** (on Auto, the language of their browser), the inviter's for
+an invitation, and the reporter's device language for replies and the "shipped" notice. Nothing to
+set on the server. [TRANSLATING.md](TRANSLATING.md) has the details.
 
 **S3.** Screenshots are stored in the `storage` volume by default. To keep them in a bucket
 instead (AWS S3, Cloudflare R2, Scaleway, OVH, Backblaze…), set `STORAGE_DRIVER=s3` and the

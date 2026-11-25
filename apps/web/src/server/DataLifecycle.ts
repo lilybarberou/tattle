@@ -13,7 +13,7 @@ import {
 import type { Actor } from "./Access";
 import { errorKind } from "./background";
 import { Database } from "./Database";
-import { type DbError, NotFound, type StorageError } from "./errors";
+import { type DbError, localized, NotFound, type StorageError } from "./errors";
 import { Storage } from "./Storage";
 
 export type ReporterMatch = {
@@ -108,7 +108,7 @@ export class DataLifecycle extends Context.Service<
 							and(eq(report.projectId, projectId), eq(report.id, reportId)),
 						),
 				);
-				if (!row) return yield* new NotFound({ message: "Report not found" });
+				if (!row) return yield* new NotFound(localized("reportNotFound"));
 				if (row.screenshotKey) yield* storage.remove([row.screenshotKey]);
 				yield* database.query((db) =>
 					db.delete(report).where(eq(report.id, reportId)),
@@ -140,7 +140,9 @@ export class DataLifecycle extends Context.Service<
 						),
 				);
 				if (!row)
-					return yield* new NotFound({ message: `Issue #${number} not found` });
+					return yield* new NotFound(
+						localized("issueNumberNotFound", { number }),
+					);
 				const reports = yield* database.query((db) =>
 					db
 						.select({ id: report.id, key: report.screenshotKey })

@@ -1,0 +1,95 @@
+import type { app as en } from "../en/app";
+
+export const app: typeof en = {
+	nav: {
+		newIssue: "Nouveau ticket",
+		newIssueShortcut: "Nouveau ticket (C)",
+		projects: "Projets",
+		newProject: "Nouveau projet",
+		projectNav: "Projet",
+		workspaceNav: "Espace de travail",
+		triage: "Triage",
+		issues: "Tickets",
+		requests: "Demandes",
+		overview: "Vue d'ensemble",
+		projectSettings: "Paramètres du projet",
+		members: "Membres",
+		agents: "Agents et API",
+		privacy: "Confidentialité",
+		notifications: "Notifications",
+		signOut: "Se déconnecter",
+		version: (version) => `Tattle ${version}`,
+		skipToContent: "Aller au contenu",
+		sidebar: "Barre latérale",
+		openMenu: "Ouvrir le menu",
+		menu: "Menu",
+		menuDescription: "Projets et navigation",
+		searchPlaceholder: "Rechercher un ticket ou aller à…",
+		search: "Rechercher",
+		newShort: "Nouveau",
+	},
+	language: {
+		saveFailed: "La langue n'a pas été changée",
+	},
+	command: {
+		title: "Rechercher",
+		description: "Rechercher un ticket ou lancer une commande",
+		placeholder:
+			"Rechercher un ticket par mots ou par #numéro, ou taper une commande…",
+		empty: (query) => `Aucun résultat pour « ${query} ».`,
+		issues: "Tickets",
+		commands: "Commandes",
+		newIssue: "Nouveau ticket",
+		newFeature: "Nouvelle demande",
+		goTriage: "Aller au Triage",
+		goIssues: "Aller aux tickets",
+		goRequests: "Aller aux demandes",
+		goOverview: "Aller à la vue d'ensemble",
+		projectSettings: "Paramètres du projet",
+		agents: "Agents et API",
+	},
+	newIssue: {
+		newBug: "Nouveau bug",
+		newFeature: "Nouvelle demande",
+		description:
+			"Rédigez un ticket vous-même. Il ne passe pas par le Triage, sauf si vous choisissez ce statut.",
+		title: "Titre",
+		titlePlaceholder: "Titre du ticket",
+		descriptionLabel: "Description",
+		descriptionPlaceholder:
+			"Ajoutez une description : étapes pour reproduire, résultat attendu, liens…",
+		agentHint: (name) =>
+			`${name} reçoit un webhook issue.updated et peut s'en charger.`,
+		skipsTriage: "Les tickets que vous rédigez ne passent pas par le Triage.",
+		create: "Créer le ticket",
+		created: (number) => `#${number} créé`,
+		notCreated: "Le ticket n'a pas été créé",
+	},
+	markdown: {
+		write: "Écrire",
+		preview: "Aperçu",
+		supported: "Markdown accepté",
+		nothingToPreview: "Rien à afficher.",
+		image: "Image",
+	},
+	code: {
+		copy: "Copier",
+		copyLabel: (label) => `Copier : ${label}`,
+		copied: "Copié",
+	},
+	status: {
+		details: "Détails",
+		backHome: "Retour à Tattle",
+		notFoundTitle: "Cette page n'existe pas",
+		notFoundText:
+			"L'adresse est peut-être erronée, ou ce qu'elle affichait a été supprimé.",
+		errorTitle: "Cette page n'a pas pu se charger",
+		errorText:
+			"Une erreur est survenue pendant le chargement. Réessayez dans un instant.",
+	},
+	ui: {
+		close: "Fermer",
+		commandTitle: "Palette de commandes",
+		commandDescription: "Rechercher une commande à lancer…",
+	},
+};

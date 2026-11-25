@@ -2,9 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { PlusIcon } from "lucide-react";
 import * as z from "zod/mini";
 import { useAppActions } from "#/components/app-actions";
-import { STATUS_META, StatusIcon } from "#/components/issue-meta";
+import { StatusIcon } from "#/components/issue-meta";
 import { PageHeader } from "#/components/page-header";
 import { Button } from "#/components/ui/button";
+import { useI18n } from "#/i18n/react";
 import { lenient } from "#/lib/search-params";
 import { cn } from "#/lib/utils";
 import { listIssuesFn } from "#/server/fns";
@@ -33,6 +34,8 @@ export const Route = createFileRoute("/_app/p/$projectId/requests")({
 });
 
 function RequestsPage() {
+	const { m, number } = useI18n();
+	const t = m.triage.requests;
 	const requests = Route.useLoaderData();
 	const { projectId } = Route.useParams();
 	const { shipped } = Route.useSearch();
@@ -44,25 +47,30 @@ function RequestsPage() {
 	return (
 		<>
 			<PageHeader
-				title="Feature requests"
+				title={t.title}
 				description={
 					shipped
-						? `${requests.length} shipped.`
+						? t.shippedCount(requests.length)
 						: leader
-							? `${people} ${people === 1 ? "request" : "requests"} across ${requests.length} ideas. Most asked: “${leader.title}” (${leader.demand}).`
+							? t.summary(
+									people,
+									requests.length,
+									leader.title,
+									number(leader.demand),
+								)
 							: undefined
 				}
 				actions={
 					<Button onClick={() => newIssue({ type: "feature" })}>
 						<PlusIcon className="size-4" />
-						New request
+						{t.newRequest}
 					</Button>
 				}
 			>
-				<nav aria-label="Views" className="mt-4 flex gap-5 border-b">
+				<nav aria-label={t.views} className="mt-4 flex gap-5 border-b">
 					{[
-						{ label: "Most requested", shipped: undefined },
-						{ label: "Shipped", shipped: true },
+						{ label: t.mostRequested, shipped: undefined },
+						{ label: t.shipped, shipped: true },
 					].map((tab) => (
 						<Link
 							key={tab.label}
@@ -83,9 +91,7 @@ function RequestsPage() {
 
 			{requests.length === 0 ? (
 				<div className="m-6 rounded-lg border border-dashed px-5 py-4 text-muted-foreground">
-					{shipped
-						? "Nothing shipped yet. Requests you mark Done land here, so you can tell the people who asked."
-						: "No open requests. Users send ideas from the widget's “Suggest an idea” tab; similar ideas merged together add up here."}
+					{shipped ? t.emptyShipped : t.emptyOpen}
 				</div>
 			) : (
 				<ol className="max-w-4xl divide-y divide-rule px-6 py-2">
@@ -117,13 +123,13 @@ function RequestsPage() {
 								</span>
 								<span className="hidden items-center gap-1.5 text-muted-foreground sm:flex">
 									<StatusIcon status={request.status} />
-									{STATUS_META[request.status].label}
+									{m.common.status[request.status]}
 								</span>
 								<span className="num text-right">
-									<span className="font-medium">{request.demand}</span>
+									<span className="font-medium">{number(request.demand)}</span>
 									<span className="text-muted-foreground">
 										{" "}
-										{request.demand === 1 ? "person" : "people"}
+										{t.people(request.demand)}
 									</span>
 								</span>
 							</Link>

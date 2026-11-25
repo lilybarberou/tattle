@@ -64,6 +64,8 @@ export const project = pgTable(
 		// user ids with this secret (HMAC-SHA256) so the widget can show a
 		// person their reports on every device.
 		identitySecret: text("identity_secret"),
+		// The language of its Discord and Slack messages.
+		chatLocale: text("chat_locale").notNull().default("en"),
 		createdAt: createdAt(),
 	},
 	(t) => [uniqueIndex("project_org_slug_idx").on(t.organizationId, t.slug)],
@@ -222,6 +224,9 @@ export const report = pgTable(
 		// The reporter used "Stop emails about this report": no more replies
 		// or "shipped" notice by email. The widget still shows everything.
 		emailsStoppedAt: timestamp("emails_stopped_at"),
+		// The reporter's language ("en", "fr"), from the device's: the team's
+		// replies and the "shipped" notice are emailed in it. Null: English.
+		locale: text("locale"),
 		createdAt: createdAt(),
 	},
 	(t) => [
@@ -303,6 +308,8 @@ export const issueVote = pgTable(
 			.references(() => issue.id, { onDelete: "cascade" }),
 		voterKey: text("voter_key").notNull(),
 		email: text("email"),
+		// The visitor's language when they left their email (Accept-Language).
+		locale: text("locale"),
 		createdAt: createdAt(),
 	},
 	(t) => [uniqueIndex("issue_vote_voter_idx").on(t.issueId, t.voterKey)],

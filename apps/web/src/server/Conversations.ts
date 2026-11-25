@@ -3,6 +3,7 @@ import { and, asc, desc, eq, isNull, ne, or, type SQL, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { Context, Effect, Layer } from "effect";
 import { issue, project, report, reportMessage } from "#/db/schema";
+import { DEFAULT_LOCALE, messages, normalizeLocale } from "#/i18n";
 import {
 	MAX_MESSAGE_LENGTH,
 	type ReporterStatus,
@@ -12,7 +13,7 @@ import type { Actor } from "./Access";
 import { errorKind, inBackground } from "./background";
 import { Database } from "./Database";
 import { env } from "./env";
-import { type DbError, InvalidInput, NotFound } from "./errors";
+import { type DbError, InvalidInput, localized, NotFound } from "./errors";
 import { originAllowed } from "./Ingest";
 import {
 	issueDto,
@@ -133,17 +134,17 @@ const original = alias(issue, "original_issue");
 const cleanBody = (body: string) => {
 	const text = body.trim();
 	if (!text)
-		return Effect.fail(new InvalidInput({ message: "Write a message first" }));
+		return Effect.fail(new InvalidInput(localized("writeMessageFirst")));
 	if (text.length > MAX_MESSAGE_LENGTH)
 		return Effect.fail(
-			new InvalidInput({
-				message: `Messages are limited to ${MAX_MESSAGE_LENGTH} characters`,
-			}),
+			new InvalidInput(
+				localized("messageTooLong", { max: MAX_MESSAGE_LENGTH }),
+			),
 		);
 	return Effect.succeed(text);
 };
 
-const notFound = () => new NotFound({ message: "Report not found" });
+const notFound = () => new NotFound(localized("reportNotFound"));
 
 /**
  * Conversations between the team and the people who sent reports. Reporters
@@ -225,12 +226,9 @@ export class Conversations extends Context.Service<
 						.from(project)
 						.where(eq(project.publicKey, auth.projectKey)),
 				);
-				if (!row)
-					return yield* new NotFound({ message: "Unknown project key" });
+				if (!row) return yield* new NotFound(localized("unknownProjectKey"));
 				if (!originAllowed(row.allowedOrigins, auth.origin))
-					return yield* new InvalidInput({
-						message: "This origin is not allowed for this project",
-					});
+					return yield* new InvalidInput(localized("originNotAllowed"));
 				const keyHash =
 					auth.reporterKey && REPORTER_KEY_PATTERN.test(auth.reporterKey)
 						? hashReporterKey(auth.reporterKey)
@@ -397,9 +395,7 @@ export class Conversations extends Context.Service<
 						.returning(),
 				);
 				if (!created)
-					return yield* new InvalidInput({
-						message: "The message could not be saved",
-					});
+					return yield* new InvalidInput(localized("messageNotSaved"));
 				yield* touchIssue(row.report.issueId);
 				const dto = messageDto(created);
 				yield* webhooks.emit(row.report.projectId, "message.created", {
@@ -491,6 +487,8 @@ export class Conversations extends Context.Service<
 					expired: false as const,
 					project: p?.name ?? "",
 					thread: yield* threadOf(row),
+					// The page's language when the visitor's browser gives none.
+					defaultLocale: normalizeLocale(row.report.locale),
 				};
 			});
 
@@ -500,7 +498,7 @@ export class Conversations extends Context.Service<
 			) {
 				const row = yield* fromLink(token);
 				if (row === "expired")
-					return yield* new InvalidInput({ message: "This link has expired" });
+					return yield* new InvalidInput(localized("linkExpired"));
 				return yield* postAsReporter(row, body);
 			});
 
@@ -528,18 +526,28 @@ export class Conversations extends Context.Service<
 							.from(project)
 							.where(eq(project.id, row.report.projectId)),
 					);
-					const name = row.report.reporter?.name;
+					// In the reporter's language, from their device; English when unknown.
+					const locale = normalizeLocale(row.report.locale) ?? DEFAULT_LOCALE;
+					const { emails } = messages(locale);
 					const title = titleFromMessage(row.report.message);
 					yield* Effect.tryPromise(() =>
 						sendMail({
 							to,
-							subject: `Re: ${title}`,
-							text: `Hi${name ? ` ${name}` : ""},\n\n${actor.name} from ${p?.name ?? "the team"} replied to your report:\n\n${body}\n\nYou wrote: “${title}”`,
+							locale,
+							subject: emails.reply.subject(title),
+							text: `${emails.greeting(row.report.reporter?.name)}\n\n${emails.reply.text(
+								{
+									actor: actor.name,
+									project: p?.name ?? emails.reply.teamFallback,
+									body,
+									title,
+								},
+							)}`,
 							action: {
-								label: "Read and reply",
+								label: emails.reply.action,
 								url: threadLinkUrl(signThreadLink(row.report.id)),
 							},
-							...reporterUnsubscribe(row.report.id),
+							...reporterUnsubscribe(row.report.id, locale),
 						}),
 					);
 				},
@@ -558,9 +566,7 @@ export class Conversations extends Context.Service<
 				actor: Actor,
 			) {
 				if (actor.type === "system")
-					return yield* new InvalidInput({
-						message: "Only people and agents can reply",
-					});
+					return yield* new InvalidInput(localized("onlyPeopleAndAgentsReply"));
 				const text = yield* cleanBody(body);
 				const row = yield* findReport(
 					eq(report.projectId, projectId),

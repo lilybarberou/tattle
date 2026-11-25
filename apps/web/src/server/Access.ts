@@ -11,7 +11,14 @@ import {
 } from "#/db/schema";
 import { auth } from "#/lib/auth";
 import { Database } from "./Database";
-import { DbError, Forbidden, NotFound, Unauthorized } from "./errors";
+import {
+	DbError,
+	type ErrorKey,
+	Forbidden,
+	localized,
+	NotFound,
+	Unauthorized,
+} from "./errors";
 
 export const TOKEN_PREFIX = "tat_";
 
@@ -95,7 +102,8 @@ export class Access extends Context.Service<
 		readonly requireAdmin: (
 			principal: Principal,
 			organizationId: string,
-			message?: string,
+			/** What the person is told; "Only owners and admins can do this" by default. */
+			key?: ErrorKey,
 		) => Effect.Effect<void, Forbidden | DbError>;
 	}
 >()("tattle/server/Access") {
@@ -118,8 +126,7 @@ export class Access extends Context.Service<
 							),
 						),
 				);
-				if (!row)
-					return yield* new Unauthorized({ message: "Invalid API token" });
+				if (!row) return yield* new Unauthorized(localized("invalidApiToken"));
 				yield* database
 					.query((db) =>
 						db
@@ -146,7 +153,7 @@ export class Access extends Context.Service<
 						.from(user)
 						.where(eq(user.id, userId)),
 				);
-				if (!row) return yield* new Unauthorized({ message: "Unknown user" });
+				if (!row) return yield* new Unauthorized(localized("unknownUser"));
 				const memberships = yield* database.query((db) =>
 					db
 						.select({ organizationId: member.organizationId })
@@ -182,9 +189,7 @@ export class Access extends Context.Service<
 						),
 				);
 				if (!consent) {
-					return yield* new Unauthorized({
-						message: "This app was disconnected",
-					});
+					return yield* new Unauthorized(localized("appDisconnected"));
 				}
 				return yield* fromUserId(userId);
 			});
@@ -196,8 +201,7 @@ export class Access extends Context.Service<
 					try: () => auth.api.getSession({ headers }),
 					catch: (cause) => new DbError({ cause }),
 				});
-				if (!session)
-					return yield* new Unauthorized({ message: "Not signed in" });
+				if (!session) return yield* new Unauthorized(localized("notSignedIn"));
 
 				const memberships = yield* database.query((db) =>
 					db
@@ -218,7 +222,7 @@ export class Access extends Context.Service<
 				projectId: string,
 			) {
 				if (principal.organizationIds.length === 0) {
-					return yield* new NotFound({ message: "Project not found" });
+					return yield* new NotFound(localized("projectNotFound"));
 				}
 				const [row] = yield* database.query((db) =>
 					db
@@ -231,15 +235,13 @@ export class Access extends Context.Service<
 							),
 						),
 				);
-				if (!row) return yield* new NotFound({ message: "Project not found" });
+				if (!row) return yield* new NotFound(localized("projectNotFound"));
 				return row;
 			});
 
 			const requireWrite = (principal: Principal) =>
 				principal.kind === "token" && !principal.canWrite
-					? Effect.fail(
-							new Forbidden({ message: "This API token is read-only" }),
-						)
+					? Effect.fail(new Forbidden(localized("tokenReadOnly")))
 					: Effect.void;
 
 			const requireOrganization = (
@@ -248,16 +250,15 @@ export class Access extends Context.Service<
 			) =>
 				principal.organizationIds.includes(organizationId)
 					? Effect.void
-					: Effect.fail(
-							new Forbidden({ message: "Not a member of this organization" }),
-						);
+					: Effect.fail(new Forbidden(localized("notAMember")));
 
 			const requireAdmin = Effect.fn("Access.requireAdmin")(function* (
 				principal: Principal,
 				organizationId: string,
-				message = "Only owners and admins can do this",
+				key: ErrorKey = "onlyAdmins",
 			) {
-				if (principal.kind !== "user") return yield* new Forbidden({ message });
+				if (principal.kind !== "user")
+					return yield* new Forbidden(localized(key));
 				const [row] = yield* database.query((db) =>
 					db
 						.select({ role: member.role })
@@ -270,7 +271,7 @@ export class Access extends Context.Service<
 						),
 				);
 				if (!row || !["owner", "admin"].includes(row.role))
-					return yield* new Forbidden({ message });
+					return yield* new Forbidden(localized(key));
 			});
 
 			return Access.of({

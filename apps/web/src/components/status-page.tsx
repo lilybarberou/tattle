@@ -1,6 +1,7 @@
 import { Link, useMatch, useRouter } from "@tanstack/react-router";
 import { BrandMark } from "#/components/brand";
 import { Button } from "#/components/ui/button";
+import { useI18n } from "#/i18n/react";
 
 /**
  * True when this replaces a page inside the dashboard: the sidebar and its
@@ -28,6 +29,7 @@ function StatusPage({
 	children?: React.ReactNode;
 }) {
 	const inApp = useInApp();
+	const { m } = useI18n();
 	const body = (
 		<div className="w-full max-w-md space-y-3 text-center">
 			{!inApp && <BrandMark className="mx-auto size-6" />}
@@ -35,7 +37,9 @@ function StatusPage({
 			<p className="text-pretty text-muted-foreground">{text}</p>
 			{details && (
 				<details className="text-left text-xs text-muted-foreground">
-					<summary className="cursor-pointer text-center">Details</summary>
+					<summary className="cursor-pointer text-center">
+						{m.app.status.details}
+					</summary>
 					<pre
 						// biome-ignore lint/a11y/noNoninteractiveTabindex: it scrolls when long
 						tabIndex={0}
@@ -48,7 +52,7 @@ function StatusPage({
 			<div className="flex flex-wrap justify-center gap-2 pt-2">
 				{children}
 				<Button asChild variant={children ? "outline" : "default"}>
-					<Link to="/">Back to Tattle</Link>
+					<Link to="/">{m.app.status.backHome}</Link>
 				</Button>
 			</div>
 		</div>
@@ -67,26 +71,28 @@ function StatusPage({
 }
 
 export function NotFoundPage() {
+	const { m } = useI18n();
 	return (
 		<StatusPage
-			title="This page doesn't exist"
-			text="The address may be wrong, or what it showed was deleted."
+			title={m.app.status.notFoundTitle}
+			text={m.app.status.notFoundText}
 		/>
 	);
 }
 
 export function ErrorPage({ error }: { error: unknown }) {
 	const router = useRouter();
+	const { m } = useI18n();
 	const message = error instanceof Error ? error.message : "";
 	return (
 		<StatusPage
-			title="This page couldn't load"
-			text="Something went wrong while loading it. Try again in a moment."
-			details={
-				message && message !== "Internal server error" ? message : undefined
-			}
+			title={m.app.status.errorTitle}
+			text={m.app.status.errorText}
+			details={message && message !== m.errors.internal ? message : undefined}
 		>
-			<Button onClick={() => router.invalidate()}>Try again</Button>
+			<Button onClick={() => router.invalidate()}>
+				{m.common.actions.retry}
+			</Button>
 		</StatusPage>
 	);
 }
