@@ -12,7 +12,7 @@ import type {
 	TattleUser,
 } from "./types";
 
-export const SDK_NAME = "@tattle/widget";
+export const SDK_NAME = "@tattlehq/widget";
 export const SDK_VERSION = "0.1.0";
 export const MAX_MESSAGE_LENGTH = 5000;
 

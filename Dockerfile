@@ -11,7 +11,7 @@ COPY apps/web/package.json apps/web/
 COPY packages/widget/package.json packages/widget/
 RUN pnpm install --frozen-lockfile
 COPY . .
-RUN pnpm --filter @tattle/widget build \
+RUN pnpm --filter @tattlehq/widget build \
  && pnpm --filter web build \
  && pnpm --filter web build:migrate
 

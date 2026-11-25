@@ -56,10 +56,10 @@ jobs:
         run: pnpm typecheck
 
       - name: Build widget
-        run: pnpm --filter @tattle/widget build
+        run: pnpm --filter @tattlehq/widget build
 
       - name: Build React Native SDK
-        run: pnpm --filter @tattle/react-native build
+        run: pnpm --filter @tattlehq/react-native build
 
       - name: Test
         run: pnpm test

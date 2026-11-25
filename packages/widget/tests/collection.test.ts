@@ -132,7 +132,7 @@ describe("beforeSend", () => {
 		console: [{ level: "log", message: "hello", timestamp: 1 }],
 		network: [],
 		breadcrumbs: [],
-		sdk: { name: "@tattle/widget", version: "0.1.0" },
+		sdk: { name: "@tattlehq/widget", version: "0.1.0" },
 	});
 
 	it("sends the report as is without one", async () => {

@@ -1,6 +1,6 @@
 # Ingest API
 
-Every report reaches Tattle through one request: `POST /api/v1/ingest`. The web widget (`@tattle/widget`) and the React Native SDK (`@tattle/react-native`) both use it. Native iOS and Android apps, Flutter, desktop apps or a backend can send reports the same way.
+Every report reaches Tattle through one request: `POST /api/v1/ingest`. The web widget (`@tattlehq/widget`) and the React Native SDK (`@tattlehq/react-native`) both use it. Native iOS and Android apps, Flutter, desktop apps or a backend can send reports the same way.
 
 ## Request
 

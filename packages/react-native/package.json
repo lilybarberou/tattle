@@ -1,8 +1,15 @@
 {
-  "name": "@tattle/react-native",
+  "name": "@tattlehq/react-native",
   "version": "0.2.0",
   "description": "Bug report and feedback widget for React Native and Expo apps: annotated screenshot, console logs, network requests and device info.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lilybarberou/tattle.git",
+    "directory": "packages/react-native"
+  },
+  "homepage": "https://tattle.bylily.me",
+  "bugs": "https://github.com/lilybarberou/tattle/issues",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -74,5 +81,9 @@
     "react-native-view-shot": "6.2.1",
     "typescript": "^7.0.2",
     "vitest": "5.1.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

@@ -110,7 +110,7 @@ describe("buildPayload", () => {
 			screenshot: "data:image/jpeg;base64,AAAA",
 			reporter: { id: "u1", name: "Jo" },
 			context: { cart: 3 },
-			sdk: { name: "@tattle/react-native", version: "0.2.0" },
+			sdk: { name: "@tattlehq/react-native", version: "0.2.0" },
 		});
 		expect(bug.console.at(-1)).toMatchObject({
 			level: "warn",

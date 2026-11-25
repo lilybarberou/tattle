@@ -4,6 +4,12 @@ Versions follow [semver](https://semver.org/). While the version is 0.x, a minor
 
 The server accepts reports from every version listed here.
 
+## Unreleased
+
+### Action required
+
+- The package is renamed `@tattlehq/react-native` (it was `@tattle/react-native`), the name it will have on npm. In your app, replace the dependency and every `from "@tattle/react-native"` import. The tarball is now `tattlehq-react-native-<version>.tgz`. Reports now say `sdk.name: "@tattlehq/react-native"`; the server accepts both names.
+
 ## 0.2.0 (2026-11-17)
 
 No action required: existing apps keep working as they are after updating.

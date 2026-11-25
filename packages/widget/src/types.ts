@@ -232,7 +232,7 @@ export interface IngestPayload {
 	breadcrumbs: Breadcrumb[];
 	/** From `init({ release })`. */
 	release?: string;
-	sdk: { name: "@tattle/widget"; version: "0.1.0" };
+	sdk: { name: "@tattlehq/widget"; version: "0.1.0" };
 	/** This device's key, to follow the report in "My reports". */
 	reporterKey?: string;
 	/** `TattleUser.hash`, when the app gives one. */

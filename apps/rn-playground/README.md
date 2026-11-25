@@ -1,6 +1,6 @@
 # React Native playground
 
-A small Expo app to try `@tattle/react-native` (in [`packages/react-native`](../../packages/react-native)) without another app around it. It is the React Native counterpart of the web widget's demo (`pnpm --filter @tattle/widget demo`).
+A small Expo app to try `@tattlehq/react-native` (in [`packages/react-native`](../../packages/react-native)) without another app around it. It is the React Native counterpart of the web widget's demo (`pnpm --filter @tattlehq/widget demo`).
 
 It uses the SDK's TypeScript sources directly: save a file in `packages/react-native/src` and the app reloads with the change. No build, no package file.
 
@@ -67,7 +67,7 @@ Useful images to try: a phone screenshot (kept at its size), a large photo such 
 
 - `src/index.ts`: imports the SDK first, so it records logs and requests from the start.
 - `src/App.tsx`: the provider and the navigation.
-- `metro.config.js`: resolves `@tattle/react-native` to `packages/react-native/src`, and the SDK's imports (`react`, `react-native`, `react-native-svg`…) to this app's copies, as in an installed app. The SDK's own `react` is a test dependency of another version: bundling it too would break hooks.
+- `metro.config.js`: resolves `@tattlehq/react-native` to `packages/react-native/src`, and the SDK's imports (`react`, `react-native`, `react-native-svg`…) to this app's copies, as in an installed app. The SDK's own `react` is a test dependency of another version: bundling it too would break hooks.
 - `tsconfig.json`: the same mapping for TypeScript, so `pnpm typecheck` checks the app against the SDK's sources, without a build.
 
 The playground is a development tool: it is not published, and it is not part of the Docker image.
