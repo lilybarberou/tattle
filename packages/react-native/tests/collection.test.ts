@@ -55,7 +55,7 @@ describe("beforeSend", () => {
 			console: [],
 			network: [],
 			breadcrumbs: [],
-			sdk: { name: "@tattle/react-native", version: "0.1.0" },
+			sdk: { name: "@tattle/react-native", version: "0.2.0" },
 		}) as unknown as IngestPayload;
 
 	it("sends what it returns, from a copy, and keeps the project", async () => {

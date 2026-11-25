@@ -12,7 +12,7 @@ import type {
 } from "./types";
 
 export const SDK_NAME = "@tattle/react-native";
-export const SDK_VERSION = "0.1.0";
+export const SDK_VERSION = "0.2.0";
 export const MAX_MESSAGE_LENGTH = 5000;
 const REQUEST_TIMEOUT_MS = 30_000;
 
