@@ -166,6 +166,7 @@ OAuth discovery follows the MCP spec: `/.well-known/oauth-protected-resource/api
 | `search_issues` | Similar issues by keywords, to spot duplicates, optionally from one release |
 | `get_issue` | Issue, comments, activity (including regressions), the releases it was seen in, report summaries with their conversation, the open duplicate suggestion |
 | `get_report` | Full report: logs, device, account, a timeline of what the user did with errors and failed requests in between, the conversation, and the screenshot as an image |
+| `get_stats` | A project's aggregates over 1 to 365 days (30 by default): reports per day and type, Triage backlog and speed, resolution medians, who acts (people, agents, system), duplicates, regressions per release, SDK versions and releases still reporting, reporters waiting for an answer, failed webhooks, the last GitHub delivery. Counts, durations, versions and booleans only (read-only) |
 | `create_issue`, `update_issue`, `add_comment` | Write access (tokens can be read-only) |
 | `reply_to_reporter` | A message the reporter reads in the widget and by email (write access) |
 | `mark_duplicate` | Marks an issue as a duplicate; its reports move to the original (a done bug getting a newer report is reopened as a regression) |

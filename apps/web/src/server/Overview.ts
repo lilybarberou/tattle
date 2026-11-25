@@ -51,7 +51,63 @@ const utcDay = (date: Date) => date.toISOString().slice(0, 10);
 
 // Timestamps are stored without a time zone, in UTC. A bare Date parameter
 // would be sent in the server's local time, so cutoffs go as ISO strings.
-const at = (date: Date) => sql`${date.toISOString()}::timestamp`;
+export const at = (date: Date) => sql`${date.toISOString()}::timestamp`;
+
+export type Resolution = ProjectOverview["resolution"];
+
+/**
+ * How fast a project's issues get done, over the last 30 and 90 days. An
+ * issue is resolved when it last moved to Done (the activity log); issues
+ * created as Done have no such move and don't count. updated_at is at least
+ * the time of that move, so it prunes old issues before the per-issue
+ * activity lookup (index activity (issue_id, created_at)).
+ */
+export const resolutionOf = (
+	database: typeof Database.Service,
+	projectId: string,
+	now: Date,
+): Effect.Effect<Resolution, DbError> => {
+	const since30 = new Date(now.getTime() - 30 * DAY);
+	const since90 = new Date(now.getTime() - 90 * DAY);
+	return database
+		.query(async (db) => {
+			const duration = sql`extract(epoch from (done.at - ${issue.createdAt}))::float8`;
+			const result = await db.execute<{
+				resolved30: number;
+				resolved90: number;
+				median30: number | null;
+				median90: number | null;
+			}>(sql`
+				select
+					(count(*) filter (where done.at >= ${at(since30)}))::int as resolved30,
+					count(*)::int as resolved90,
+					(percentile_cont(0.5) within group (order by ${duration})
+						filter (where done.at >= ${at(since30)}))::float8 as median30,
+					(percentile_cont(0.5) within group (order by ${duration}))::float8 as median90
+				from ${issue}
+				cross join lateral (
+					select max(${activity.createdAt}) as at
+					from ${activity}
+					where ${activity.issueId} = ${issue.id}
+						and ${activity.action} = 'updated'
+						and ${activity.data} -> 'changes' -> 'status' ->> 'to' = 'done'
+				) as done
+				where ${issue.projectId} = ${projectId}
+					and ${issue.status} = 'done'
+					and ${issue.updatedAt} >= ${at(since90)} - interval '1 day'
+					and done.at >= ${at(since90)}
+			`);
+			return result.rows[0];
+		})
+		.pipe(
+			Effect.map((row) => ({
+				median30: row?.median30 ?? null,
+				median90: row?.median90 ?? null,
+				resolved30: row?.resolved30 ?? 0,
+				resolved90: row?.resolved90 ?? 0,
+			})),
+		);
+};
 
 export class Overview extends Context.Service<
 	Overview,
@@ -84,12 +140,10 @@ export class Overview extends Context.Service<
 				const previousStart = new Date(
 					chartStart.getTime() - OVERVIEW_DAYS * DAY,
 				);
-				const since30 = new Date(now.getTime() - 30 * DAY);
-				const since90 = new Date(now.getTime() - 90 * DAY);
 
 				// Each query reads one index: report (project_id, created_at),
 				// issue (project_id, status), activity (issue_id, created_at).
-				const [perDay, statusRows, topReported, topVoted, [resolution]] =
+				const [perDay, statusRows, topReported, topVoted, resolution] =
 					yield* Effect.all(
 						[
 							database.query((db) =>
@@ -164,39 +218,7 @@ export class Overview extends Context.Service<
 									.orderBy(desc(issue.voteCount), desc(issue.updatedAt))
 									.limit(5),
 							),
-							// An issue is resolved when it last moved to Done (the activity
-							// log); issues created as Done have no such move and don't count.
-							// updated_at is at least the time of that move, so it prunes old
-							// issues before the per-issue activity lookup.
-							database.query(async (db) => {
-								const duration = sql`extract(epoch from (done.at - ${issue.createdAt}))::float8`;
-								const result = await db.execute<{
-									resolved30: number;
-									resolved90: number;
-									median30: number | null;
-									median90: number | null;
-								}>(sql`
-									select
-										(count(*) filter (where done.at >= ${at(since30)}))::int as resolved30,
-										count(*)::int as resolved90,
-										(percentile_cont(0.5) within group (order by ${duration})
-											filter (where done.at >= ${at(since30)}))::float8 as median30,
-										(percentile_cont(0.5) within group (order by ${duration}))::float8 as median90
-									from ${issue}
-									cross join lateral (
-										select max(${activity.createdAt}) as at
-										from ${activity}
-										where ${activity.issueId} = ${issue.id}
-											and ${activity.action} = 'updated'
-											and ${activity.data} -> 'changes' -> 'status' ->> 'to' = 'done'
-									) as done
-									where ${issue.projectId} = ${projectId}
-										and ${issue.status} = 'done'
-										and ${issue.updatedAt} >= ${at(since90)} - interval '1 day'
-										and done.at >= ${at(since90)}
-								`);
-								return result.rows;
-							}),
+							resolutionOf(database, projectId, now),
 						],
 						{ concurrency: "unbounded" },
 					);
@@ -238,12 +260,7 @@ export class Overview extends Context.Service<
 					oldestTriageAt,
 					topReported,
 					topVoted,
-					resolution: {
-						median30: resolution?.median30 ?? null,
-						median90: resolution?.median90 ?? null,
-						resolved30: resolution?.resolved30 ?? 0,
-						resolved90: resolution?.resolved90 ?? 0,
-					},
+					resolution,
 				} satisfies ProjectOverview;
 			});
 
