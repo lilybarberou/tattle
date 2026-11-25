@@ -53,6 +53,16 @@
 	--sans:
 		"IBM Plex Sans", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
 	--mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+
+	/* The real feedback widget (components/feedback-widget.tsx) */
+	--tattle-accent: var(--accent);
+	--tattle-accent-text: var(--accent-ink);
+	--tattle-text: var(--ink);
+	--tattle-muted-text: var(--ui-muted);
+	--tattle-border: var(--ui-border);
+	--tattle-danger: var(--ui-negative);
+	--tattle-font-family: var(--sans);
+	--tattle-radius: var(--r);
 }
 
 *,
