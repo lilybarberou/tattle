@@ -284,6 +284,27 @@ describe("Ingest.submit", () => {
 		});
 	});
 
+	it("accepts reports from the SDKs under their old @tattle and new @tattlehq names", async () => {
+		// Apps that vendor an SDK from before the rename still send @tattle/….
+		const { project: p } = await createWorkspace();
+		for (const name of [
+			"@tattle/widget",
+			"@tattle/react-native",
+			"@tattlehq/widget",
+			"@tattlehq/react-native",
+		]) {
+			const result = await submit(
+				reportPayload(p.publicKey, { sdk: { name, version: "0.1.0" } }),
+				null,
+			);
+			const [saved] = await db
+				.select()
+				.from(report)
+				.where(eq(report.id, result.id));
+			expect(saved?.sdk).toEqual({ name, version: "0.1.0" });
+		}
+	});
+
 	it("accepts any origin when allowed origins is a wildcard", async () => {
 		const { project: p } = await createWorkspace({ allowedOrigins: ["*"] });
 		await expect(
